@@ -6,7 +6,7 @@ import { getCurrentUser } from "@/lib/api/auth";
 export const runtime = "nodejs";
 
 // 不需要认证的路径
-const publicPaths = ["/login", "/api/auth/login"];
+const publicPaths = ["/", "/login", "/api/auth/login", "/api/init"];
 
 // 需要管理员权限的路径前缀
 const adminPaths = ["/admin"];
@@ -22,6 +22,13 @@ export async function middleware(request: NextRequest) {
 
   // 如果是公共路径，直接放行
   if (publicPaths.some((path) => pathname.startsWith(path))) {
+    // 但对于已登录用户访问根路径，重定向到仪表盘
+    if (pathname === "/") {
+      const user = await getCurrentUser();
+      if (user) {
+        return NextResponse.redirect(new URL("/admin", request.url));
+      }
+    }
     return NextResponse.next();
   }
 

@@ -140,25 +140,25 @@
 
 ---
 
-## 阶段五：用户与学生管理 ⏳
+## 阶段五：用户与学生管理 ✅
 
 ### 5.1 用户管理
-- [ ] 用户列表接口（app/api/users/route.ts）
-- [ ] 用户详情接口（app/api/users/[id]/route.ts）
-- [ ] 用户服务层（lib/api/users.ts）
-- [ ] 用户管理页面（app/(dashboard)/admin/users/page.tsx）
-- [ ] 用户表单组件（components/admin/UserForm.tsx）
-- [ ] 用户表格组件（components/admin/UserTable.tsx）
+- [x] 用户列表接口（app/api/users/route.ts）
+- [x] 用户详情接口（app/api/users/[id]/route.ts）
+- [x] 用户服务层（lib/api/users.ts）
+- [x] 用户管理页面（app/(dashboard)/admin/users/page.tsx）
+- [x] 用户表单组件（components/admin/UserForm.tsx）
+- [x] 用户表格组件（components/admin/UserTable.tsx）
 
 ### 5.2 学生管理
-- [ ] 学生列表接口（app/api/students/route.ts）
-- [ ] 学生详情接口（app/api/students/[id]/route.ts）
-- [ ] 学生服务层（lib/api/students.ts）
-- [ ] 学生管理页面（app/(dashboard)/admin/students/page.tsx）
-- [ ] 学生详情页面（app/(dashboard)/admin/students/[id]/page.tsx）
-- [ ] 学生表单组件（components/admin/StudentForm.tsx）
-- [ ] 学生表格组件（components/admin/StudentTable.tsx）
-- [ ] 学生搜索/筛选功能
+- [x] 学生列表接口（app/api/students/route.ts）
+- [x] 学生详情接口（app/api/students/[id]/route.ts）
+- [x] 学生服务层（lib/api/students.ts）
+- [x] 学生管理页面（app/(dashboard)/admin/students/page.tsx）
+- [x] 学生详情页面（app/(dashboard)/admin/students/[id]/page.tsx）
+- [x] 学生表单组件（components/admin/StudentForm.tsx）
+- [x] 学生表格组件（components/admin/StudentTable.tsx）
+- [x] 学生搜索/筛选功能
 
 ---
 
@@ -368,13 +368,13 @@
 
 ---
 
-## 当前进度：25% 完成
+## 当前进度：35% 完成
 
 - ✅ 阶段一：项目初始化（100%）
 - ✅ 阶段二：基础框架搭建（80%）
 - ✅ 阶段三：认证系统（100%）
 - ✅ 阶段四：基础数据管理（100%）
-- ⏳ 阶段五：用户与学生管理（0%）
+- ✅ 阶段五：用户与学生管理（100%）
 - ⏳ 阶段六：请假功能（0%）
 - ⏳ 阶段七：退费管理（10%）
 - ⏳ 阶段八：导入导出功能（0%）

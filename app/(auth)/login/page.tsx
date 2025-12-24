@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,8 +10,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 
 function LoginForm() {
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") || "/";
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -37,8 +35,9 @@ function LoginForm() {
         return;
       }
 
-      // 登录成功，重定向
-      router.push(redirect);
+      // 登录成功，重定向到仪表盘
+      // 管理员默认到 /admin，其他用户也暂时到 /admin
+      router.push("/admin");
       router.refresh();
     } catch {
       setError("网络错误，请稍后重试");

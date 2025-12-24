@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
+import { hashPassword } from "@/lib/utils/crypto";
 
 // 数据库文件路径
 const DB_DIR = path.join(process.cwd(), "data");
@@ -187,15 +188,39 @@ export function initDatabase(): void {
 }
 
 /**
+ * 创建初始管理员用户
+ */
+export async function seedAdminUser(): Promise<void> {
+  const db = getDb();
+
+  // 检查是否已有用户
+  const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get() as { count: number };
+
+  if (userCount.count === 0) {
+    // 创建默认管理员账号
+    const passwordHash = await hashPassword("admin123");
+    db.prepare(
+      `INSERT INTO users (username, password_hash, real_name, role, is_active)
+       VALUES (?, ?, ?, ?, ?)`
+    ).run("admin", passwordHash, "系统管理员", "admin", 1);
+
+    console.log("Default admin user created: username=admin, password=admin123");
+  }
+}
+
+/**
  * 运行数据库迁移
  */
-export function runMigrations(): void {
+export async function runMigrations(): Promise<void> {
   // 这里可以添加数据库版本迁移逻辑
   // 目前只需初始化数据库
   initDatabase();
+
+  // 创建初始管理员用户
+  await seedAdminUser();
 }
 
 // 在开发环境中，当模块加载时自动初始化数据库
 if (process.env.NODE_ENV === "development") {
-  runMigrations();
+  runMigrations().catch(console.error);
 }
