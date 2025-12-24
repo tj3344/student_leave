@@ -33,7 +33,7 @@ import { ROLE_NAMES } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
 
 interface UserTableProps {
-  data: Omit<User, "password_hash">[];
+  data: Array<Omit<User, "password_hash"> & { class_id?: number; class_name?: string; grade_name?: string }>;
   onEdit: (user: Omit<User, "password_hash">) => void;
   onRefresh: () => void;
 }
@@ -140,6 +140,7 @@ export function UserTable({ data, onEdit, onRefresh }: UserTableProps) {
               <TableHead>用户名</TableHead>
               <TableHead>真实姓名</TableHead>
               <TableHead>角色</TableHead>
+              <TableHead>分配班级</TableHead>
               <TableHead>手机号</TableHead>
               <TableHead>邮箱</TableHead>
               <TableHead>状态</TableHead>
@@ -150,7 +151,7 @@ export function UserTable({ data, onEdit, onRefresh }: UserTableProps) {
           <TableBody>
             {data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
+                <TableCell colSpan={9} className="h-24 text-center">
                   暂无数据
                 </TableCell>
               </TableRow>
@@ -163,6 +164,18 @@ export function UserTable({ data, onEdit, onRefresh }: UserTableProps) {
                     <Badge variant={getRoleBadgeVariant(user.role)}>
                       {ROLE_NAMES[user.role]}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {(user.role === "teacher" || user.role === "class_teacher") && user.class_name ? (
+                      <div className="flex flex-col">
+                        <span className="font-medium">{user.class_name}</span>
+                        {user.grade_name && (
+                          <span className="text-xs text-muted-foreground">{user.grade_name}</span>
+                        )}
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
                   </TableCell>
                   <TableCell>{user.phone || "-"}</TableCell>
                   <TableCell>{user.email || "-"}</TableCell>

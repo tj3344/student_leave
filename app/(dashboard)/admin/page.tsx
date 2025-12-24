@@ -108,15 +108,6 @@ export default function AdminDashboardPage() {
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
-            <Link href="/admin/teachers">
-              <Button variant="outline" className="w-full justify-between">
-                <span className="flex items-center gap-2">
-                  <GraduationCap className="h-4 w-4" />
-                  教师管理
-                </span>
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
           </CardContent>
         </Card>
 

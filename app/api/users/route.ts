@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const role = searchParams.get("role") || "";
     const is_active = searchParams.get("is_active");
+    const has_class = searchParams.get("has_class");
     const sort = searchParams.get("sort") || "created_at";
     const order = (searchParams.get("order") || "desc") as "asc" | "desc";
 
@@ -36,6 +37,7 @@ export async function GET(request: NextRequest) {
       search: search || undefined,
       role: role || undefined,
       is_active: is_active ? parseInt(is_active, 10) : undefined,
+      has_class: has_class ? has_class === "true" : undefined,
       sort,
       order,
     });

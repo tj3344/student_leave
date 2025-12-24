@@ -10,8 +10,8 @@ import type { User, UserInput, UserUpdate, PaginationParams, PaginatedResponse }
  * 获取用户列表（分页）
  */
 export function getUsers(
-  params: PaginationParams & { role?: string; is_active?: number }
-): PaginatedResponse<Omit<User, "password_hash">> {
+  params: PaginationParams & { role?: string; is_active?: number; has_class?: boolean }
+): PaginatedResponse<Omit<User, "password_hash"> & { class_id?: number; class_name?: string; grade_name?: string }> {
   const db = getDb();
   const page = params.page || 1;
   const limit = params.limit || 20;
@@ -22,42 +22,62 @@ export function getUsers(
   const queryParams: (string | number)[] = [];
 
   if (params.search) {
-    whereClause += " AND (username LIKE ? OR real_name LIKE ? OR phone LIKE ?)";
+    whereClause += " AND (u.username LIKE ? OR u.real_name LIKE ? OR u.phone LIKE ?)";
     const searchTerm = `%${params.search}%`;
     queryParams.push(searchTerm, searchTerm, searchTerm);
   }
 
   if (params.role) {
-    whereClause += " AND role = ?";
+    whereClause += " AND u.role = ?";
     queryParams.push(params.role);
   }
 
   if (params.is_active !== undefined) {
-    whereClause += " AND is_active = ?";
+    whereClause += " AND u.is_active = ?";
     queryParams.push(params.is_active);
   }
 
+  if (params.has_class !== undefined) {
+    if (params.has_class) {
+      whereClause += " AND c.id IS NOT NULL";
+    } else {
+      whereClause += " AND c.id IS NULL";
+    }
+  }
+
   // 排序
-  const orderBy = params.sort || "created_at";
+  const orderBy = params.sort || "u.created_at";
   const order = params.order || "desc";
   const orderClause = `ORDER BY ${orderBy} ${order}`;
 
   // 获取总数
-  const countQuery = `SELECT COUNT(*) as count FROM users ${whereClause}`;
+  const countQuery = `
+    SELECT COUNT(*) as count
+    FROM users u
+    LEFT JOIN classes c ON u.id = c.class_teacher_id
+    ${whereClause}
+  `;
   const countResult = db.prepare(countQuery).get(...queryParams) as { count: number };
   const total = countResult.count;
 
   // 获取数据
   const dataQuery = `
-    SELECT id, username, real_name, role, phone, email, is_active, created_at, updated_at
-    FROM users
+    SELECT
+      u.id, u.username, u.real_name, u.role, u.phone, u.email,
+      u.is_active, u.created_at, u.updated_at,
+      c.id as class_id,
+      c.name as class_name,
+      g.name as grade_name
+    FROM users u
+    LEFT JOIN classes c ON u.id = c.class_teacher_id
+    LEFT JOIN grades g ON c.grade_id = g.id
     ${whereClause}
     ${orderClause}
     LIMIT ? OFFSET ?
   `;
   const data = db
     .prepare(dataQuery)
-    .all(...queryParams, limit, offset) as Omit<User, "password_hash">[];
+    .all(...queryParams, limit, offset) as Array<Omit<User, "password_hash"> & { class_id?: number; class_name?: string; grade_name?: string }>;
 
   return {
     data,

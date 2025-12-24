@@ -17,13 +17,14 @@ import {
 import { ROLE_NAMES } from "@/lib/constants";
 
 export default function UsersPage() {
-  const [users, setUsers] = useState<Omit<User, "password_hash">[]>([]);
+  const [users, setUsers] = useState<Array<Omit<User, "password_hash"> & { class_id?: number; class_name?: string; grade_name?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<Omit<User, "password_hash"> | undefined>();
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [hasClassFilter, setHasClassFilter] = useState("");
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -32,6 +33,7 @@ export default function UsersPage() {
       if (searchQuery) params.append("search", searchQuery);
       if (roleFilter) params.append("role", roleFilter);
       if (statusFilter) params.append("is_active", statusFilter);
+      if (hasClassFilter) params.append("has_class", hasClassFilter);
 
       const response = await fetch(`/api/users?${params.toString()}`);
       const data = await response.json();
@@ -45,7 +47,7 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers();
-  }, [searchQuery, roleFilter, statusFilter]);
+  }, [searchQuery, roleFilter, statusFilter, hasClassFilter]);
 
   const handleEdit = (user: Omit<User, "password_hash">) => {
     setEditingUser(user);
@@ -66,6 +68,8 @@ export default function UsersPage() {
     fetchUsers();
   };
 
+  const isTeacherRole = roleFilter === "teacher" || roleFilter === "class_teacher";
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -85,7 +89,7 @@ export default function UsersPage() {
       </div>
 
       {/* 筛选栏 */}
-      <div className="flex gap-4">
+      <div className="flex gap-4 flex-wrap">
         <div className="relative flex-1 max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -95,7 +99,7 @@ export default function UsersPage() {
             className="pl-9"
           />
         </div>
-        <Select value={roleFilter || "all"} onValueChange={(v) => setRoleFilter(v === "all" ? "" : v)}>
+        <Select value={roleFilter || "all"} onValueChange={(v) => { setRoleFilter(v === "all" ? "" : v); setHasClassFilter(""); }}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="选择角色" />
           </SelectTrigger>
@@ -108,6 +112,18 @@ export default function UsersPage() {
             ))}
           </SelectContent>
         </Select>
+        {isTeacherRole && (
+          <Select value={hasClassFilter || "all"} onValueChange={(v) => setHasClassFilter(v === "all" ? "" : v)}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="班级分配" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部</SelectItem>
+              <SelectItem value="true">已分配班级</SelectItem>
+              <SelectItem value="false">未分配班级</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
         <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="选择状态" />
