@@ -198,13 +198,14 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>性别</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value || "未填写"}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="请选择性别" />
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
+                        <SelectItem value="未填写">未填写</SelectItem>
                         {Object.values(GENDERS).map((gender) => (
                           <SelectItem key={gender} value={gender}>
                             {gender}
@@ -223,7 +224,7 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>班级 *</FormLabel>
-                    <Select onValueChange={(value) => field.onChange(parseInt(value, 10))} value={field.value ? field.value.toString() : ""}>
+                    <Select onValueChange={(value) => field.onChange(parseInt(value, 10))} value={field.value?.toString() || "0"}>
                       <FormControl>
                         <SelectTrigger disabled={loadingClasses}>
                           <SelectValue placeholder="请选择班级" />
