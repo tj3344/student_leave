@@ -19,7 +19,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(user.role, PERMISSIONS.FEE_READ)) {
+    if (!hasPermission(user, PERMISSIONS.FEE_READ)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
@@ -53,7 +53,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(user.role, PERMISSIONS.FEE_UPDATE)) {
+    if (!hasPermission(user, PERMISSIONS.FEE_UPDATE)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
@@ -88,7 +88,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(user.role, PERMISSIONS.FEE_DELETE)) {
+    if (!hasPermission(user, PERMISSIONS.FEE_DELETE)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 

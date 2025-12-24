@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(user.role, PERMISSIONS.FEE_READ)) {
+    if (!hasPermission(user, PERMISSIONS.FEE_READ)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(user.role, PERMISSIONS.FEE_CREATE)) {
+    if (!hasPermission(user, PERMISSIONS.FEE_CREATE)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
