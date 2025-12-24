@@ -118,7 +118,7 @@ export default function TeacherLeavesPage() {
   };
 
   const handleNewLeave = () => {
-    router.push("/leaves/new");
+    router.push("/teacher/leaves/new");
   };
 
   return (

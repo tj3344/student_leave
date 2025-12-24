@@ -34,7 +34,6 @@ const navigation = [
   {
     category: "请假管理",
     items: [
-      { name: "请假申请", href: "/teacher/leaves/new", icon: ClipboardList, roles: ["admin", "teacher", "class_teacher"] },
       { name: "我的请假", href: "/teacher/leaves", icon: ClipboardList, roles: ["admin", "teacher", "class_teacher"] },
       { name: "请假审核", href: "/admin/leaves/pending", icon: ClipboardList, roles: ["admin"] },
       { name: "请假管理", href: "/admin/leaves", icon: ClipboardList, roles: ["admin"] },
@@ -92,7 +91,13 @@ export function Sidebar({ user }: SidebarProps) {
               </h3>
               <div className="space-y-1">
                 {filteredItems.map((item) => {
-                  const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                  // 如果有其他菜单项是当前路径更长/更精确的前缀，则当前项不高亮
+                  const hasMoreSpecificMatch = filteredItems.some(
+                    (other) => other.href !== item.href &&
+                      (pathname === other.href || pathname.startsWith(other.href + "/")) &&
+                      other.href.length > item.href.length
+                  );
+                  const isActive = (pathname === item.href || pathname.startsWith(item.href + "/")) && !hasMoreSpecificMatch;
                   const Icon = item.icon;
 
                   return (
