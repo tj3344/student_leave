@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { RefreshCw, Search } from "lucide-react";
-import type { LeaveWithDetails } from "@/types";
+import { useRouter } from "next/navigation";
+import { Plus, RefreshCw, Search } from "lucide-react";
+import type { LeaveWithDetails, User } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LeaveTable } from "@/components/admin/LeaveTable";
@@ -14,9 +15,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { LEAVE_STATUS_NAMES } from "@/lib/constants";
 
-export default function AdminLeavesPage() {
+type UserRole = "admin" | "teacher" | "class_teacher";
+
+export default function UnifiedLeavesPage() {
+  const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [leaves, setLeaves] = useState<LeaveWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -34,6 +49,25 @@ export default function AdminLeavesPage() {
   // 删除对话框状态
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteLeave, setDeleteLeave] = useState<LeaveWithDetails | null>(null);
+
+  // 获取当前用户信息
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      try {
+        const response = await fetch("/api/auth/me");
+        const data = await response.json();
+        if (response.ok) {
+          setCurrentUser(data.user);
+        } else {
+          router.push("/login");
+        }
+      } catch (error) {
+        console.error("Fetch user error:", error);
+        router.push("/login");
+      }
+    };
+    fetchCurrentUser();
+  }, [router]);
 
   const fetchLeaves = async () => {
     setLoading(true);
@@ -85,10 +119,18 @@ export default function AdminLeavesPage() {
   };
 
   useEffect(() => {
-    fetchLeaves();
-    fetchSemesters();
-    fetchClasses();
-  }, [searchQuery, statusFilter, semesterFilter, classFilter]);
+    if (currentUser) {
+      fetchLeaves();
+      fetchSemesters();
+    }
+  }, [currentUser, searchQuery, statusFilter, semesterFilter, classFilter]);
+
+  // 当学期变化时，重新获取班级列表
+  useEffect(() => {
+    if (currentUser && semesterFilter) {
+      fetchClasses();
+    }
+  }, [currentUser, semesterFilter]);
 
   const handleViewDetail = (leave: LeaveWithDetails) => {
     setReviewLeave(leave);
@@ -135,16 +177,51 @@ export default function AdminLeavesPage() {
     }
   };
 
+  const handleNewLeave = () => {
+    router.push("/leaves/new");
+  };
+
+  // 根据角色判断权限
+  const canCreate = currentUser?.role === "admin" || currentUser?.role === "class_teacher";
+  const canReview = currentUser?.role === "admin";
+  const canDelete = currentUser?.role === "admin" || currentUser?.role === "class_teacher";
+  const showClassFilter = currentUser?.role === "admin" || currentUser?.role === "class_teacher";
+
+  // 根据角色显示页面标题
+  const getPageTitle = () => {
+    if (currentUser?.role === "teacher") return "请假记录";
+    if (currentUser?.role === "class_teacher") return "班级请假管理";
+    return "请假管理";
+  };
+
+  const getPageDescription = () => {
+    if (currentUser?.role === "teacher") return "查看学生请假记录";
+    if (currentUser?.role === "class_teacher") return "管理本班学生的请假申请";
+    return "管理和审核所有请假申请";
+  };
+
+  if (!currentUser) {
+    return <div>加载中...</div>;
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">请假管理</h1>
-          <p className="text-muted-foreground">管理和审核所有请假申请</p>
+          <h1 className="text-2xl font-bold">{getPageTitle()}</h1>
+          <p className="text-muted-foreground">{getPageDescription()}</p>
         </div>
-        <Button variant="outline" size="icon" onClick={fetchLeaves} disabled={loading}>
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="icon" onClick={fetchLeaves} disabled={loading}>
+            <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+          {canCreate && (
+            <Button onClick={handleNewLeave}>
+              <Plus className="mr-2 h-4 w-4" />
+              新增请假
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* 筛选栏 */}
@@ -152,16 +229,19 @@ export default function AdminLeavesPage() {
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
-            placeholder="搜索学生姓名、学号、申请人..."
+            placeholder={currentUser.role === "admin" ? "搜索学生姓名、学号、申请人..." : "搜索学生姓名、学号..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9"
           />
         </div>
-        <Select value={semesterFilter || "all"} onValueChange={(v) => {
-          setSemesterFilter(v === "all" ? "" : v);
-          setClassFilter("");
-        }}>
+        <Select
+          value={semesterFilter || "all"}
+          onValueChange={(v) => {
+            setSemesterFilter(v === "all" ? "" : v);
+            setClassFilter("");
+          }}
+        >
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="选择学期" />
           </SelectTrigger>
@@ -174,19 +254,21 @@ export default function AdminLeavesPage() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={classFilter || "all"} onValueChange={(v) => setClassFilter(v === "all" ? "" : v)}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="选择班级" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部班级</SelectItem>
-            {classList.map((cls) => (
-              <SelectItem key={cls.id} value={cls.id.toString()}>
-                {cls.grade_name} - {cls.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {showClassFilter && (
+          <Select value={classFilter || "all"} onValueChange={(v) => setClassFilter(v === "all" ? "" : v)}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="选择班级" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">全部班级</SelectItem>
+              {classList.map((cls) => (
+                <SelectItem key={cls.id} value={cls.id.toString()}>
+                  {cls.grade_name} - {cls.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
         <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="选择状态" />
@@ -202,11 +284,11 @@ export default function AdminLeavesPage() {
 
       <LeaveTable
         data={leaves}
-        showReviewActions={true}
+        showReviewActions={canReview}
         onViewDetail={handleViewDetail}
-        onApprove={handleApprove}
-        onReject={handleReject}
-        onDelete={handleDelete}
+        onApprove={canReview ? handleApprove : undefined}
+        onReject={canReview ? handleReject : undefined}
+        onDelete={canDelete ? handleDelete : undefined}
       />
 
       {/* 审核对话框 */}
@@ -222,18 +304,20 @@ export default function AdminLeavesPage() {
       />
 
       {/* 删除确认对话框 */}
-      {deleteLeave && (
-        <div className={`fixed inset-0 z-50 flex items-center justify-center ${deleteDialogOpen ? "" : "hidden"}`}>
-          <div className="bg-background border rounded-lg shadow-lg p-6 max-w-md w-full mx-4">
-            <h3 className="text-lg font-semibold mb-2">确认删除</h3>
-            <p className="text-muted-foreground mb-4">确定要删除这条请假记录吗？此操作无法撤销。</p>
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setDeleteDialogOpen(false)}>取消</Button>
-              <Button variant="destructive" onClick={confirmDelete}>删除</Button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除这条请假记录吗？此操作无法撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>删除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
