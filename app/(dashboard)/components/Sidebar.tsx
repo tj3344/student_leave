@@ -28,6 +28,7 @@ const navigation = [
       { name: "年级管理", href: "/admin/grades", icon: GraduationCap, roles: ["admin"] },
       { name: "班级管理", href: "/admin/classes", icon: School, roles: ["admin"] },
       { name: "学生管理", href: "/admin/students", icon: Users, roles: ["admin"] },
+      { name: "教师管理", href: "/admin/teachers", icon: GraduationCap, roles: ["admin"] },
       { name: "用户管理", href: "/admin/users", icon: UserCircle, roles: ["admin"] },
     ],
   },

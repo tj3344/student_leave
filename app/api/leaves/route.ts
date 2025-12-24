@@ -37,13 +37,37 @@ export async function GET(request: NextRequest) {
       applicant_id = currentUser.id;
     }
 
+    // 班主任角色：只看本班学生请假
+    let filterClassId = class_id ? parseInt(class_id, 10) : undefined;
+    if (currentUser.role === "class_teacher") {
+      // 获取班主任管理的班级ID
+      const { getDb } = await import("@/lib/db");
+      const db = getDb();
+      const managedClass = db.prepare(
+        "SELECT id FROM classes WHERE class_teacher_id = ?"
+      ).get(currentUser.id) as { id: number } | undefined;
+
+      if (managedClass) {
+        filterClassId = managedClass.id;
+      } else {
+        // 没有分配班级，返回空列表
+        return NextResponse.json({
+          data: [],
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        });
+      }
+    }
+
     // 获取请假记录列表
     const result = getLeaves({
       page,
       limit,
       search: search || undefined,
       student_id: student_id ? parseInt(student_id, 10) : undefined,
-      class_id: class_id ? parseInt(class_id, 10) : undefined,
+      class_id: filterClassId,
       semester_id: semester_id ? parseInt(semester_id, 10) : undefined,
       status: status || undefined,
       applicant_id,

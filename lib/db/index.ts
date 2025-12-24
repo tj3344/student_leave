@@ -186,6 +186,7 @@ export function initDatabase(): void {
     CREATE INDEX IF NOT EXISTS idx_leave_records_status ON leave_records(status);
     CREATE INDEX IF NOT EXISTS idx_classes_grade ON classes(grade_id);
     CREATE INDEX IF NOT EXISTS idx_logs_user ON operation_logs(user_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_classes_class_teacher ON classes(class_teacher_id);
   `);
 
   console.log("Database initialized successfully");
@@ -222,6 +223,39 @@ export async function runMigrations(): Promise<void> {
 
   // 创建初始管理员用户
   await seedAdminUser();
+
+  // 运行版本迁移
+  migrateClassTeacherUniqueConstraint();
+}
+
+/**
+ * 迁移：确保班主任一对一关系唯一约束
+ * 处理可能存在的重复分配情况
+ */
+function migrateClassTeacherUniqueConstraint(): void {
+  const db = getDb();
+
+  // 检查迁移是否已运行（通过检查唯一索引是否存在）
+  const indexes = db.pragma("index_list('classes')") as { name: string }[];
+  const hasUniqueIndex = indexes.some((idx) => idx.name === "idx_classes_class_teacher");
+
+  if (!hasUniqueIndex) {
+    // 唯一索引会在 initDatabase 中创建，这里只需要清理可能的重复数据
+    // 找出被重复分配的班主任
+    const duplicateTeachers = db.prepare(`
+      SELECT class_teacher_id, COUNT(*) as count
+      FROM classes
+      WHERE class_teacher_id IS NOT NULL
+      GROUP BY class_teacher_id
+      HAVING count > 1
+    `).all() as { class_teacher_id: number; count: number }[];
+
+    // 对于重复分配，清除所有分配，让管理员重新分配
+    for (const dup of duplicateTeachers) {
+      db.prepare("UPDATE classes SET class_teacher_id = NULL WHERE class_teacher_id = ?").run(dup.class_teacher_id);
+      console.log(`已清除教师 ID ${dup.class_teacher_id} 的重复班级分配`);
+    }
+  }
 }
 
 // 在开发环境中，当模块加载时自动初始化数据库

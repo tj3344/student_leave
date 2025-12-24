@@ -30,12 +30,36 @@ export async function GET(request: NextRequest) {
     const sort = searchParams.get("sort") || "created_at";
     const order = (searchParams.get("order") || "desc") as "asc" | "desc";
 
+    // 班主任角色：只看本班学生
+    let filterClassId = class_id ? parseInt(class_id, 10) : undefined;
+    if (currentUser.role === "class_teacher") {
+      // 获取班主任管理的班级ID
+      const { getDb } = await import("@/lib/db");
+      const db = getDb();
+      const managedClass = db.prepare(
+        "SELECT id FROM classes WHERE class_teacher_id = ?"
+      ).get(currentUser.id) as { id: number } | undefined;
+
+      if (managedClass) {
+        filterClassId = managedClass.id;
+      } else {
+        // 没有分配班级，返回空列表
+        return NextResponse.json({
+          data: [],
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        });
+      }
+    }
+
     // 获取学生列表
     const result = getStudents({
       page,
       limit,
       search: search || undefined,
-      class_id: class_id ? parseInt(class_id, 10) : undefined,
+      class_id: filterClassId,
       grade_id: grade_id ? parseInt(grade_id, 10) : undefined,
       is_active: is_active ? parseInt(is_active, 10) : undefined,
       sort,

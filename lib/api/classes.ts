@@ -10,7 +10,7 @@ import type {
  * 获取班级列表
  */
 export function getClasses(
-  params?: PaginationParams & { grade_id?: number; semester_id?: number }
+  params?: PaginationParams & { grade_id?: number; semester_id?: number; class_teacher_id?: number }
 ): PaginatedResponse<ClassWithDetails> | ClassWithDetails[] {
   const db = getDb();
 
@@ -25,10 +25,20 @@ export function getClasses(
       LEFT JOIN users u ON c.class_teacher_id = u.id
     `;
     const queryParams: (string | number)[] = [];
+    const whereConditions: string[] = [];
 
     if (params?.semester_id) {
-      query += " WHERE c.semester_id = ?";
+      whereConditions.push("c.semester_id = ?");
       queryParams.push(params.semester_id);
+    }
+
+    if (params?.class_teacher_id) {
+      whereConditions.push("c.class_teacher_id = ?");
+      queryParams.push(params.class_teacher_id);
+    }
+
+    if (whereConditions.length > 0) {
+      query += " WHERE " + whereConditions.join(" AND ");
     }
 
     query += " ORDER BY g.sort_order ASC, c.name ASC";
@@ -59,6 +69,11 @@ export function getClasses(
   if (params?.semester_id) {
     whereClause += " AND c.semester_id = ?";
     queryParams.push(params.semester_id);
+  }
+
+  if (params?.class_teacher_id) {
+    whereClause += " AND c.class_teacher_id = ?";
+    queryParams.push(params.class_teacher_id);
   }
 
   // 获取总数
@@ -138,6 +153,15 @@ export function createClass(
     if (role !== "teacher" && role !== "class_teacher") {
       return { success: false, message: "班主任必须是教师角色" };
     }
+
+    // 检查该教师是否已是其他班级的班主任（一对一约束）
+    const existingClass = db.prepare(
+      "SELECT id FROM classes WHERE class_teacher_id = ?"
+    ).get(input.class_teacher_id) as { id: number } | undefined;
+
+    if (existingClass) {
+      return { success: false, message: "该教师已是其他班级的班主任" };
+    }
   }
 
   // 验证营养餐费用
@@ -190,7 +214,7 @@ export function updateClass(
     }
   }
 
-  // 如果更新班主任，验证用户是否存在
+  // 如果更新班主任，验证用户是否存在且未被其他班级使用
   if (input.class_teacher_id !== undefined) {
     if (input.class_teacher_id !== null) {
       const teacher = db
@@ -203,6 +227,15 @@ export function updateClass(
       const role = (teacher as { role: string }).role;
       if (role !== "teacher" && role !== "class_teacher") {
         return { success: false, message: "班主任必须是教师角色" };
+      }
+
+      // 检查该教师是否已是其他班级的班主任（一对一约束）
+      const existingClass = db.prepare(
+        "SELECT id FROM classes WHERE class_teacher_id = ? AND id != ?"
+      ).get(input.class_teacher_id, id) as { id: number } | undefined;
+
+      if (existingClass) {
+        return { success: false, message: "该教师已是其他班级的班主任" };
       }
     }
   }

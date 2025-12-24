@@ -24,7 +24,15 @@ export async function GET(request: NextRequest) {
     const sort = searchParams.get("sort") || undefined;
     const order = (searchParams.get("order") as "asc" | "desc") || undefined;
 
-    const params = {
+    const params: {
+      page?: number;
+      limit?: number;
+      search?: string;
+      grade_id?: number;
+      class_teacher_id?: number;
+      sort?: string;
+      order?: "asc" | "desc";
+    } = {
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
       search: search || undefined,
@@ -32,6 +40,11 @@ export async function GET(request: NextRequest) {
       sort,
       order,
     };
+
+    // 班主任角色：只能看到自己管理的班级
+    if (user.role === "class_teacher") {
+      params.class_teacher_id = user.id;
+    }
 
     const result = getClasses(params);
 

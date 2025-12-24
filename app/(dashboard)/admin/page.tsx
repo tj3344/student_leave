@@ -7,6 +7,7 @@ import {
   ClipboardList,
   ArrowRight,
   Settings,
+  UserCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -103,6 +104,15 @@ export default function AdminDashboardPage() {
                 <span className="flex items-center gap-2">
                   <Users className="h-4 w-4" />
                   学生管理
+                </span>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+            <Link href="/admin/teachers">
+              <Button variant="outline" className="w-full justify-between">
+                <span className="flex items-center gap-2">
+                  <GraduationCap className="h-4 w-4" />
+                  教师管理
                 </span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
