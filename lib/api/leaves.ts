@@ -1,0 +1,432 @@
+import { getDb } from "@/lib/db";
+import { calculateDays } from "@/lib/utils/date";
+import { calculateRefund } from "@/lib/utils/refund";
+import type {
+  LeaveInput,
+  LeaveReview,
+  LeaveWithDetails,
+  PaginationParams,
+  PaginatedResponse,
+} from "@/types";
+
+/**
+ * 请假服务层
+ */
+
+/**
+ * 获取请假记录列表（分页）
+ */
+export function getLeaves(
+  params: PaginationParams & {
+    student_id?: number;
+    class_id?: number;
+    semester_id?: number;
+    status?: string;
+    applicant_id?: number;
+  }
+): PaginatedResponse<LeaveWithDetails> {
+  const db = getDb();
+  const page = params.page || 1;
+  const limit = params.limit || 20;
+  const offset = (page - 1) * limit;
+
+  // 构建查询条件
+  let whereClause = "WHERE 1=1";
+  const queryParams: (string | number)[] = [];
+
+  if (params.search) {
+    whereClause +=
+      " AND (s.student_no LIKE ? OR s.name LIKE ? OR u.real_name LIKE ? OR lr.reason LIKE ?)";
+    const searchTerm = `%${params.search}%`;
+    queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
+  }
+
+  if (params.student_id) {
+    whereClause += " AND lr.student_id = ?";
+    queryParams.push(params.student_id);
+  }
+
+  if (params.class_id) {
+    whereClause += " AND s.class_id = ?";
+    queryParams.push(params.class_id);
+  }
+
+  if (params.semester_id) {
+    whereClause += " AND lr.semester_id = ?";
+    queryParams.push(params.semester_id);
+  }
+
+  if (params.status) {
+    whereClause += " AND lr.status = ?";
+    queryParams.push(params.status);
+  }
+
+  if (params.applicant_id) {
+    whereClause += " AND lr.applicant_id = ?";
+    queryParams.push(params.applicant_id);
+  }
+
+  // 排序
+  const orderBy = params.sort || "lr.created_at";
+  const order = params.order || "desc";
+  const orderClause = `ORDER BY ${orderBy} ${order}`;
+
+  // 获取总数
+  const countQuery = `
+    SELECT COUNT(*) as count
+    FROM leave_records lr
+    LEFT JOIN students s ON lr.student_id = s.id
+    LEFT JOIN classes c ON s.class_id = c.id
+    LEFT JOIN users u ON lr.applicant_id = u.id
+    ${whereClause}
+  `;
+  const countResult = db.prepare(countQuery).get(...queryParams) as { count: number };
+  const total = countResult.count;
+
+  // 获取数据
+  const dataQuery = `
+    SELECT
+      lr.*,
+      s.name as student_name,
+      s.student_no,
+      s.is_nutrition_meal,
+      c.name as class_name,
+      u.real_name as applicant_name,
+      reviewer.real_name as reviewer_name,
+      sem.name as semester_name
+    FROM leave_records lr
+    LEFT JOIN students s ON lr.student_id = s.id
+    LEFT JOIN classes c ON s.class_id = c.id
+    LEFT JOIN users u ON lr.applicant_id = u.id
+    LEFT JOIN users reviewer ON lr.reviewer_id = reviewer.id
+    LEFT JOIN semesters sem ON lr.semester_id = sem.id
+    ${whereClause}
+    ${orderClause}
+    LIMIT ? OFFSET ?
+  `;
+  const data = db.prepare(dataQuery).all(...queryParams, limit, offset) as LeaveWithDetails[];
+
+  return {
+    data,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
+}
+
+/**
+ * 根据ID获取请假记录
+ */
+export function getLeaveById(id: number): LeaveWithDetails | null {
+  const db = getDb();
+  const leave = db
+    .prepare(`
+      SELECT
+        lr.*,
+        s.name as student_name,
+        s.student_no,
+        s.gender,
+        s.parent_name,
+        s.parent_phone,
+        s.is_nutrition_meal,
+        c.name as class_name,
+        c.meal_fee,
+        c.id as class_id,
+        g.name as grade_name,
+        u.real_name as applicant_name,
+        reviewer.real_name as reviewer_name,
+        sem.name as semester_name,
+        sem.school_days
+      FROM leave_records lr
+      LEFT JOIN students s ON lr.student_id = s.id
+      LEFT JOIN classes c ON s.class_id = c.id
+      LEFT JOIN grades g ON c.grade_id = g.id
+      LEFT JOIN users u ON lr.applicant_id = u.id
+      LEFT JOIN users reviewer ON lr.reviewer_id = reviewer.id
+      LEFT JOIN semesters sem ON lr.semester_id = sem.id
+      WHERE lr.id = ?
+    `)
+    .get(id) as LeaveWithDetails | undefined;
+
+  return leave || null;
+}
+
+/**
+ * 创建请假申请
+ */
+export function createLeave(
+  input: LeaveInput,
+  applicantId: number
+): { success: boolean; message?: string; leaveId?: number } {
+  const db = getDb();
+
+  // 检查学生是否存在
+  const student = db
+    .prepare(
+      `SELECT s.*, c.meal_fee, sem.school_days, sem.id as semester_id
+       FROM students s
+       LEFT JOIN classes c ON s.class_id = c.id
+       LEFT JOIN semesters sem ON c.semester_id = sem.id
+       WHERE s.id = ?`
+    )
+    .get(input.student_id) as
+    | { id: number; is_nutrition_meal: number; meal_fee: number; school_days: number; semester_id: number }
+    | undefined;
+
+  if (!student) {
+    return { success: false, message: "学生不存在" };
+  }
+
+  // 计算请假天数
+  const leaveDays = calculateDays(input.start_date, input.end_date);
+
+  // 计算退费金额
+  const isNutritionMeal = student.is_nutrition_meal === 1;
+  const refundAmount = calculateRefund(student.meal_fee, student.school_days, leaveDays, isNutritionMeal);
+
+  // 插入请假记录
+  const result = db
+    .prepare(
+      `INSERT INTO leave_records (
+        student_id, semester_id, applicant_id, start_date, end_date,
+        leave_days, reason, status, is_refund, refund_amount
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(
+      input.student_id,
+      input.semester_id,
+      applicantId,
+      input.start_date,
+      input.end_date,
+      leaveDays,
+      input.reason,
+      "pending",
+      isNutritionMeal ? 0 : 1,
+      isNutritionMeal ? null : refundAmount
+    );
+
+  return { success: true, leaveId: result.lastInsertRowid as number };
+}
+
+/**
+ * 审核请假
+ */
+export function reviewLeave(
+  id: number,
+  review: LeaveReview,
+  reviewerId: number
+): { success: boolean; message?: string } {
+  const db = getDb();
+
+  // 检查请假记录是否存在且状态为待审核
+  const leave = db
+    .prepare(
+      `SELECT lr.*, s.is_nutrition_meal, c.meal_fee, sem.school_days
+       FROM leave_records lr
+       LEFT JOIN students s ON lr.student_id = s.id
+       LEFT JOIN classes c ON s.class_id = c.id
+       LEFT JOIN semesters sem ON lr.semester_id = sem.id
+       WHERE lr.id = ?`
+    )
+    .get(id) as
+    | {
+        id: number;
+        status: string;
+        is_nutrition_meal: number;
+        meal_fee: number;
+        school_days: number;
+        leave_days: number;
+      }
+    | undefined;
+
+  if (!leave) {
+    return { success: false, message: "请假记录不存在" };
+  }
+
+  if (leave.status !== "pending") {
+    return { success: false, message: "该请假记录已被审核" };
+  }
+
+  // 更新审核状态
+  db.prepare(
+    `UPDATE leave_records
+     SET status = ?, reviewer_id = ?, review_time = CURRENT_TIMESTAMP, review_remark = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`
+  ).run(review.status, reviewerId, review.review_remark || null, id);
+
+  return { success: true };
+}
+
+/**
+ * 删除请假记录
+ */
+export function deleteLeave(id: number): { success: boolean; message?: string } {
+  const db = getDb();
+
+  // 检查请假记录是否存在
+  const leave = db.prepare("SELECT id, status FROM leave_records WHERE id = ?").get(id) as
+    | { id: number; status: string }
+    | undefined;
+
+  if (!leave) {
+    return { success: false, message: "请假记录不存在" };
+  }
+
+  // 只有待审核和已拒绝的记录可以删除
+  if (leave.status === "approved") {
+    return { success: false, message: "已批准的请假记录不能删除" };
+  }
+
+  db.prepare("DELETE FROM leave_records WHERE id = ?").run(id);
+
+  return { success: true };
+}
+
+/**
+ * 获取待审核的请假记录数量
+ */
+export function getPendingLeaveCount(): number {
+  const db = getDb();
+  const result = db
+    .prepare("SELECT COUNT(*) as count FROM leave_records WHERE status = 'pending'")
+    .get() as { count: number };
+  return result.count;
+}
+
+/**
+ * 获取请假统计
+ */
+export function getLeaveStats(semesterId?: number): {
+  total: number;
+  pending: number;
+  approved: number;
+  rejected: number;
+  totalRefundAmount: number;
+} {
+  const db = getDb();
+
+  let whereClause = "WHERE 1=1";
+  const params: (string | number)[] = [];
+
+  if (semesterId) {
+    whereClause += " AND semester_id = ?";
+    params.push(semesterId);
+  }
+
+  const total = (
+    db.prepare(`SELECT COUNT(*) as count FROM leave_records ${whereClause}`).get(...params) as {
+      count: number;
+    }
+  ).count;
+
+  const pending = (
+    db.prepare(`SELECT COUNT(*) as count FROM leave_records ${whereClause} AND status = 'pending'`).get(
+      ...params
+    ) as { count: number }
+  ).count;
+
+  const approved = (
+    db.prepare(`SELECT COUNT(*) as count FROM leave_records ${whereClause} AND status = 'approved'`).get(
+      ...params
+    ) as { count: number }
+  ).count;
+
+  const rejected = (
+    db.prepare(`SELECT COUNT(*) as count FROM leave_records ${whereClause} AND status = 'rejected'`).get(
+      ...params
+    ) as { count: number }
+  ).count;
+
+  const totalRefundAmount = (
+    db
+      .prepare(`SELECT COALESCE(SUM(refund_amount), 0) as amount FROM leave_records ${whereClause} AND status = 'approved'`)
+      .get(...params) as { amount: number }
+  ).amount;
+
+  return {
+    total,
+    pending,
+    approved,
+    rejected,
+    totalRefundAmount,
+  };
+}
+
+/**
+ * 获取班级的请假记录
+ */
+export function getLeavesByClass(classId: number, semesterId?: number): LeaveWithDetails[] {
+  const db = getDb();
+
+  let whereClause = "WHERE s.class_id = ?";
+  const params: (string | number)[] = [classId];
+
+  if (semesterId) {
+    whereClause += " AND lr.semester_id = ?";
+    params.push(semesterId);
+  }
+
+  const leaves = db
+    .prepare(`
+      SELECT
+        lr.*,
+        s.name as student_name,
+        s.student_no,
+        s.is_nutrition_meal,
+        c.name as class_name,
+        u.real_name as applicant_name,
+        reviewer.real_name as reviewer_name,
+        sem.name as semester_name
+      FROM leave_records lr
+      LEFT JOIN students s ON lr.student_id = s.id
+      LEFT JOIN classes c ON s.class_id = c.id
+      LEFT JOIN users u ON lr.applicant_id = u.id
+      LEFT JOIN users reviewer ON lr.reviewer_id = reviewer.id
+      LEFT JOIN semesters sem ON lr.semester_id = sem.id
+      ${whereClause}
+      ORDER BY lr.created_at DESC
+    `)
+    .all(...params) as LeaveWithDetails[];
+
+  return leaves;
+}
+
+/**
+ * 获取学生的请假记录
+ */
+export function getLeavesByStudent(studentId: number, semesterId?: number): LeaveWithDetails[] {
+  const db = getDb();
+
+  let whereClause = "WHERE lr.student_id = ?";
+  const params: (string | number)[] = [studentId];
+
+  if (semesterId) {
+    whereClause += " AND lr.semester_id = ?";
+    params.push(semesterId);
+  }
+
+  const leaves = db
+    .prepare(`
+      SELECT
+        lr.*,
+        s.name as student_name,
+        s.student_no,
+        s.is_nutrition_meal,
+        c.name as class_name,
+        u.real_name as applicant_name,
+        reviewer.real_name as reviewer_name,
+        sem.name as semester_name
+      FROM leave_records lr
+      LEFT JOIN students s ON lr.student_id = s.id
+      LEFT JOIN classes c ON s.class_id = c.id
+      LEFT JOIN users u ON lr.applicant_id = u.id
+      LEFT JOIN users reviewer ON lr.reviewer_id = reviewer.id
+      LEFT JOIN semesters sem ON lr.semester_id = sem.id
+      ${whereClause}
+      ORDER BY lr.created_at DESC
+    `)
+    .all(...params) as LeaveWithDetails[];
+
+  return leaves;
+}
