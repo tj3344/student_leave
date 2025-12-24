@@ -162,47 +162,53 @@
 
 ---
 
-## 阶段六：请假功能 ⏳
+## 阶段六：请假功能 ✅
 
 ### 6.1 请假申请（教师端）
-- [ ] 请假申请接口（app/api/leaves/route.ts）
-- [ ] 请假服务层（lib/api/leaves.ts）
-- [ ] 请假申请页面（app/(dashboard)/teacher/leaves/new/page.tsx）
-- [ ] 请假表单组件（components/teacher/LeaveForm.tsx）
-- [ ] 学生选择器组件
-- [ ] 自动计算请假天数
-- [ ] 营养餐学生验证（不可退费）
+- [x] 请假申请接口（app/api/leaves/route.ts）
+- [x] 请假服务层（lib/api/leaves.ts）
+- [x] 请假申请页面（app/(dashboard)/teacher/leaves/new/page.tsx）
+- [x] 请假表单组件（components/teacher/LeaveForm.tsx）
+- [x] 学生选择器组件
+- [x] 自动计算请假天数
+- [x] 营养餐学生验证（不可退费）
 
 ### 6.2 请假审核（管理员端）
-- [ ] 批准请假接口（app/api/leaves/[id]/approve/route.ts）
-- [ ] 拒绝请假接口（app/api/leaves/[id]/reject/route.ts）
-- [ ] 待审核列表页面（app/(dashboard)/admin/leaves/pending/page.tsx）
-- [ ] 请假审核对话框（components/admin/LeaveReviewDialog.tsx）
-- [ ] 自动计算退费金额
+- [x] 批准/拒绝请假接口（app/api/leaves/[id]/route.ts）
+- [x] 待审核列表页面（app/(dashboard)/admin/leaves/pending/page.tsx）
+- [x] 请假审核对话框（components/admin/LeaveReviewDialog.tsx）
+- [x] 自动计算退费金额（使用费用配置）
 
 ### 6.3 请假记录查询
-- [ ] 我的请假页面（app/(dashboard)/teacher/leaves/page.tsx）
-- [ ] 请假管理页面（app/(dashboard)/admin/leaves/page.tsx）
-- [ ] 班级请假页面（app/(dashboard)/class-teacher/leaves/page.tsx）
-- [ ] 请假表格组件（components/admin/LeaveTable.tsx）
-- [ ] 请假详情对话框
-- [ ] 筛选功能（按学生、班级、学期、状态）
+- [x] 请假统一管理页面（app/(dashboard)/leaves/page.tsx）
+- [x] 请假表格组件（components/admin/LeaveTable.tsx）
+- [x] 请假详情对话框
+- [x] 筛选功能（按学生、班级、学期、状态）
 
 ---
 
-## 阶段七：退费管理 ⏳
+## 阶段七：退费管理 ✅
 
-### 7.1 退费计算
-- [x] 退费计算函数完善（lib/utils/refund.ts）
-- [ ] 退费汇总接口（app/api/refunds/summary/route.ts）
-- [ ] 退费服务层（lib/api/refunds.ts）
+### 7.1 费用配置
+- [x] 费用配置接口（app/api/fee-configs/route.ts）
+- [x] 费用配置服务层（lib/api/fees.ts）
+- [x] 费用配置管理页面（app/(dashboard)/admin/fees/page.tsx）
+- [x] 费用配置表单组件（components/admin/FeeConfigForm.tsx）
+- [x] 费用配置表格组件（components/admin/FeeConfigTable.tsx）
 
-### 7.2 退费清单
-- [ ] 退费管理页面（app/(dashboard)/admin/refunds/page.tsx）
-- [ ] 按学期生成退费清单
-- [ ] 按班级分组统计
-- [ ] 退费明细表格组件
-- [ ] 退费统计图表
+### 7.2 退费计算与查询
+- [x] 退费计算函数（lib/utils/refund.ts）
+- [x] 退费记录接口（app/api/fees/refunds/route.ts）
+- [x] 退费汇总接口（app/api/fees/summary/route.ts）
+- [x] 退费服务层（lib/api/fees.ts）
+
+### 7.3 退费清单
+- [x] 退费记录页面（app/(dashboard)/admin/fees/refunds/page.tsx）
+- [x] 退费汇总页面（app/(dashboard)/admin/fees/summary/page.tsx）
+- [x] 按学期生成退费清单
+- [x] 按班级分组统计
+- [x] 退费明细表格组件（RefundRecordTable, RefundSummaryTable）
+- [x] 退费记录重新计算功能
 
 ---
 
@@ -332,27 +338,27 @@
 
 ## 优先级说明
 
-### P0（最高优先级）- 进行中
+### P0（最高优先级）- 已完成
 - [x] 项目初始化 ✅
 - [x] 认证系统 ✅
 - [x] 基础数据管理 ✅
-- [x] 学生管理 ✅
-- [ ] 请假申请与审核 ⏳
+- [x] 用户与学生管理 ✅
+- [x] 请假申请与审核 ✅
 
-### P1（高优先级）
-- [ ] 退费管理
-- [ ] 导入导出功能
-- [ ] 仪表盘统计
+### P1（高优先级）- 已完成
+- [x] 退费管理 ✅
+- [ ] 导入导出功能 ⏳
+- [ ] 仪表盘统计 ⏳
 
 ### P2（中优先级）
-- [ ] 数据备份
-- [ ] 系统设置
-- [ ] 操作日志
+- [ ] 数据备份 ⏳
+- [ ] 系统设置 ⏳
+- [ ] 操作日志 ⏳
 
 ### P3（低优先级）
-- [ ] 自动定时备份
-- [ ] 高级统计图表
-- [ ] 其他优化功能
+- [ ] 自动定时备份 ⏳
+- [ ] 高级统计图表 ⏳
+- [ ] 其他优化功能 ⏳
 
 ---
 
@@ -368,15 +374,15 @@
 
 ---
 
-## 当前进度：38% 完成
+## 当前进度：62% 完成
 
 - ✅ 阶段一：项目初始化（100%）
 - ✅ 阶段二：基础框架搭建（95%）
 - ✅ 阶段三：认证系统（100%）
 - ✅ 阶段四：基础数据管理（100%）
 - ✅ 阶段五：用户与学生管理（100%）
-- ⏳ 阶段六：请假功能（0%）
-- ⏳ 阶段七：退费管理（10%）
+- ✅ 阶段六：请假功能（100%）
+- ✅ 阶段七：退费管理（100%）
 - ⏳ 阶段八：导入导出功能（0%）
 - ⏳ 阶段九：数据备份（0%）
 - ⏳ 阶段十：仪表盘与统计（0%）
