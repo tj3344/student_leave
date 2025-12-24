@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -22,10 +22,18 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
-import type { Grade } from "@/types";
+import type { Grade, Semester } from "@/types";
 
 const gradeSchema = z.object({
+  semester_id: z.coerce.number().min(1, "请选择学期"),
   name: z.string().min(1, "年级名称不能为空").max(20, "年级名称不能超过20个字符"),
   sort_order: z.coerce.number().int().min(0, "排序号必须大于等于0"),
 });
@@ -41,15 +49,37 @@ interface GradeFormProps {
 
 export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [loading, setLoading] = useState(false);
   const isEdit = !!grade;
 
   const form = useForm<GradeFormValues>({
     resolver: zodResolver(gradeSchema),
     defaultValues: {
+      semester_id: grade?.semester_id || 0,
       name: grade?.name || "",
       sort_order: grade?.sort_order ?? 0,
     },
   });
+
+  const fetchSemesters = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch("/api/semesters");
+      const data = await response.json();
+      setSemesters(data.data || []);
+    } catch (error) {
+      console.error("Fetch semesters error:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (open) {
+      fetchSemesters();
+    }
+  }, [open]);
 
   const onSubmit = async (values: GradeFormValues) => {
     setIsSubmitting(true);
@@ -99,6 +129,35 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
                 {form.formState.errors.root.message}
               </div>
             )}
+
+            <FormField
+              control={form.control}
+              name="semester_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>所属学期 *</FormLabel>
+                  <Select
+                    onValueChange={(v) => field.onChange(parseInt(v, 10))}
+                    value={field.value.toString()}
+                    disabled={loading || isEdit}
+                  >
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="请选择学期" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {semesters.map((semester) => (
+                        <SelectItem key={semester.id} value={semester.id.toString()}>
+                          {semester.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <FormField
               control={form.control}

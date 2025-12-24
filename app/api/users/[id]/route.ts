@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { getUserById, updateUser, deleteUser, toggleUserStatus, resetUserPassword } from "@/lib/api/users";
-import { hasPermission } from "@/lib/constants";
+import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import type { UserUpdate } from "@/types";
 
 type RouteContext = {
@@ -19,7 +19,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(currentUser.role, "users:read")) {
+    if (!hasPermission(currentUser.role, PERMISSIONS.USER_READ)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
@@ -55,7 +55,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(currentUser.role, "users:update")) {
+    if (!hasPermission(currentUser.role, PERMISSIONS.USER_UPDATE)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
@@ -95,7 +95,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(currentUser.role, "users:delete")) {
+    if (!hasPermission(currentUser.role, PERMISSIONS.USER_DELETE)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
@@ -131,7 +131,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(currentUser.role, "users:update")) {
+    if (!hasPermission(currentUser.role, PERMISSIONS.USER_UPDATE)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 

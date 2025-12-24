@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { getStudents, createStudent, batchCreateStudents } from "@/lib/api/students";
-import { hasPermission } from "@/lib/constants";
+import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import type { StudentInput } from "@/types";
 
 /**
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(currentUser.role, "students:read")) {
+    if (!hasPermission(currentUser.role, PERMISSIONS.STUDENT_READ)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(currentUser.role, "students:create")) {
+    if (!hasPermission(currentUser.role, PERMISSIONS.STUDENT_CREATE)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 

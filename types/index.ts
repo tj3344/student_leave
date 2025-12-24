@@ -62,12 +62,14 @@ export interface SemesterInput {
 
 export interface Grade {
   id: number;
+  semester_id: number;
   name: string;
   sort_order: number;
   created_at: string;
 }
 
 export interface GradeInput {
+  semester_id: number;
   name: string;
   sort_order?: number;
 }
@@ -78,6 +80,7 @@ export interface GradeInput {
 
 export interface Class {
   id: number;
+  semester_id: number;
   grade_id: number;
   name: string;
   class_teacher_id?: number;
@@ -88,6 +91,7 @@ export interface Class {
 }
 
 export interface ClassInput {
+  semester_id: number;
   grade_id: number;
   name: string;
   class_teacher_id?: number;

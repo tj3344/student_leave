@@ -4,14 +4,24 @@ import type { Grade, GradeInput, PaginationParams, PaginatedResponse } from "@/t
 /**
  * 获取年级列表
  */
-export function getGrades(params?: PaginationParams): PaginatedResponse<Grade> | Grade[] {
+export function getGrades(params?: PaginationParams & { semester_id?: number }): PaginatedResponse<Grade> | Grade[] {
   const db = getDb();
 
   // 如果没有分页参数，返回所有数据
   if (!params?.page && !params?.limit) {
+    let query = "SELECT * FROM grades";
+    const queryParams: (string | number)[] = [];
+
+    if (params?.semester_id) {
+      query += " WHERE semester_id = ?";
+      queryParams.push(params.semester_id);
+    }
+
+    query += " ORDER BY sort_order ASC, id ASC";
+
     return db
-      .prepare("SELECT * FROM grades ORDER BY sort_order ASC, id ASC")
-      .all() as Grade[];
+      .prepare(query)
+      .all(...queryParams) as Grade[];
   }
 
   const page = params.page || 1;
@@ -25,6 +35,16 @@ export function getGrades(params?: PaginationParams): PaginatedResponse<Grade> |
   if (params?.search) {
     whereClause = "WHERE name LIKE ?";
     queryParams.push(`%${params.search}%`);
+  }
+
+  // 如果指定了学期，添加学期过滤
+  if (params?.semester_id) {
+    if (whereClause) {
+      whereClause += " AND semester_id = ?";
+    } else {
+      whereClause = "WHERE semester_id = ?";
+    }
+    queryParams.push(params.semester_id);
   }
 
   // 获取总数
@@ -67,22 +87,22 @@ export function createGrade(
 ): { success: boolean; message?: string; gradeId?: number } {
   const db = getDb();
 
-  // 检查年级名称是否已存在
-  const existing = db.prepare("SELECT id FROM grades WHERE name = ?").get(input.name);
+  // 检查年级名称是否已存在（在同一学期内）
+  const existing = db.prepare("SELECT id FROM grades WHERE name = ? AND semester_id = ?").get(input.name, input.semester_id);
   if (existing) {
-    return { success: false, message: "年级名称已存在" };
+    return { success: false, message: "该学期下年级名称已存在" };
   }
 
   // 获取最大排序号
   const maxSortOrder = db
-    .prepare("SELECT COALESCE(MAX(sort_order), 0) as max_sort FROM grades")
-    .get() as { max_sort: number };
+    .prepare("SELECT COALESCE(MAX(sort_order), 0) as max_sort FROM grades WHERE semester_id = ?")
+    .get(input.semester_id) as { max_sort: number };
   const sortOrder = input.sort_order ?? maxSortOrder.max_sort + 1;
 
   // 插入年级
   const result = db
-    .prepare("INSERT INTO grades (name, sort_order) VALUES (?, ?)")
-    .run(input.name, sortOrder);
+    .prepare("INSERT INTO grades (semester_id, name, sort_order) VALUES (?, ?, ?)")
+    .run(input.semester_id, input.name, sortOrder);
 
   return { success: true, gradeId: result.lastInsertRowid as number };
 }

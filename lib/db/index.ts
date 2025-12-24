@@ -79,9 +79,11 @@ export function initDatabase(): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS grades (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      semester_id INTEGER NOT NULL,
       name VARCHAR(20) NOT NULL,
       sort_order INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (semester_id) REFERENCES semesters(id)
     )
   `);
 
@@ -89,6 +91,7 @@ export function initDatabase(): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS classes (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      semester_id INTEGER NOT NULL,
       grade_id INTEGER NOT NULL,
       name VARCHAR(20) NOT NULL,
       class_teacher_id INTEGER,
@@ -96,6 +99,7 @@ export function initDatabase(): void {
       student_count INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (semester_id) REFERENCES semesters(id),
       FOREIGN KEY (grade_id) REFERENCES grades(id),
       FOREIGN KEY (class_teacher_id) REFERENCES users(id)
     )
@@ -212,8 +216,8 @@ export async function seedAdminUser(): Promise<void> {
  * 运行数据库迁移
  */
 export async function runMigrations(): Promise<void> {
-  // 这里可以添加数据库版本迁移逻辑
-  // 目前只需初始化数据库
+  // 初始化数据库表结构（如果表不存在）
+  // 新数据库会自动包含 semester_id 字段
   initDatabase();
 
   // 创建初始管理员用户

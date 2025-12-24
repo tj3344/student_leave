@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { getUsers, createUser } from "@/lib/api/users";
-import { hasPermission } from "@/lib/constants";
+import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import type { UserInput } from "@/types";
 
 /**
@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(currentUser.role, "users:read")) {
+    if (!hasPermission(currentUser.role, PERMISSIONS.USER_READ)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(currentUser.role, "users:create")) {
+    if (!hasPermission(currentUser.role, PERMISSIONS.USER_CREATE)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 

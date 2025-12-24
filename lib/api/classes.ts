@@ -10,23 +10,32 @@ import type {
  * 获取班级列表
  */
 export function getClasses(
-  params?: PaginationParams & { grade_id?: number }
+  params?: PaginationParams & { grade_id?: number; semester_id?: number }
 ): PaginatedResponse<ClassWithDetails> | ClassWithDetails[] {
   const db = getDb();
 
   // 如果没有分页参数，返回所有数据
   if (!params?.page && !params?.limit) {
+    let query = `
+      SELECT c.*,
+             g.name as grade_name,
+             u.real_name as class_teacher_name
+      FROM classes c
+      LEFT JOIN grades g ON c.grade_id = g.id AND c.semester_id = g.semester_id
+      LEFT JOIN users u ON c.class_teacher_id = u.id
+    `;
+    const queryParams: (string | number)[] = [];
+
+    if (params?.semester_id) {
+      query += " WHERE c.semester_id = ?";
+      queryParams.push(params.semester_id);
+    }
+
+    query += " ORDER BY g.sort_order ASC, c.name ASC";
+
     return db
-      .prepare(`
-        SELECT c.*,
-               g.name as grade_name,
-               u.real_name as class_teacher_name
-        FROM classes c
-        LEFT JOIN grades g ON c.grade_id = g.id
-        LEFT JOIN users u ON c.class_teacher_id = u.id
-        ORDER BY g.sort_order ASC, c.name ASC
-      `)
-      .all() as ClassWithDetails[];
+      .prepare(query)
+      .all(...queryParams) as ClassWithDetails[];
   }
 
   const page = params.page || 1;
@@ -47,6 +56,11 @@ export function getClasses(
     queryParams.push(params.grade_id);
   }
 
+  if (params?.semester_id) {
+    whereClause += " AND c.semester_id = ?";
+    queryParams.push(params.semester_id);
+  }
+
   // 获取总数
   const countResult = db
     .prepare(`SELECT COUNT(*) as total FROM classes c ${whereClause}`)
@@ -62,7 +76,7 @@ export function getClasses(
              g.name as grade_name,
              u.real_name as class_teacher_name
       FROM classes c
-      LEFT JOIN grades g ON c.grade_id = g.id
+      LEFT JOIN grades g ON c.grade_id = g.id AND c.semester_id = g.semester_id
       LEFT JOIN users u ON c.class_teacher_id = u.id
       ${whereClause}
       ORDER BY ${sort} ${order}
@@ -105,10 +119,10 @@ export function createClass(
 ): { success: boolean; message?: string; classId?: number } {
   const db = getDb();
 
-  // 验证年级是否存在
-  const grade = db.prepare("SELECT id FROM grades WHERE id = ?").get(input.grade_id);
+  // 验证学期和年级是否存在且匹配
+  const grade = db.prepare("SELECT id FROM grades WHERE id = ? AND semester_id = ?").get(input.grade_id, input.semester_id);
   if (!grade) {
-    return { success: false, message: "年级不存在" };
+    return { success: false, message: "该学期下年级不存在" };
   }
 
   // 如果指定了班主任，验证用户是否存在
@@ -131,10 +145,10 @@ export function createClass(
     return { success: false, message: "营养餐费用必须大于0" };
   }
 
-  // 检查班级名称在同一年级下是否唯一
+  // 检查班级名称在同一学期的同一年级下是否唯一
   const existing = db
-    .prepare("SELECT id FROM classes WHERE grade_id = ? AND name = ?")
-    .get(input.grade_id, input.name);
+    .prepare("SELECT id FROM classes WHERE semester_id = ? AND grade_id = ? AND name = ?")
+    .get(input.semester_id, input.grade_id, input.name);
   if (existing) {
     return { success: false, message: "该年级下已存在同名班级" };
   }
@@ -142,10 +156,10 @@ export function createClass(
   // 插入班级
   const result = db
     .prepare(
-      `INSERT INTO classes (grade_id, name, class_teacher_id, meal_fee)
-       VALUES (?, ?, ?, ?)`
+      `INSERT INTO classes (semester_id, grade_id, name, class_teacher_id, meal_fee)
+       VALUES (?, ?, ?, ?, ?)`
     )
-    .run(input.grade_id, input.name, input.class_teacher_id || null, input.meal_fee);
+    .run(input.semester_id, input.grade_id, input.name, input.class_teacher_id || null, input.meal_fee);
 
   return { success: true, classId: result.lastInsertRowid as number };
 }
@@ -165,11 +179,14 @@ export function updateClass(
     return { success: false, message: "班级不存在" };
   }
 
-  // 如果更新年级，验证年级是否存在
-  if (input.grade_id !== undefined) {
-    const grade = db.prepare("SELECT id FROM grades WHERE id = ?").get(input.grade_id);
+  const semesterId = input.semester_id ?? existing.semester_id;
+  const gradeId = input.grade_id ?? existing.grade_id;
+
+  // 如果更新年级，验证年级是否存在且学期匹配
+  if (input.grade_id !== undefined || input.semester_id !== undefined) {
+    const grade = db.prepare("SELECT id FROM grades WHERE id = ? AND semester_id = ?").get(gradeId, semesterId);
     if (!grade) {
-      return { success: false, message: "年级不存在" };
+      return { success: false, message: "该学期下年级不存在" };
     }
   }
 
@@ -195,13 +212,12 @@ export function updateClass(
     return { success: false, message: "营养餐费用必须大于0" };
   }
 
-  // 检查班级名称在同一年级下是否唯一
-  const gradeId = input.grade_id ?? existing.grade_id;
+  // 检查班级名称在同一学期的同一年级下是否唯一
   const name = input.name ?? existing.name;
-  if (input.name !== undefined || input.grade_id !== undefined) {
+  if (input.name !== undefined || input.grade_id !== undefined || input.semester_id !== undefined) {
     const duplicate = db
-      .prepare("SELECT id FROM classes WHERE grade_id = ? AND name = ? AND id != ?")
-      .get(gradeId, name, id);
+      .prepare("SELECT id FROM classes WHERE semester_id = ? AND grade_id = ? AND name = ? AND id != ?")
+      .get(semesterId, gradeId, name, id);
     if (duplicate) {
       return { success: false, message: "该年级下已存在同名班级" };
     }
@@ -211,6 +227,10 @@ export function updateClass(
   const updates: string[] = [];
   const values: (string | number | null)[] = [];
 
+  if (input.semester_id !== undefined) {
+    updates.push("semester_id = ?");
+    values.push(input.semester_id);
+  }
   if (input.grade_id !== undefined) {
     updates.push("grade_id = ?");
     values.push(input.grade_id);

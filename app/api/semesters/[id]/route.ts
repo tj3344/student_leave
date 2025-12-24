@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCurrentUser } from "@/lib/api/auth";
+import { getCurrentUser, hasPermission } from "@/lib/api/auth";
 import {
   getSemesterById,
   updateSemester,
   deleteSemester,
   setCurrentSemester,
 } from "@/lib/api/semesters";
-import { hasPermission } from "@/lib/api/auth";
+import { PERMISSIONS } from "@/lib/constants";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(user, "semesters:read")) {
+    if (!hasPermission(user, PERMISSIONS.SEMESTER_READ)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
@@ -52,7 +52,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(user, "semesters:update")) {
+    if (!hasPermission(user, PERMISSIONS.SEMESTER_UPDATE)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
@@ -87,7 +87,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(user, "semesters:delete")) {
+    if (!hasPermission(user, PERMISSIONS.SEMESTER_DELETE)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
@@ -119,7 +119,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(user, "semesters:update")) {
+    if (!hasPermission(user, PERMISSIONS.SEMESTER_UPDATE)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
