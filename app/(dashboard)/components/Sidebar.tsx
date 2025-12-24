@@ -16,6 +16,8 @@ import {
   Database,
   Settings,
   LogOut,
+  DollarSign,
+  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ROLE_NAMES } from "@/lib/constants";
@@ -32,6 +34,14 @@ const navigation = [
     ],
   },
   {
+    category: "费用管理",
+    items: [
+      { name: "缴费管理", href: "/admin/fees", icon: DollarSign, roles: ["admin"] },
+      { name: "退费记录", href: "/admin/fees/refunds", icon: Receipt, roles: ["admin"] },
+      { name: "退费汇总", href: "/admin/fees/summary", icon: FileText, roles: ["admin"] },
+    ],
+  },
+  {
     category: "请假管理",
     items: [
       { name: "请假管理", href: "/leaves", icon: ClipboardList, roles: ["admin", "teacher", "class_teacher"] },
@@ -41,7 +51,6 @@ const navigation = [
   {
     category: "系统功能",
     items: [
-      { name: "退费管理", href: "/admin/refunds", icon: Receipt, roles: ["admin"] },
       { name: "数据导入", href: "/admin/import", icon: FileUp, roles: ["admin"] },
       { name: "数据导出", href: "/admin/export", icon: FileDown, roles: ["admin"] },
       { name: "数据备份", href: "/admin/backup", icon: Database, roles: ["admin"] },

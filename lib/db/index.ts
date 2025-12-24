@@ -177,6 +177,24 @@ export function initDatabase(): void {
     )
   `);
 
+  // 费用配置表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS fee_configs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      class_id INTEGER NOT NULL,
+      semester_id INTEGER NOT NULL,
+      meal_fee_standard DECIMAL(10,2) NOT NULL,
+      prepaid_days INTEGER NOT NULL DEFAULT 0,
+      actual_days INTEGER NOT NULL DEFAULT 0,
+      suspension_days INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (class_id) REFERENCES classes(id),
+      FOREIGN KEY (semester_id) REFERENCES semesters(id),
+      UNIQUE(class_id, semester_id)
+    )
+  `);
+
   // 创建索引
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_students_class ON students(class_id);
@@ -187,6 +205,8 @@ export function initDatabase(): void {
     CREATE INDEX IF NOT EXISTS idx_classes_grade ON classes(grade_id);
     CREATE INDEX IF NOT EXISTS idx_logs_user ON operation_logs(user_id);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_classes_class_teacher ON classes(class_teacher_id);
+    CREATE INDEX IF NOT EXISTS idx_fee_configs_class ON fee_configs(class_id);
+    CREATE INDEX IF NOT EXISTS idx_fee_configs_semester ON fee_configs(semester_id);
   `);
 
   console.log("Database initialized successfully");

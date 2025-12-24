@@ -121,6 +121,13 @@ export const PERMISSIONS = {
   REFUND_READ: "refund:read",
   REFUND_EXPORT: "refund:export",
 
+  // 费用管理
+  FEE_READ: "fee:read",
+  FEE_CREATE: "fee:create",
+  FEE_UPDATE: "fee:update",
+  FEE_DELETE: "fee:delete",
+  FEE_EXPORT: "fee:export",
+
   // 系统管理
   SYSTEM_CONFIG: "system:config",
   SYSTEM_BACKUP: "system:backup",

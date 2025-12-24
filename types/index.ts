@@ -265,3 +265,67 @@ export interface ClassRefundSummary {
   total_leave_days: number;
   total_refund_amount: number;
 }
+
+// ============================================
+// 费用管理相关类型
+// ============================================
+
+export interface FeeConfig {
+  id: number;
+  class_id: number;
+  semester_id: number;
+  meal_fee_standard: number;
+  prepaid_days: number;
+  actual_days: number;
+  suspension_days: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface FeeConfigInput {
+  class_id: number;
+  semester_id: number;
+  meal_fee_standard: number;
+  prepaid_days: number;
+  actual_days: number;
+  suspension_days: number;
+}
+
+export interface FeeConfigWithDetails extends FeeConfig {
+  class_name?: string;
+  grade_name?: string;
+  semester_name?: string;
+  class_teacher_name?: string;
+}
+
+// 学生退费记录
+export interface StudentRefundRecord {
+  student_id: number;
+  student_name: string;
+  student_no: string;
+  class_name: string;
+  grade_name: string;
+  is_nutrition_meal: number;
+  leave_days: number;
+  prepaid_days: number;
+  actual_days: number;
+  suspension_days: number;
+  meal_fee_standard: number;
+  refund_amount: number;
+}
+
+// 班级退费汇总
+export interface ClassRefundSummaryFull {
+  class_id: number;
+  class_name: string;
+  grade_name: string;
+  class_teacher_name?: string;
+  meal_fee_standard: number;
+  prepaid_days: number;
+  actual_days: number;
+  suspension_days: number;
+  total_leave_days: number;
+  student_count: number;
+  refund_students_count: number;
+  total_refund_amount: number;
+}
