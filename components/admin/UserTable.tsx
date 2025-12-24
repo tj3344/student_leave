@@ -142,7 +142,6 @@ export function UserTable({ data, onEdit, onRefresh }: UserTableProps) {
               <TableHead>角色</TableHead>
               <TableHead>分配班级</TableHead>
               <TableHead>手机号</TableHead>
-              <TableHead>邮箱</TableHead>
               <TableHead>状态</TableHead>
               <TableHead>创建时间</TableHead>
               <TableHead className="w-[70px]">操作</TableHead>
@@ -151,7 +150,7 @@ export function UserTable({ data, onEdit, onRefresh }: UserTableProps) {
           <TableBody>
             {data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="h-24 text-center">
+                <TableCell colSpan={8} className="h-24 text-center">
                   暂无数据
                 </TableCell>
               </TableRow>
@@ -178,7 +177,6 @@ export function UserTable({ data, onEdit, onRefresh }: UserTableProps) {
                     )}
                   </TableCell>
                   <TableCell>{user.phone || "-"}</TableCell>
-                  <TableCell>{user.email || "-"}</TableCell>
                   <TableCell>
                     <Badge variant={user.is_active ? "default" : "secondary"}>
                       {user.is_active ? "启用" : "禁用"}

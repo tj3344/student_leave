@@ -10,7 +10,7 @@ import type { User, UserInput, UserUpdate, PaginationParams, PaginatedResponse }
  * 获取用户列表（分页）
  */
 export function getUsers(
-  params: PaginationParams & { role?: string; is_active?: number; has_class?: boolean }
+  params: PaginationParams & { role?: string; roles?: string[]; is_active?: number; has_class?: boolean }
 ): PaginatedResponse<Omit<User, "password_hash"> & { class_id?: number; class_name?: string; grade_name?: string }> {
   const db = getDb();
   const page = params.page || 1;
@@ -27,7 +27,12 @@ export function getUsers(
     queryParams.push(searchTerm, searchTerm, searchTerm);
   }
 
-  if (params.role) {
+  // 支持单个角色或角色数组
+  if (params.roles && params.roles.length > 0) {
+    const placeholders = params.roles.map(() => "?").join(",");
+    whereClause += ` AND u.role IN (${placeholders})`;
+    queryParams.push(...params.roles);
+  } else if (params.role) {
     whereClause += " AND u.role = ?";
     queryParams.push(params.role);
   }

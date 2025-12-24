@@ -14,7 +14,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ROLE_NAMES } from "@/lib/constants";
+// 用户管理页面可选角色（班主任在班级管理中分配）
+const USER_MANAGEMENT_ROLES: Record<string, string> = {
+  admin: "管理员",
+  teacher: "教师",
+};
 
 export default function UsersPage() {
   const [users, setUsers] = useState<Array<Omit<User, "password_hash"> & { class_id?: number; class_name?: string; grade_name?: string }>>([]);
@@ -68,7 +72,7 @@ export default function UsersPage() {
     fetchUsers();
   };
 
-  const isTeacherRole = roleFilter === "teacher" || roleFilter === "class_teacher";
+  const isTeacherRole = roleFilter === "teacher";
 
   return (
     <div className="space-y-6">
@@ -105,7 +109,7 @@ export default function UsersPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部角色</SelectItem>
-            {Object.entries(ROLE_NAMES).map(([value, label]) => (
+            {Object.entries(USER_MANAGEMENT_ROLES).map(([value, label]) => (
               <SelectItem key={value} value={value}>
                 {label}
               </SelectItem>

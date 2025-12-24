@@ -27,15 +27,18 @@ export async function GET(request: NextRequest) {
     const role = searchParams.get("role") || "";
     const is_active = searchParams.get("is_active");
     const has_class = searchParams.get("has_class");
-    const sort = searchParams.get("sort") || "created_at";
+    const sort = searchParams.get("sort") || "u.created_at";
     const order = (searchParams.get("order") || "desc") as "asc" | "desc";
+
+    // 支持逗号分隔的角色值
+    const roles = role ? role.split(",").map(r => r.trim()) : [];
 
     // 获取用户列表
     const result = getUsers({
       page,
       limit,
       search: search || undefined,
-      role: role || undefined,
+      roles: roles.length > 0 ? roles : undefined,
       is_active: is_active ? parseInt(is_active, 10) : undefined,
       has_class: has_class ? has_class === "true" : undefined,
       sort,

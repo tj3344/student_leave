@@ -31,14 +31,19 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
-import { ROLE_NAMES } from "@/lib/constants";
 import type { User } from "@/types";
+
+// 用户管理表单可选角色（班主任在班级管理中分配）
+const USER_FORM_ROLES: Record<string, string> = {
+  admin: "管理员",
+  teacher: "教师",
+};
 
 const userSchema = z.object({
   username: z.string().min(2, "用户名至少2个字符").max(50, "用户名不能超过50个字符"),
   password: z.string().min(6, "密码至少6个字符").max(50, "密码不能超过50个字符").optional(),
   real_name: z.string().min(1, "姓名不能为空").max(50, "姓名不能超过50个字符"),
-  role: z.enum(["admin", "teacher", "class_teacher"], { required_error: "请选择角色" }),
+  role: z.enum(["admin", "teacher"], { required_error: "请选择角色" }),
   phone: z.string().regex(/^1[3-9]\d{9}$/, "请输入有效的手机号").optional().or(z.literal("")),
   email: z.string().email("请输入有效的邮箱地址").optional().or(z.literal("")),
   is_active: z.number().int().min(0).max(1),
@@ -56,6 +61,8 @@ interface UserFormProps {
 export function UserForm({ open, onClose, onSuccess, user }: UserFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const isEdit = !!user;
+  // 班主任角色应在班级管理中分配
+  const isClassTeacher = user?.role === "class_teacher";
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
@@ -63,7 +70,7 @@ export function UserForm({ open, onClose, onSuccess, user }: UserFormProps) {
       username: user?.username || "",
       password: "",
       real_name: user?.real_name || "",
-      role: user?.role || "teacher",
+      role: (isClassTeacher ? "teacher" : user?.role) || "teacher",
       phone: user?.phone || "",
       email: user?.email || "",
       is_active: user?.is_active ?? 1,
@@ -88,7 +95,8 @@ export function UserForm({ open, onClose, onSuccess, user }: UserFormProps) {
       const submitData: Record<string, unknown> = {
         username: values.username,
         real_name: values.real_name,
-        role: values.role,
+        // 班主任角色保持不变，其他用户使用表单选择的角色
+        role: isClassTeacher ? user?.role : values.role,
         phone: values.phone || null,
         email: values.email || null,
         is_active: values.is_active,
@@ -200,20 +208,26 @@ export function UserForm({ open, onClose, onSuccess, user }: UserFormProps) {
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>角色 *</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="请选择角色" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {Object.entries(ROLE_NAMES).map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  {isClassTeacher ? (
+                    <div className="flex items-center gap-2 h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                      <span className="text-muted-foreground">班主任（请在班级管理中修改）</span>
+                    </div>
+                  ) : (
+                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="请选择角色" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        {Object.entries(USER_FORM_ROLES).map(([value, label]) => (
+                          <SelectItem key={value} value={value}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
                   <FormMessage />
                 </FormItem>
               )}
@@ -224,7 +238,7 @@ export function UserForm({ open, onClose, onSuccess, user }: UserFormProps) {
                 control={form.control}
                 name="phone"
                 render={({ field }) => (
-                  <FormItem>
+                  <FormItem className={form.watch("role") === "teacher" ? "col-span-2" : ""}>
                     <FormLabel>手机号</FormLabel>
                     <FormControl>
                       <Input placeholder="请输入手机号" {...field} />
@@ -234,19 +248,21 @@ export function UserForm({ open, onClose, onSuccess, user }: UserFormProps) {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="email"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>邮箱</FormLabel>
-                    <FormControl>
-                      <Input type="email" placeholder="请输入邮箱" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              {form.watch("role") === "admin" && (
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>邮箱</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="请输入邮箱" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
 
             <FormField
