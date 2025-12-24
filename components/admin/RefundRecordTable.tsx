@@ -49,7 +49,7 @@ export function RefundRecordTable({ data }: RefundRecordTableProps) {
                 <TableCell className="font-medium">{item.student_no}</TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    {item.name}
+                    {item.student_name}
                     {item.is_nutrition_meal === 1 && (
                       <Badge variant="secondary" className="text-xs">营养餐</Badge>
                     )}

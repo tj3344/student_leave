@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db";
 import { hashPassword } from "@/lib/utils/crypto";
-import type { User, UserInput, PaginationParams, PaginatedResponse } from "@/types";
+import type { User, UserInput, UserUpdate, PaginationParams, PaginatedResponse } from "@/types";
 
 /**
  * 教师服务层
@@ -180,7 +180,7 @@ export async function createTeacher(input: UserInput & { password?: string }): P
  */
 export async function updateTeacher(
   id: number,
-  input: Partial<UserInput> & { password?: string }
+  input: Partial<UserUpdate> & { password?: string }
 ): Promise<{ success: boolean; message?: string }> {
   const db = getDb();
 

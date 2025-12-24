@@ -63,6 +63,12 @@ export function UserForm({ open, onClose, onSuccess, user }: UserFormProps) {
   const isEdit = !!user;
   // 班主任角色应在班级管理中分配
   const isClassTeacher = user?.role === "class_teacher";
+  // 确定表单默认角色：如果是班主任，显示为教师
+  const defaultRole: "admin" | "teacher" = isClassTeacher || !user?.role
+    ? "teacher"
+    : user.role === "admin"
+    ? "admin"
+    : "teacher";
 
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
@@ -70,7 +76,7 @@ export function UserForm({ open, onClose, onSuccess, user }: UserFormProps) {
       username: user?.username || "",
       password: "",
       real_name: user?.real_name || "",
-      role: (isClassTeacher ? "teacher" : user?.role) || "teacher",
+      role: defaultRole,
       phone: user?.phone || "",
       email: user?.email || "",
       is_active: user?.is_active ?? 1,

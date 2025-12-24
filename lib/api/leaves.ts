@@ -1,6 +1,5 @@
 import { getDb } from "@/lib/db";
 import { calculateDays } from "@/lib/utils/date";
-import { calculateRefund } from "@/lib/utils/refund";
 import type {
   LeaveInput,
   LeaveReview,
@@ -161,17 +160,26 @@ export function createLeave(
 ): { success: boolean; message?: string; leaveId?: number } {
   const db = getDb();
 
-  // 检查学生是否存在
+  // 检查学生是否存在，并获取费用配置
   const student = db
     .prepare(
-      `SELECT s.*, c.meal_fee, sem.school_days, sem.id as semester_id
+      `SELECT s.id, s.is_nutrition_meal, s.class_id,
+              c.id as class_id_check, c.semester_id as class_semester_id,
+              fc.meal_fee_standard
        FROM students s
        LEFT JOIN classes c ON s.class_id = c.id
-       LEFT JOIN semesters sem ON c.semester_id = sem.id
+       LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = ?
        WHERE s.id = ?`
     )
-    .get(input.student_id) as
-    | { id: number; is_nutrition_meal: number; meal_fee: number; school_days: number; semester_id: number }
+    .get(input.semester_id, input.student_id) as
+    | {
+        id: number;
+        is_nutrition_meal: number;
+        class_id: number;
+        class_id_check: number | null;
+        class_semester_id: number | null;
+        meal_fee_standard: number | null;
+      }
     | undefined;
 
   if (!student) {
@@ -181,9 +189,10 @@ export function createLeave(
   // 计算请假天数
   const leaveDays = calculateDays(input.start_date, input.end_date);
 
-  // 计算退费金额
+  // 计算退费金额：退费金额 = 请假天数 × 餐费标准
   const isNutritionMeal = student.is_nutrition_meal === 1;
-  const refundAmount = calculateRefund(student.meal_fee, student.school_days, leaveDays, isNutritionMeal);
+  const mealFeeStandard = student.meal_fee_standard ?? 0;
+  const refundAmount = isNutritionMeal ? 0 : leaveDays * mealFeeStandard;
 
   // 插入请假记录
   const result = db
@@ -429,4 +438,53 @@ export function getLeavesByStudent(studentId: number, semesterId?: number): Leav
     .all(...params) as LeaveWithDetails[];
 
   return leaves;
+}
+
+/**
+ * 重新计算所有请假记录的退费金额
+ * 使用新的费用配置
+ */
+export function recalculateAllLeaveRefunds(): { updated: number; message: string } {
+  const db = getDb();
+
+  // 获取所有需要更新的请假记录
+  const leaves = db
+    .prepare(`
+      SELECT lr.id, lr.student_id, lr.semester_id, lr.leave_days, lr.is_refund,
+             s.is_nutrition_meal,
+             fc.meal_fee_standard
+      FROM leave_records lr
+      LEFT JOIN students s ON lr.student_id = s.id
+      LEFT JOIN classes c ON s.class_id = c.id
+      LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = lr.semester_id
+      WHERE lr.is_refund = 1
+    `)
+    .all() as {
+      id: number;
+      student_id: number;
+      semester_id: number;
+      leave_days: number;
+      is_refund: number;
+      is_nutrition_meal: number;
+      meal_fee_standard: number | null;
+    }[];
+
+  let updatedCount = 0;
+
+  for (const leave of leaves) {
+    const isNutritionMeal = leave.is_nutrition_meal === 1;
+    const mealFeeStandard = leave.meal_fee_standard ?? 0;
+    const refundAmount = isNutritionMeal ? null : leave.leave_days * mealFeeStandard;
+
+    db.prepare(
+      `UPDATE leave_records SET refund_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
+    ).run(refundAmount, leave.id);
+
+    updatedCount++;
+  }
+
+  return {
+    updated: updatedCount,
+    message: `已更新 ${updatedCount} 条请假记录的退费金额`,
+  };
 }

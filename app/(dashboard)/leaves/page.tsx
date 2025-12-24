@@ -27,8 +27,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { LEAVE_STATUS_NAMES } from "@/lib/constants";
 
-type UserRole = "admin" | "teacher" | "class_teacher";
-
 export default function UnifiedLeavesPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);

@@ -1,6 +1,5 @@
 import { getDb } from "@/lib/db";
 import type {
-  FeeConfig,
   FeeConfigInput,
   FeeConfigWithDetails,
   PaginationParams,
@@ -319,8 +318,14 @@ export function getStudentRefundRecords(
   let whereClause = "WHERE s.is_active = 1";
   const queryParams: (string | number)[] = [];
 
+  // 根据 semester_id 筛选条件，动态构建 JOIN
+  // 如果指定了学期，JOIN 该学期的费用配置
+  // 如果没指定学期，JOIN 班级所在学期的费用配置
+  const feeConfigJoin = params?.semester_id
+    ? "LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = ?"
+    : "LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = c.semester_id";
+
   if (params?.semester_id) {
-    whereClause += " AND fc.semester_id = ?";
     queryParams.push(params.semester_id);
   }
 
@@ -329,52 +334,62 @@ export function getStudentRefundRecords(
     queryParams.push(params.class_id);
   }
 
+  // 请假记录的 JOIN 条件也需要根据学期动态调整
+  const leaveRecordJoin = params?.semester_id
+    ? "LEFT JOIN leave_records lr ON s.id = lr.student_id AND lr.semester_id = ? AND lr.status = 'approved'"
+    : "LEFT JOIN leave_records lr ON s.id = lr.student_id AND lr.semester_id = c.semester_id AND lr.status = 'approved'";
+
+  if (params?.semester_id) {
+    queryParams.push(params.semester_id);
+  }
+
   // 获取总数
-  const countResult = db
-    .prepare(`
-      SELECT COUNT(*) as total
-      FROM students s
-      LEFT JOIN classes c ON s.class_id = c.id
-      LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = c.semester_id
-      ${whereClause}
-    `)
-    .get(...queryParams) as { total: number };
-  const total = countResult.total;
+  const countQuery = `
+    SELECT COUNT(*) as total
+    FROM students s
+    LEFT JOIN classes c ON s.class_id = c.id
+    LEFT JOIN grades g ON c.grade_id = g.id
+    ${feeConfigJoin}
+    ${leaveRecordJoin}
+    ${whereClause}
+  `;
+
+  const total = (db.prepare(countQuery).get(...queryParams) as { total: number }).total;
 
   // 获取数据
-  const data = db
-    .prepare(`
-      SELECT
-        s.id as student_id,
-        s.student_no,
-        s.name as student_name,
-        c.name as class_name,
-        g.name as grade_name,
-        s.is_nutrition_meal,
-        COALESCE(SUM(lr.leave_days), 0) as leave_days,
-        COALESCE(fc.prepaid_days, 0) as prepaid_days,
-        COALESCE(fc.actual_days, 0) as actual_days,
-        COALESCE(fc.suspension_days, 0) as suspension_days,
-        COALESCE(fc.meal_fee_standard, 0) as meal_fee_standard,
-        CASE
-          WHEN s.is_nutrition_meal = 1 THEN 0
-          ELSE COALESCE(fc.meal_fee_standard, 0) *
-            (COALESCE(fc.prepaid_days, 0) - COALESCE(fc.actual_days, 0) +
-             COALESCE(fc.suspension_days, 0) + COALESCE(SUM(lr.leave_days), 0))
-        END as refund_amount
-      FROM students s
-      LEFT JOIN classes c ON s.class_id = c.id
-      LEFT JOIN grades g ON c.grade_id = g.id
-      LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = c.semester_id
-      LEFT JOIN leave_records lr ON s.id = lr.student_id AND lr.semester_id = fc.semester_id AND lr.status = 'approved'
-      ${whereClause}
-      GROUP BY s.id, s.student_no, s.name, c.name, g.name, s.is_nutrition_meal,
-               fc.prepaid_days, fc.actual_days, fc.suspension_days, fc.meal_fee_standard
-      HAVING refund_amount > 0 OR COALESCE(SUM(lr.leave_days), 0) > 0
-      ORDER BY g.sort_order ASC, c.name ASC, s.student_no ASC
-      LIMIT ? OFFSET ?
-    `)
-    .all(...queryParams, limit, offset) as StudentRefundRecord[];
+  const dataQuery = `
+    SELECT
+      s.id as student_id,
+      s.student_no,
+      s.name as student_name,
+      c.name as class_name,
+      g.name as grade_name,
+      s.is_nutrition_meal,
+      COALESCE(SUM(lr.leave_days), 0) as leave_days,
+      COALESCE(fc.prepaid_days, 0) as prepaid_days,
+      COALESCE(fc.actual_days, 0) as actual_days,
+      COALESCE(fc.suspension_days, 0) as suspension_days,
+      COALESCE(fc.meal_fee_standard, 0) as meal_fee_standard,
+      CASE
+        WHEN s.is_nutrition_meal = 1 THEN 0
+        ELSE COALESCE(fc.meal_fee_standard, 0) *
+          (COALESCE(fc.prepaid_days, 0) - COALESCE(fc.actual_days, 0) +
+           COALESCE(fc.suspension_days, 0) + COALESCE(SUM(lr.leave_days), 0))
+      END as refund_amount
+    FROM students s
+    LEFT JOIN classes c ON s.class_id = c.id
+    LEFT JOIN grades g ON c.grade_id = g.id
+    ${feeConfigJoin}
+    ${leaveRecordJoin}
+    ${whereClause}
+    GROUP BY s.id, s.student_no, s.name, c.name, g.name, s.is_nutrition_meal,
+             fc.prepaid_days, fc.actual_days, fc.suspension_days, fc.meal_fee_standard
+    HAVING refund_amount > 0 OR COALESCE(SUM(lr.leave_days), 0) > 0
+    ORDER BY g.sort_order ASC, c.name ASC, s.student_no ASC
+    LIMIT ? OFFSET ?
+  `;
+
+  const data = db.prepare(dataQuery).all(...queryParams, limit, offset) as StudentRefundRecord[];
 
   return {
     data,
@@ -393,6 +408,33 @@ export function getClassRefundSummary(
 ): ClassRefundSummaryFull[] {
   const db = getDb();
 
+  // 先获取每个学生的请假天数
+  let studentLeaveQuery = `
+    SELECT
+      s.id as student_id,
+      s.class_id,
+      s.is_nutrition_meal,
+      COALESCE(SUM(lr.leave_days), 0) as leave_days
+    FROM students s
+    LEFT JOIN leave_records lr ON s.id = lr.student_id AND lr.status = 'approved'
+    WHERE s.is_active = 1
+  `;
+
+  const studentLeaveParams: (string | number)[] = [];
+  const studentLeaveConditions: string[] = [];
+
+  if (params?.semester_id) {
+    studentLeaveConditions.push("lr.semester_id = ?");
+    studentLeaveParams.push(params.semester_id);
+  }
+
+  if (studentLeaveConditions.length > 0) {
+    studentLeaveQuery += " AND " + studentLeaveConditions.join(" AND ");
+  }
+
+  studentLeaveQuery += " GROUP BY s.id, s.class_id, s.is_nutrition_meal";
+
+  // 主查询：获取班级退费汇总
   let query = `
     SELECT
       c.id as class_id,
@@ -403,22 +445,21 @@ export function getClassRefundSummary(
       COALESCE(fc.prepaid_days, 0) as prepaid_days,
       COALESCE(fc.actual_days, 0) as actual_days,
       COALESCE(fc.suspension_days, 0) as suspension_days,
-      COALESCE(SUM(lr.leave_days), 0) as total_leave_days,
-      COUNT(DISTINCT s.id) as student_count,
+      COALESCE(SUM(sl.leave_days), 0) as total_leave_days,
+      COUNT(DISTINCT sl.student_id) as student_count,
       SUM(CASE
-        WHEN s.is_nutrition_meal = 0 THEN
+        WHEN sl.is_nutrition_meal = 0 THEN
           COALESCE(fc.meal_fee_standard, 0) *
           (COALESCE(fc.prepaid_days, 0) - COALESCE(fc.actual_days, 0) +
-           COALESCE(fc.suspension_days, 0) + COALESCE(SUM(lr.leave_days), 0))
+           COALESCE(fc.suspension_days, 0) + COALESCE(sl.leave_days, 0))
         ELSE 0
       END) as total_refund_amount,
-      COUNT(CASE WHEN s.is_nutrition_meal = 0 THEN 1 END) as refund_students_count
+      COUNT(CASE WHEN sl.is_nutrition_meal = 0 THEN 1 END) as refund_students_count
     FROM classes c
     LEFT JOIN grades g ON c.grade_id = g.id
     LEFT JOIN users u ON c.class_teacher_id = u.id
     LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = c.semester_id
-    LEFT JOIN students s ON c.id = s.class_id AND s.is_active = 1
-    LEFT JOIN leave_records lr ON s.id = lr.student_id AND lr.semester_id = fc.semester_id AND lr.status = 'approved'
+    LEFT JOIN (${studentLeaveQuery}) sl ON c.id = sl.class_id
   `;
 
   const queryParams: (string | number)[] = [];
@@ -444,5 +485,6 @@ export function getClassRefundSummary(
     ORDER BY g.sort_order ASC, c.name ASC
   `;
 
-  return db.prepare(query).all(...queryParams) as ClassRefundSummaryFull[];
+  // 传递子查询参数
+  return db.prepare(query).all(...studentLeaveParams, ...queryParams) as ClassRefundSummaryFull[];
 }

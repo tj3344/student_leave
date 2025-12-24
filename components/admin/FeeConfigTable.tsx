@@ -140,7 +140,7 @@ export function FeeConfigTable({ data, onEdit, onRefresh }: FeeConfigTableProps)
           <AlertDialogHeader>
             <AlertDialogTitle>确认删除</AlertDialogTitle>
             <AlertDialogDescription>
-              确定要删除 "{deleteDialog.feeConfig?.semester_name} - {deleteDialog.feeConfig?.grade_name} {deleteDialog.feeConfig?.class_name}"
+              确定要删除 &quot;{deleteDialog.feeConfig?.semester_name} - {deleteDialog.feeConfig?.grade_name} {deleteDialog.feeConfig?.class_name}&quot;
               的费用配置吗？此操作不可撤销。
             </AlertDialogDescription>
           </AlertDialogHeader>
