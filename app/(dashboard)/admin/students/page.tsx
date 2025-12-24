@@ -125,15 +125,15 @@ export default function StudentsPage() {
             className="pl-9"
           />
         </div>
-        <Select value={gradeFilter} onValueChange={(value) => {
-          setGradeFilter(value);
+        <Select value={gradeFilter || "all"} onValueChange={(value) => {
+          setGradeFilter(value === "all" ? "" : value);
           setClassFilter(""); // 重置班级筛选
         }}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="选择年级" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">全部年级</SelectItem>
+            <SelectItem value="all">全部年级</SelectItem>
             {gradeList.map((grade) => (
               <SelectItem key={grade.id} value={grade.id.toString()}>
                 {grade.name}
@@ -141,12 +141,12 @@ export default function StudentsPage() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={classFilter} onValueChange={setClassFilter}>
+        <Select value={classFilter || "all"} onValueChange={(v) => setClassFilter(v === "all" ? "" : v)}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="选择班级" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">全部班级</SelectItem>
+            <SelectItem value="all">全部班级</SelectItem>
             {filteredClassList.map((cls) => (
               <SelectItem key={cls.id} value={cls.id.toString()}>
                 {cls.grade_name} - {cls.name}
@@ -154,12 +154,12 @@ export default function StudentsPage() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="选择状态" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">全部状态</SelectItem>
+            <SelectItem value="all">全部状态</SelectItem>
             <SelectItem value="1">在校</SelectItem>
             <SelectItem value="0">离校</SelectItem>
           </SelectContent>

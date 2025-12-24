@@ -95,12 +95,12 @@ export default function UsersPage() {
             className="pl-9"
           />
         </div>
-        <Select value={roleFilter} onValueChange={setRoleFilter}>
+        <Select value={roleFilter || "all"} onValueChange={(v) => setRoleFilter(v === "all" ? "" : v)}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="选择角色" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">全部角色</SelectItem>
+            <SelectItem value="all">全部角色</SelectItem>
             {Object.entries(ROLE_NAMES).map(([value, label]) => (
               <SelectItem key={value} value={value}>
                 {label}
@@ -108,12 +108,12 @@ export default function UsersPage() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
           <SelectTrigger className="w-[150px]">
             <SelectValue placeholder="选择状态" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">全部状态</SelectItem>
+            <SelectItem value="all">全部状态</SelectItem>
             <SelectItem value="1">启用</SelectItem>
             <SelectItem value="0">禁用</SelectItem>
           </SelectContent>
