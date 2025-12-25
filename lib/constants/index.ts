@@ -100,6 +100,7 @@ export const PERMISSIONS = {
   LEAVE_APPROVE: "leave:approve",
   LEAVE_REJECT: "leave:reject",
   LEAVE_EXPORT: "leave:export",
+  LEAVE_IMPORT: "leave:import",
 
   // 班级管理
   CLASS_CREATE: "class:create",

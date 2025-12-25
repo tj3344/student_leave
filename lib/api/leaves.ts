@@ -89,12 +89,14 @@ export function getLeaves(
       s.student_no,
       s.is_nutrition_meal,
       c.name as class_name,
+      g.name as grade_name,
       u.real_name as applicant_name,
       reviewer.real_name as reviewer_name,
       sem.name as semester_name
     FROM leave_records lr
     LEFT JOIN students s ON lr.student_id = s.id
     LEFT JOIN classes c ON s.class_id = c.id
+    LEFT JOIN grades g ON c.grade_id = g.id
     LEFT JOIN users u ON lr.applicant_id = u.id
     LEFT JOIN users reviewer ON lr.reviewer_id = reviewer.id
     LEFT JOIN semesters sem ON lr.semester_id = sem.id
@@ -409,12 +411,14 @@ export function getLeavesByClass(classId: number, semesterId?: number): LeaveWit
         s.student_no,
         s.is_nutrition_meal,
         c.name as class_name,
+        g.name as grade_name,
         u.real_name as applicant_name,
         reviewer.real_name as reviewer_name,
         sem.name as semester_name
       FROM leave_records lr
       LEFT JOIN students s ON lr.student_id = s.id
       LEFT JOIN classes c ON s.class_id = c.id
+      LEFT JOIN grades g ON c.grade_id = g.id
       LEFT JOIN users u ON lr.applicant_id = u.id
       LEFT JOIN users reviewer ON lr.reviewer_id = reviewer.id
       LEFT JOIN semesters sem ON lr.semester_id = sem.id
@@ -448,12 +452,14 @@ export function getLeavesByStudent(studentId: number, semesterId?: number): Leav
         s.student_no,
         s.is_nutrition_meal,
         c.name as class_name,
+        g.name as grade_name,
         u.real_name as applicant_name,
         reviewer.real_name as reviewer_name,
         sem.name as semester_name
       FROM leave_records lr
       LEFT JOIN students s ON lr.student_id = s.id
       LEFT JOIN classes c ON s.class_id = c.id
+      LEFT JOIN grades g ON c.grade_id = g.id
       LEFT JOIN users u ON lr.applicant_id = u.id
       LEFT JOIN users reviewer ON lr.reviewer_id = reviewer.id
       LEFT JOIN semesters sem ON lr.semester_id = sem.id
@@ -512,4 +518,98 @@ export function recalculateAllLeaveRefunds(): { updated: number; message: string
     updated: updatedCount,
     message: `已更新 ${updatedCount} 条请假记录的退费金额`,
   };
+}
+
+/**
+ * 根据学生信息获取学生ID和学期ID
+ * 验证学生是否存在以及班级学期关联是否正确
+ */
+export function getStudentIdByInfo(
+  studentNo: string,
+  studentName: string,
+  semesterName: string,
+  gradeName: string,
+  className: string
+): { student_id?: number; semester_id?: number; error?: string } {
+  const db = getDb();
+
+  // 查找学期
+  const semester = db
+    .prepare("SELECT id FROM semesters WHERE name = ?")
+    .get(semesterName) as { id: number } | undefined;
+
+  if (!semester) {
+    return { error: `学期"${semesterName}"不存在` };
+  }
+
+  // 查找班级
+  const classInfo = db
+    .prepare(`
+      SELECT c.id, c.semester_id
+      FROM classes c
+      LEFT JOIN grades g ON c.grade_id = g.id
+      WHERE c.semester_id = ? AND g.name = ? AND c.name = ?
+    `)
+    .get(semester.id, gradeName, className) as
+    | { id: number; semester_id: number }
+    | undefined;
+
+  if (!classInfo) {
+    return { error: `在学期"${semesterName}"中未找到"${gradeName}${className}"` };
+  }
+
+  // 查找学生
+  const student = db
+    .prepare("SELECT id FROM students WHERE student_no = ? AND name = ? AND class_id = ?")
+    .get(studentNo, studentName, classInfo.id) as { id: number } | undefined;
+
+  if (!student) {
+    return { error: `学号"${studentNo}"的学生"${studentName}"在指定班级中不存在` };
+  }
+
+  return {
+    student_id: student.id,
+    semester_id: semester.id,
+  };
+}
+
+/**
+ * 批量创建请假记录
+ */
+export function batchCreateLeaves(
+  leaves: LeaveInput[],
+  applicantId: number
+): { created: number; failed: number; errors: Array<{ row: number; message: string }> } {
+  const db = getDb();
+
+  // 使用事务确保数据一致性
+  const transaction = db.transaction((leaves: LeaveInput[]) => {
+    const results = {
+      created: 0,
+      failed: 0,
+      errors: [] as Array<{ row: number; message: string }>,
+    };
+
+    for (let i = 0; i < leaves.length; i++) {
+      const leave = leaves[i];
+      const rowNum = i + 1;
+
+      // 调用现有的创建请假函数
+      const result = createLeave(leave, applicantId);
+
+      if (result.success) {
+        results.created++;
+      } else {
+        results.failed++;
+        results.errors.push({
+          row: rowNum,
+          message: result.message || "创建失败",
+        });
+      }
+    }
+
+    return results;
+  });
+
+  return transaction(leaves);
 }

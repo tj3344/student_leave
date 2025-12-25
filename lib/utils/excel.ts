@@ -1,5 +1,5 @@
 import * as XLSX from 'xlsx';
-import type { ClassImportRow, StudentImportRow, UserImportRow, FeeConfigImportRow } from '@/types';
+import type { ClassImportRow, StudentImportRow, UserImportRow, FeeConfigImportRow, LeaveImportRow } from '@/types';
 
 /**
  * 生成班级导入模板（包含示例数据）
@@ -488,4 +488,106 @@ export function exportRefundSummaryToExcel(
   XLSX.utils.book_append_sheet(workbook, worksheet, '退费汇总');
 
   return workbook;
+}
+
+// ============================================
+// 请假导入导出相关函数
+// ============================================
+
+/**
+ * 生成请假导入模板（包含示例数据）
+ */
+export function generateLeaveTemplate(): XLSX.WorkBook {
+  const worksheetData = [
+    ['学号*', '学生姓名*', '学期名称*', '年级名称*', '班级名称*', '开始日期*', '结束日期*', '请假天数*', '请假事由*'],
+    ['202401001', '张三', '2024-2025第一学期', '一年级', '1班', '2024-10-01', '2024-10-05', '5', '病假'],
+    ['202401002', '李四', '2024-2025第一学期', '一年级', '2班', '2024-10-10', '2024-10-15', '6', '事假'],
+    ['202401003', '王五', '2024-2025第一学期', '二年级', '1班', '2024-10-20', '2024-10-25', '6', '病假'],
+  ];
+
+  const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, '请假导入模板');
+
+  return workbook;
+}
+
+/**
+ * 解析请假上传的 Excel 文件
+ */
+export async function parseLeaveExcel(file: File): Promise<LeaveImportRow[]> {
+  const arrayBuffer = await file.arrayBuffer();
+  const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+  const data = XLSX.utils.sheet_to_json<LeaveImportRow>(worksheet, {
+    defval: '',
+  });
+
+  // 跳过表头行（如果第一列是"学号*"）
+  const filteredData = data.filter((row) => {
+    const firstKey = Object.keys(row)[0];
+    const firstValue = String(row[firstKey as keyof LeaveImportRow] || '');
+    return firstValue !== '学号*' && firstValue.trim() !== '';
+  });
+
+  return filteredData;
+}
+
+/**
+ * 导出请假列表为 Excel（服务端使用）
+ */
+export function exportLeavesToExcel(
+  leaves: Array<{
+    student_no: string;
+    student_name: string;
+    class_name?: string;
+    grade_name?: string;
+    semester_name?: string;
+    start_date: string;
+    end_date: string;
+    leave_days: number;
+    reason: string;
+    status: string;
+    applicant_name?: string;
+    refund_amount?: number;
+  }>
+): XLSX.WorkBook {
+  const statusNames: Record<string, string> = {
+    pending: '待审核',
+    approved: '已批准',
+    rejected: '已拒绝',
+  };
+
+  const worksheetData = [
+    ['学号', '学生姓名', '年级', '班级', '学期', '开始日期', '结束日期', '请假天数', '请假事由', '状态', '申请人', '退费金额(元)'],
+    ...leaves.map((l) => [
+      l.student_no,
+      l.student_name,
+      l.grade_name || '',
+      l.class_name || '',
+      l.semester_name || '',
+      l.start_date,
+      l.end_date,
+      l.leave_days,
+      l.reason,
+      statusNames[l.status] || l.status,
+      l.applicant_name || '',
+      l.refund_amount ? l.refund_amount.toFixed(2) : '0.00',
+    ]),
+  ];
+
+  const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, '请假列表');
+
+  return workbook;
+}
+
+/**
+ * 生成并下载请假导入模板
+ */
+export function downloadLeaveTemplate(): void {
+  const workbook = generateLeaveTemplate();
+  const blob = workbookToBlob(workbook);
+  downloadBlob(blob, '请假导入模板.xlsx');
 }

@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, RefreshCw, Search } from "lucide-react";
+import { Plus, RefreshCw, Search, Upload, Download } from "lucide-react";
 import type { LeaveWithDetails, User } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { LeaveTable } from "@/components/admin/LeaveTable";
 import { LeaveReviewDialog } from "@/components/admin/LeaveReviewDialog";
+import { LeaveImportDialog } from "@/components/admin/LeaveImportDialog";
 import {
   Select,
   SelectContent,
@@ -47,6 +48,9 @@ export default function UnifiedLeavesPage() {
   // 删除对话框状态
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteLeave, setDeleteLeave] = useState<LeaveWithDetails | null>(null);
+
+  // 导入对话框状态
+  const [importOpen, setImportOpen] = useState(false);
 
   // 获取当前用户信息
   useEffect(() => {
@@ -179,10 +183,53 @@ export default function UnifiedLeavesPage() {
     router.push("/leaves/new");
   };
 
+  // 导出请假列表
+  const handleExport = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (searchQuery) params.append("search", searchQuery);
+      if (statusFilter) params.append("status", statusFilter);
+      if (semesterFilter) params.append("semester_id", semesterFilter);
+      if (classFilter) params.append("class_id", classFilter);
+
+      const response = await fetch(`/api/leaves/export?${params.toString()}`);
+
+      if (!response.ok) {
+        throw new Error("导出失败");
+      }
+
+      // 获取文件名
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = `leaves_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8'')?([^;]+)/i);
+        if (filenameMatch) {
+          filename = decodeURIComponent(filenameMatch[1]);
+        }
+      }
+
+      // 下载文件
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("导出失败:", error);
+      alert("导出失败，请稍后重试");
+    }
+  };
+
   // 根据角色判断权限
   const canCreate = currentUser?.role === "admin" || currentUser?.role === "class_teacher";
   const canReview = currentUser?.role === "admin";
   const canDelete = currentUser?.role === "admin" || currentUser?.role === "class_teacher";
+  const canImport = currentUser?.role === "admin";
+  const canExport = currentUser?.role === "admin" || currentUser?.role === "class_teacher";
   const showClassFilter = currentUser?.role === "admin" || currentUser?.role === "class_teacher";
 
   // 根据角色显示页面标题
@@ -213,6 +260,18 @@ export default function UnifiedLeavesPage() {
           <Button variant="outline" size="icon" onClick={fetchLeaves} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
+          {canExport && (
+            <Button variant="outline" onClick={handleExport}>
+              <Download className="mr-2 h-4 w-4" />
+              导出
+            </Button>
+          )}
+          {canImport && (
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Upload className="mr-2 h-4 w-4" />
+              导入
+            </Button>
+          )}
           {canCreate && (
             <Button onClick={handleNewLeave}>
               <Plus className="mr-2 h-4 w-4" />
@@ -316,6 +375,16 @@ export default function UnifiedLeavesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* 导入对话框 */}
+      <LeaveImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onSuccess={() => {
+          setImportOpen(false);
+          fetchLeaves();
+        }}
+      />
     </div>
   );
 }

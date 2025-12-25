@@ -45,7 +45,7 @@ const navigation = [
     category: "请假管理",
     items: [
       { name: "请假管理", href: "/leaves", icon: ClipboardList, roles: ["admin", "teacher", "class_teacher"] },
-      { name: "待审核", href: "/admin/leaves/pending", icon: ClipboardList, roles: ["admin"] },
+      { name: "审核管理", href: "/admin/leaves/pending", icon: ClipboardList, roles: ["admin"] },
     ],
   },
   {

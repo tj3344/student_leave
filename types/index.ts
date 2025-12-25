@@ -242,6 +242,7 @@ export interface LeaveWithDetails extends LeaveRecord {
   student_name?: string;
   student_no?: string;
   class_name?: string;
+  grade_name?: string;
   applicant_name?: string;
   reviewer_name?: string;
   semester_name?: string;
@@ -404,4 +405,24 @@ export interface FeeConfigImportResult {
   success: boolean;               // 是否成功
   message?: string;               // 消息
   data?: FeeConfigInput;          // 处理后的数据
+}
+
+// 请假导入行类型（Excel 解析后）
+export interface LeaveImportRow {
+  student_no: string;          // 学号*
+  student_name: string;        // 学生姓名*
+  semester_name: string;       // 学期名称*
+  grade_name: string;          // 年级名称*
+  class_name: string;          // 班级名称*
+  start_date: string;          // 开始日期* (YYYY-MM-DD)
+  end_date: string;            // 结束日期* (YYYY-MM-DD)
+  leave_days: string;          // 请假天数*
+  reason: string;              // 请假事由*
+}
+
+// 请假导入结果类型
+export interface LeaveImportResult {
+  row: number;                 // 行号
+  success: boolean;            // 是否成功
+  message?: string;            // 消息
 }
