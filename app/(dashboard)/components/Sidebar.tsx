@@ -11,13 +11,11 @@ import {
   School,
   ClipboardList,
   Receipt,
-  FileDown,
-  FileUp,
+  FileText,
   Database,
   Settings,
   LogOut,
   DollarSign,
-  FileText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ROLE_NAMES } from "@/lib/constants";
@@ -51,8 +49,6 @@ const navigation = [
   {
     category: "系统功能",
     items: [
-      { name: "数据导入", href: "/admin/import", icon: FileUp, roles: ["admin"] },
-      { name: "数据导出", href: "/admin/export", icon: FileDown, roles: ["admin"] },
       { name: "数据备份", href: "/admin/backup", icon: Database, roles: ["admin"] },
       { name: "系统设置", href: "/admin/settings", icon: Settings, roles: ["admin"] },
     ],
