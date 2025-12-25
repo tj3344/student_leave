@@ -512,3 +512,32 @@ export interface DashboardStats {
     refund_students_count: number;
   };
 }
+
+// 班主任仪表盘统计类型
+export interface ClassTeacherDashboardStats {
+  semester: {
+    id: number;
+    name: string;
+    start_date: string;
+    end_date: string;
+  };
+  class: {
+    id: number;
+    name: string;
+    grade_name: string;
+  };
+  students: {
+    total: number;
+    nutrition_meal: number;
+  };
+  leaves: {
+    total: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+  };
+  refunds: {
+    total_refund_amount: number;
+    refund_students_count: number;
+  };
+}

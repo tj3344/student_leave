@@ -60,7 +60,15 @@ export default function UnifiedLeavesPage() {
         const response = await fetch("/api/auth/me");
         const data = await response.json();
         if (response.ok) {
-          setCurrentUser(data.user);
+          const user = data.user as User;
+          setCurrentUser(user);
+
+          // 检查角色，如果是班主任则重定向到班主任仪表盘
+          if (user.role === "class_teacher") {
+            window.location.href = "/class-teacher";
+            return;
+          }
+
           // 获取系统配置
           fetchSystemConfig();
         } else {

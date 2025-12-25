@@ -16,7 +16,9 @@ export async function GET(
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(currentUser.role, PERMISSIONS.SYSTEM_CONFIG)) {
+    // 读取配置只需要 SYSTEM_CONFIG_READ 权限
+    if (!hasPermission(currentUser.role, PERMISSIONS.SYSTEM_CONFIG_READ) &&
+        !hasPermission(currentUser.role, PERMISSIONS.SYSTEM_CONFIG)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 

@@ -135,6 +135,7 @@ export const PERMISSIONS = {
   FEE_EXPORT: "fee:export",
 
   // 系统管理
+  SYSTEM_CONFIG_READ: "system:config:read",
   SYSTEM_CONFIG: "system:config",
   SYSTEM_BACKUP: "system:backup",
   SYSTEM_RESTORE: "system:restore",
@@ -148,11 +149,16 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     PERMISSIONS.STUDENT_READ,
     PERMISSIONS.LEAVE_CREATE,
     PERMISSIONS.LEAVE_READ,
+    PERMISSIONS.SEMESTER_READ,
+    PERMISSIONS.SYSTEM_CONFIG_READ,
   ],
   class_teacher: [
     PERMISSIONS.STUDENT_READ,
     PERMISSIONS.LEAVE_READ,
     PERMISSIONS.CLASS_READ,
+    PERMISSIONS.SEMESTER_READ,
+    PERMISSIONS.REFUND_READ,
+    PERMISSIONS.SYSTEM_CONFIG_READ,
   ],
 };
 

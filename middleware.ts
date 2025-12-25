@@ -14,11 +14,12 @@ export async function middleware(request: NextRequest) {
 
   // 如果是公共路径，直接放行
   if (publicPaths.some((path) => pathname.startsWith(path))) {
-    // 对于已登录用户访问根路径，重定向到仪表盘
+    // 对于已登录用户访问根路径，重定向到 /home
+    // /home 页面会根据角色重定向到正确的页面
     if (pathname === "/") {
       const sessionCookie = request.cookies.get(SESSION_COOKIE_NAME);
       if (sessionCookie) {
-        return NextResponse.redirect(new URL("/admin", request.url));
+        return NextResponse.redirect(new URL("/home", request.url));
       }
     }
     return NextResponse.next();

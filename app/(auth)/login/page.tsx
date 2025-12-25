@@ -35,9 +35,9 @@ function LoginForm() {
         return;
       }
 
-      // 登录成功，重定向到仪表盘
-      // 管理员默认到 /admin，其他用户也暂时到 /admin
-      router.push("/admin");
+      // 登录成功，重定向到 /home
+      // /home 页面会根据用户角色重定向到正确的仪表盘
+      router.push("/home");
       router.refresh();
     } catch {
       setError("网络错误，请稍后重试");

@@ -16,11 +16,18 @@ import {
   Settings,
   LogOut,
   DollarSign,
+  Home,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ROLE_NAMES } from "@/lib/constants";
 
 const navigation = [
+  {
+    category: "工作台",
+    items: [
+      { name: "班主任工作台", href: "/class-teacher", icon: Home, roles: ["class_teacher"] },
+    ],
+  },
   {
     category: "数据管理",
     items: [

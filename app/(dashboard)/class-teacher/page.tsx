@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import {
   Users,
   Calendar,
@@ -11,26 +10,22 @@ import {
   RefreshCw,
   ArrowRight,
   ClipboardList,
-  Settings,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/admin/StatCard";
-import type { DashboardStats } from "@/types";
-import type { User } from "@/types";
+import type { ClassTeacherDashboardStats } from "@/types";
 
-export default function AdminDashboardPage() {
-  const router = useRouter();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
+export default function ClassTeacherDashboardPage() {
+  const [stats, setStats] = useState<ClassTeacherDashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [roleChecked, setRoleChecked] = useState(false);
 
   const fetchStats = async () => {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch("/api/dashboard/stats");
+      const response = await fetch("/api/class-teacher/dashboard/stats");
       if (!response.ok) {
         const data = await response.json();
         throw new Error(data.error || "获取统计数据失败");
@@ -46,64 +41,14 @@ export default function AdminDashboardPage() {
   };
 
   useEffect(() => {
-    // 检查用户角色并重定向
-    const checkUserAndRedirect = async () => {
-      try {
-        const response = await fetch("/api/auth/me");
-        if (response.ok) {
-          const result = await response.json();
-          const user = result.user as Omit<User, "password_hash">;
-
-          // 根据角色重定向
-          if (user.role === "class_teacher") {
-            router.push("/class-teacher");
-            return;
-          }
-          if (user.role === "teacher") {
-            router.push("/leaves");
-            return;
-          }
-
-          // 确认是管理员后，获取统计数据
-          if (user.role === "admin") {
-            setRoleChecked(true);
-            fetchStats();
-            return;
-          }
-        }
-
-        // 未登录或其他情况，重定向到登录页
-        router.push("/login");
-      } catch (err) {
-        console.error("Check user error:", err);
-        // 检查失败，重定向到登录页
-        router.push("/login");
-      }
-    };
-
-    checkUserAndRedirect();
-  }, [router]);
-
-  // 角色检查期间显示加载状态
-  if (!roleChecked) {
-    return (
-      <div className="space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold">管理后台</h1>
-          <p className="text-muted-foreground">欢迎使用学生请假管理系统</p>
-        </div>
-        <div className="flex items-center justify-center h-64">
-          <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-        </div>
-      </div>
-    );
-  }
+    fetchStats();
+  }, []);
 
   if (loading) {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">管理后台</h1>
+          <h1 className="text-3xl font-bold">班主任工作台</h1>
           <p className="text-muted-foreground">欢迎使用学生请假管理系统</p>
         </div>
         <div className="flex items-center justify-center h-64">
@@ -117,7 +62,7 @@ export default function AdminDashboardPage() {
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-3xl font-bold">管理后台</h1>
+          <h1 className="text-3xl font-bold">班主任工作台</h1>
           <p className="text-muted-foreground">欢迎使用学生请假管理系统</p>
         </div>
         <div className="p-6 border border-red-200 bg-red-50 rounded-lg">
@@ -140,8 +85,10 @@ export default function AdminDashboardPage() {
       {/* 标题区域 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">管理后台</h1>
+          <h1 className="text-3xl font-bold">班主任工作台</h1>
           <p className="text-muted-foreground">
+            {stats.class.grade_name} {stats.class.name}
+            <span className="mx-2">|</span>
             当前学期：{stats.semester.name}
             <span className="ml-2 text-sm">
               ({stats.semester.start_date} ~ {stats.semester.end_date})
@@ -157,7 +104,7 @@ export default function AdminDashboardPage() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         {/* 学生统计卡片 */}
         <StatCard
-          title="在籍学生"
+          title="班级学生"
           value={stats.students.total}
           icon={Users}
           iconColor="text-blue-600"
@@ -198,27 +145,18 @@ export default function AdminDashboardPage() {
 
       {/* 快捷入口区域 */}
       <div className="grid gap-4 md:grid-cols-2">
-        {/* 数据管理 */}
+        {/* 请假管理 */}
         <Card>
           <CardHeader>
-            <CardTitle>数据管理</CardTitle>
-            <CardDescription>管理系统基础数据</CardDescription>
+            <CardTitle>请假管理</CardTitle>
+            <CardDescription>查看和管理班级学生请假记录</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Link href="/admin/students">
-              <Button variant="outline" className="w-full justify-between">
-                <span className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  学生管理
-                </span>
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
             <Link href="/leaves">
               <Button variant="outline" className="w-full justify-between">
                 <span className="flex items-center gap-2">
                   <ClipboardList className="h-4 w-4" />
-                  请假管理
+                  请假记录
                 </span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
@@ -226,31 +164,17 @@ export default function AdminDashboardPage() {
           </CardContent>
         </Card>
 
-        {/* 系统管理 */}
+        {/* 统计说明 */}
         <Card>
           <CardHeader>
-            <CardTitle>系统管理</CardTitle>
-            <CardDescription>用户和系统设置</CardDescription>
+            <CardTitle>数据说明</CardTitle>
+            <CardDescription>统计数据基于当前学期</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <Link href="/admin/users">
-              <Button variant="outline" className="w-full justify-between">
-                <span className="flex items-center gap-2">
-                  <Users className="h-4 w-4" />
-                  用户管理
-                </span>
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
-            <Link href="/admin/settings">
-              <Button variant="outline" className="w-full justify-between">
-                <span className="flex items-center gap-2">
-                  <Settings className="h-4 w-4" />
-                  系统设置
-                </span>
-                <ArrowRight className="h-4 w-4" />
-              </Button>
-            </Link>
+          <CardContent className="space-y-2 text-sm text-muted-foreground">
+            <p>• 学生总数：本班级在籍学生人数</p>
+            <p>• 营养餐：享受营养餐的学生人数</p>
+            <p>• 请假统计：本学期所有请假记录</p>
+            <p>• 退费统计：已批准且有退费的记录</p>
           </CardContent>
         </Card>
       </div>

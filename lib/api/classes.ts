@@ -7,6 +7,39 @@ import type {
 } from "@/types";
 
 /**
+ * 检查教师是否担任班主任
+ */
+function isTeacherAssignedAsClassTeacher(teacherId: number): boolean {
+  const db = getDb();
+  const assignedClass = db.prepare(
+    "SELECT id FROM classes WHERE class_teacher_id = ?"
+  ).get(teacherId);
+  return !!assignedClass;
+}
+
+/**
+ * 将教师角色更新为班主任
+ */
+function promoteTeacherToClassTeacher(teacherId: number): void {
+  const db = getDb();
+  db.prepare(
+    "UPDATE users SET role = 'class_teacher', updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+  ).run(teacherId);
+}
+
+/**
+ * 将班主任角色降级为教师（如果不担任任何班级的班主任）
+ */
+function demoteClassTeacherToTeacher(teacherId: number): void {
+  const db = getDb();
+  if (!isTeacherAssignedAsClassTeacher(teacherId)) {
+    db.prepare(
+      "UPDATE users SET role = 'teacher', updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+    ).run(teacherId);
+  }
+}
+
+/**
  * 获取班级列表
  */
 export function getClasses(
@@ -180,6 +213,16 @@ export function createClass(
     )
     .run(input.semester_id, input.grade_id, input.name, input.class_teacher_id || null);
 
+  // 如果指定了班主任且角色是 teacher，更新为 class_teacher
+  if (input.class_teacher_id) {
+    const teacher = db.prepare("SELECT role FROM users WHERE id = ?")
+      .get(input.class_teacher_id) as { role: string } | undefined;
+
+    if (teacher && teacher.role === "teacher") {
+      promoteTeacherToClassTeacher(input.class_teacher_id);
+    }
+  }
+
   return { success: true, classId: result.lastInsertRowid as number };
 }
 
@@ -246,6 +289,9 @@ export function updateClass(
     }
   }
 
+  // 保存旧的班主任ID，用于后续角色处理
+  const oldClassTeacherId = existing.class_teacher_id;
+
   // 构建更新语句
   const updates: string[] = [];
   const values: (string | number | null)[] = [];
@@ -276,6 +322,26 @@ export function updateClass(
 
   db.prepare(`UPDATE classes SET ${updates.join(", ")} WHERE id = ?`).run(...values);
 
+  // 处理班主任变更时的角色更新
+  if (input.class_teacher_id !== undefined) {
+    const newTeacherId = input.class_teacher_id;
+
+    // 新班主任：如果是 teacher 角色，更新为 class_teacher
+    if (newTeacherId !== null) {
+      const teacher = db.prepare("SELECT role FROM users WHERE id = ?")
+        .get(newTeacherId) as { role: string } | undefined;
+
+      if (teacher && teacher.role === "teacher") {
+        promoteTeacherToClassTeacher(newTeacherId);
+      }
+    }
+
+    // 旧班主任：如果更换了班主任，检查是否需要降级
+    if (oldClassTeacherId && oldClassTeacherId !== newTeacherId) {
+      demoteClassTeacherToTeacher(oldClassTeacherId);
+    }
+  }
+
   return { success: true };
 }
 
@@ -300,8 +366,16 @@ export function deleteClass(id: number): { success: boolean; message?: string } 
     return { success: false, message: "该班级下存在学生，无法删除" };
   }
 
+  // 保存班级的班主任ID，用于后续角色处理
+  const classTeacherId = existing.class_teacher_id;
+
   // 删除班级
   db.prepare("DELETE FROM classes WHERE id = ?").run(id);
+
+  // 如果班级有班主任，检查是否需要将其角色降级
+  if (classTeacherId) {
+    demoteClassTeacherToTeacher(classTeacherId);
+  }
 
   return { success: true };
 }
