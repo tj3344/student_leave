@@ -379,3 +379,113 @@ export function downloadFeeConfigTemplate(): void {
   const blob = workbookToBlob(workbook);
   downloadBlob(blob, '费用配置导入模板.xlsx');
 }
+
+// ============================================
+// 退费记录导出相关函数
+// ============================================
+
+/**
+ * 导出退费记录为 Excel（服务端使用）
+ */
+export function exportRefundRecordsToExcel(
+  records: Array<{
+    student_no: string;
+    student_name: string;
+    grade_name: string;
+    class_name: string;
+    is_nutrition_meal: number;
+    prepaid_days: number;
+    actual_days: number;
+    leave_days: number;
+    suspension_days: number;
+    meal_fee_standard: number;
+    refund_amount: number;
+  }>
+): XLSX.WorkBook {
+  const worksheetData = [
+    ['学号', '姓名', '年级', '班级', '是否营养餐', '预收天数', '实收天数', '请假天数', '停课天数', '餐费标准(元)', '退费金额(元)'],
+    ...records.map((r) => [
+      r.student_no,
+      r.student_name,
+      r.grade_name || '',
+      r.class_name || '',
+      r.is_nutrition_meal === 1 ? '是' : '否',
+      r.prepaid_days,
+      r.actual_days,
+      r.leave_days,
+      r.suspension_days,
+      r.meal_fee_standard.toFixed(2),
+      r.refund_amount.toFixed(2),
+    ]),
+  ];
+
+  const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, '退费记录');
+
+  return workbook;
+}
+
+// ============================================
+// 退费汇总导出相关函数
+// ============================================
+
+/**
+ * 导出退费汇总为 Excel（服务端使用）
+ */
+export function exportRefundSummaryToExcel(
+  summaries: Array<{
+    grade_name: string;
+    class_name: string;
+    class_teacher_name?: string;
+    meal_fee_standard: number;
+    prepaid_days: number;
+    actual_days: number;
+    suspension_days: number;
+    total_leave_days: number;
+    student_count: number;
+    refund_students_count: number;
+    total_refund_amount: number;
+  }>,
+  totals?: {
+    studentCount: number;
+    refundStudentsCount: number;
+    totalLeaveDays: number;
+    totalRefundAmount: number;
+  }
+): XLSX.WorkBook {
+  const worksheetData = [
+    ['年级', '班级', '班主任', '学生人数', '退费人数', '餐费标准(元)', '预收天数', '实收天数', '停课天数', '总请假天数', '退费总金额(元)'],
+    ...summaries.map((s) => [
+      s.grade_name || '',
+      s.class_name || '',
+      s.class_teacher_name || '',
+      s.student_count,
+      s.refund_students_count,
+      s.meal_fee_standard.toFixed(2),
+      s.prepaid_days,
+      s.actual_days,
+      s.suspension_days,
+      s.total_leave_days,
+      s.total_refund_amount.toFixed(2),
+    ]),
+  ];
+
+  // 添加合计行
+  if (totals) {
+    worksheetData.push([
+      '', '', '合计:',
+      totals.studentCount,
+      totals.refundStudentsCount,
+      '', '', '', '',
+      totals.totalLeaveDays,
+      totals.totalRefundAmount.toFixed(2),
+    ]);
+  }
+
+  const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, '退费汇总');
+
+  return workbook;
+}
