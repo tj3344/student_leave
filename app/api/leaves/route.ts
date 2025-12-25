@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
     const leaveInput = body as LeaveInput;
 
     // 验证必填字段
-    if (!leaveInput.student_id || !leaveInput.semester_id || !leaveInput.start_date || !leaveInput.end_date || !leaveInput.reason) {
+    if (!leaveInput.student_id || !leaveInput.semester_id || !leaveInput.start_date || !leaveInput.end_date || !leaveInput.leave_days || !leaveInput.reason) {
       return NextResponse.json({ error: "缺少必填字段" }, { status: 400 });
     }
 

@@ -1,5 +1,4 @@
 import { getDb } from "@/lib/db";
-import { calculateDays } from "@/lib/utils/date";
 import type {
   LeaveInput,
   LeaveReview,
@@ -160,6 +159,11 @@ export function createLeave(
 ): { success: boolean; message?: string; leaveId?: number } {
   const db = getDb();
 
+  // 验证请假天数必须大于3天
+  if (input.leave_days <= 3) {
+    return { success: false, message: "请假天数必须大于3天" };
+  }
+
   // 检查学生是否存在，并获取费用配置
   const student = db
     .prepare(
@@ -186,8 +190,29 @@ export function createLeave(
     return { success: false, message: "学生不存在" };
   }
 
-  // 计算请假天数
-  const leaveDays = calculateDays(input.start_date, input.end_date);
+  // 获取学期信息验证学期总天数
+  const semester = db
+    .prepare("SELECT school_days FROM semesters WHERE id = ?")
+    .get(input.semester_id) as { school_days: number } | undefined;
+
+  if (!semester) {
+    return { success: false, message: "学期不存在" };
+  }
+
+  if (input.leave_days > semester.school_days) {
+    return { success: false, message: `请假天数不能超过学期总天数（${semester.school_days}天）` };
+  }
+
+  // 验证请假天数不能超过日期范围的自然天数
+  const startDate = new Date(input.start_date);
+  const endDate = new Date(input.end_date);
+  const dayDiff = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  if (input.leave_days > dayDiff) {
+    return { success: false, message: `请假天数不能超过日期范围（${dayDiff}天）` };
+  }
+
+  // 使用手动输入的请假天数
+  const leaveDays = input.leave_days;
 
   // 计算退费金额：退费金额 = 请假天数 × 餐费标准
   const isNutritionMeal = student.is_nutrition_meal === 1;
