@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, Download, Upload } from "lucide-react";
 import type { ClassWithDetails, Grade } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/select";
 import { ClassForm } from "@/components/admin/ClassForm";
 import { ClassTable } from "@/components/admin/ClassTable";
+import { ClassImportDialog } from "@/components/admin/ClassImportDialog";
 
 export default function ClassesPage() {
   const [classes, setClasses] = useState<ClassWithDetails[]>([]);
@@ -21,6 +22,7 @@ export default function ClassesPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassWithDetails | undefined>();
   const [selectedGrade, setSelectedGrade] = useState<number | undefined>();
+  const [importOpen, setImportOpen] = useState(false);
 
   const fetchGrades = async () => {
     try {
@@ -74,6 +76,45 @@ export default function ClassesPage() {
     fetchClasses(selectedGrade);
   };
 
+  const handleExport = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (selectedGrade) {
+        params.append("grade_id", selectedGrade.toString());
+      }
+
+      const response = await fetch(`/api/classes/export?${params.toString()}`);
+
+      if (!response.ok) {
+        throw new Error("导出失败");
+      }
+
+      // 获取文件名
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = `班级列表_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      if (contentDisposition) {
+        const match = contentDisposition.match(/filename="(.+)"/);
+        if (match) {
+          filename = match[1];
+        }
+      }
+
+      // 下载文件
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("导出失败:", error);
+      alert("导出失败，请稍后重试");
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -84,6 +125,14 @@ export default function ClassesPage() {
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={() => fetchClasses(selectedGrade)} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+          <Button variant="outline" onClick={handleExport}>
+            <Download className="mr-2 h-4 w-4" />
+            导出
+          </Button>
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            导入
           </Button>
           <Button onClick={handleAdd}>
             <Plus className="mr-2 h-4 w-4" />
@@ -121,6 +170,12 @@ export default function ClassesPage() {
         onClose={handleFormClose}
         onSuccess={handleFormSuccess}
         classData={editingClass}
+      />
+
+      <ClassImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onSuccess={() => fetchClasses(selectedGrade)}
       />
     </div>
   );

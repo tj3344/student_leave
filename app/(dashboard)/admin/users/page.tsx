@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, RefreshCw, Search } from "lucide-react";
+import { Plus, RefreshCw, Search, Upload, Download } from "lucide-react";
 import type { User } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { UserForm } from "@/components/admin/UserForm";
 import { UserTable } from "@/components/admin/UserTable";
+import { UserImportDialog } from "@/components/admin/UserImportDialog";
 import {
   Select,
   SelectContent,
@@ -24,6 +25,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<Array<Omit<User, "password_hash"> & { class_id?: number; class_name?: string; grade_name?: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<Omit<User, "password_hash"> | undefined>();
   const [searchQuery, setSearchQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
@@ -72,6 +74,45 @@ export default function UsersPage() {
     fetchUsers();
   };
 
+  // 导出用户列表
+  const handleExport = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (roleFilter) params.append("role", roleFilter);
+      if (statusFilter) params.append("is_active", statusFilter);
+
+      const response = await fetch(`/api/users/export?${params.toString()}`);
+
+      if (!response.ok) {
+        throw new Error("导出失败");
+      }
+
+      // 获取文件名
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = `users_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8'')?([^;]+)/i);
+        if (filenameMatch) {
+          filename = decodeURIComponent(filenameMatch[1]);
+        }
+      }
+
+      // 下载文件
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("导出失败:", error);
+      alert("导出失败，请稍后重试");
+    }
+  };
+
   const isTeacherRole = roleFilter === "teacher";
 
   return (
@@ -84,6 +125,14 @@ export default function UsersPage() {
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={fetchUsers} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+          <Button variant="outline" onClick={handleExport}>
+            <Download className="mr-2 h-4 w-4" />
+            导出
+          </Button>
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            导入
           </Button>
           <Button onClick={handleAdd}>
             <Plus className="mr-2 h-4 w-4" />
@@ -147,6 +196,15 @@ export default function UsersPage() {
         onClose={handleFormClose}
         onSuccess={handleFormSuccess}
         user={editingUser}
+      />
+
+      <UserImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onSuccess={() => {
+          setImportOpen(false);
+          fetchUsers();
+        }}
       />
     </div>
   );

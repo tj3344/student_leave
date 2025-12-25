@@ -37,10 +37,6 @@ const classSchema = z.object({
   grade_id: z.coerce.number().min(1, "请选择年级"),
   name: z.string().min(1, "班级名称不能为空").max(20, "班级名称不能超过20个字符"),
   class_teacher_id: z.coerce.number().optional(),
-  meal_fee: z.coerce
-    .number()
-    .min(0.01, "营养餐费用必须大于0")
-    .max(9999.99, "营养餐费用不能超过9999.99"),
 });
 
 type ClassFormValues = z.infer<typeof classSchema>;
@@ -67,7 +63,6 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
       grade_id: classData?.grade_id || 0,
       name: classData?.name || "",
       class_teacher_id: classData?.class_teacher_id || undefined,
-      meal_fee: classData?.meal_fee || 0,
     },
   });
 
@@ -268,20 +263,6 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
                       ))}
                     </SelectContent>
                   </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="meal_fee"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>营养餐费用（元）*</FormLabel>
-                  <FormControl>
-                    <Input type="number" step="0.01" min="0.01" max="9999.99" {...field} />
-                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, RefreshCw, Search } from "lucide-react";
+import { Plus, RefreshCw, Search, Upload, Download } from "lucide-react";
 import type { StudentWithDetails } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StudentForm } from "@/components/admin/StudentForm";
 import { StudentTable } from "@/components/admin/StudentTable";
+import { StudentImportDialog } from "@/components/admin/StudentImportDialog";
 import {
   Select,
   SelectContent,
@@ -19,6 +20,7 @@ export default function StudentsPage() {
   const [students, setStudents] = useState<StudentWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<StudentWithDetails | undefined>();
   const [searchQuery, setSearchQuery] = useState("");
   const [classFilter, setClassFilter] = useState("");
@@ -91,6 +93,46 @@ export default function StudentsPage() {
     fetchStudents();
   };
 
+  // 导出学生列表
+  const handleExport = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (classFilter) params.append("class_id", classFilter);
+      if (gradeFilter) params.append("grade_id", gradeFilter);
+      if (statusFilter) params.append("is_active", statusFilter);
+
+      const response = await fetch(`/api/students/export?${params.toString()}`);
+
+      if (!response.ok) {
+        throw new Error("导出失败");
+      }
+
+      // 获取文件名
+      const contentDisposition = response.headers.get("Content-Disposition");
+      let filename = `students_${new Date().toISOString().slice(0, 10)}.xlsx`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename\*?=(?:UTF-8'')?([^;]+)/i);
+        if (filenameMatch) {
+          filename = decodeURIComponent(filenameMatch[1]);
+        }
+      }
+
+      // 下载文件
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      console.error("导出失败:", error);
+      alert("导出失败，请稍后重试");
+    }
+  };
+
   // 获取筛选后的班级列表（根据年级筛选）
   const filteredClassList = gradeFilter
     ? classList.filter((c) => c.grade_id === parseInt(gradeFilter, 10))
@@ -106,6 +148,14 @@ export default function StudentsPage() {
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={fetchStudents} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+          <Button variant="outline" onClick={handleExport}>
+            <Download className="mr-2 h-4 w-4" />
+            导出
+          </Button>
+          <Button variant="outline" onClick={() => setImportOpen(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            导入
           </Button>
           <Button onClick={handleAdd}>
             <Plus className="mr-2 h-4 w-4" />
@@ -173,6 +223,15 @@ export default function StudentsPage() {
         onClose={handleFormClose}
         onSuccess={handleFormSuccess}
         student={editingStudent}
+      />
+
+      <StudentImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onSuccess={() => {
+          setImportOpen(false);
+          fetchStudents();
+        }}
       />
     </div>
   );

@@ -83,6 +83,8 @@ export const PERMISSIONS = {
   USER_READ: "user:read",
   USER_UPDATE: "user:update",
   USER_DELETE: "user:delete",
+  USER_IMPORT: "user:import",
+  USER_EXPORT: "user:export",
 
   // 学生管理
   STUDENT_CREATE: "student:create",
@@ -104,6 +106,8 @@ export const PERMISSIONS = {
   CLASS_READ: "class:read",
   CLASS_UPDATE: "class:update",
   CLASS_DELETE: "class:delete",
+  CLASS_IMPORT: "class:import",
+  CLASS_EXPORT: "class:export",
 
   // 年级管理
   GRADE_CREATE: "grade:create",

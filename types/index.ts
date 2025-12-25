@@ -34,6 +34,24 @@ export interface UserUpdate {
   is_active?: number;
 }
 
+// 用户导入行类型（Excel 解析后）
+export interface UserImportRow {
+  username: string;            // 用户名
+  password?: string;           // 密码
+  real_name: string;           // 真实姓名
+  role: UserRole;              // 角色
+  phone?: string;              // 电话
+  email?: string;              // 邮箱
+}
+
+// 用户导入结果类型
+export interface UserImportResult {
+  row: number;                 // 行号
+  success: boolean;            // 是否成功
+  message?: string;            // 消息
+  data?: UserInput;            // 处理后的数据
+}
+
 // ============================================
 // 学期相关类型
 // ============================================
@@ -84,7 +102,6 @@ export interface Class {
   grade_id: number;
   name: string;
   class_teacher_id?: number;
-  meal_fee: number;
   student_count: number;
   created_at: string;
   updated_at: string;
@@ -95,12 +112,27 @@ export interface ClassInput {
   grade_id: number;
   name: string;
   class_teacher_id?: number;
-  meal_fee: number;
 }
 
 export interface ClassWithDetails extends Class {
   grade_name?: string;
   class_teacher_name?: string;
+}
+
+// 班级导入行类型（Excel 解析后）
+export interface ClassImportRow {
+  semester_name: string;          // 学期名称
+  grade_name: string;             // 年级名称
+  name: string;                   // 班级名称
+  class_teacher_name?: string;    // 班主任姓名（可选）
+}
+
+// 班级导入结果类型
+export interface ClassImportResult {
+  row: number;                    // 行号
+  success: boolean;               // 是否成功
+  message?: string;               // 消息
+  data?: ClassInput;              // 处理后的数据
 }
 
 // ============================================
@@ -141,6 +173,30 @@ export interface StudentWithDetails extends Student {
   class_name?: string;
   grade_name?: string;
   nutrition_meal_name?: string;
+}
+
+// 学生导入行类型（Excel 解析后）
+export interface StudentImportRow {
+  student_no: string;          // 学号
+  name: string;                // 学生姓名
+  gender?: string;             // 性别
+  semester_name: string;       // 学期名称
+  grade_name: string;          // 年级名称
+  class_name: string;          // 班级名称
+  birth_date?: string;         // 出生日期
+  parent_name?: string;        // 家长姓名
+  parent_phone?: string;       // 家长电话
+  address?: string;            // 家庭住址
+  is_nutrition_meal?: string;  // 是否营养餐（是/否）
+  enrollment_date?: string;    // 入学日期
+}
+
+// 学生导入结果类型
+export interface StudentImportResult {
+  row: number;                 // 行号
+  success: boolean;            // 是否成功
+  message?: string;            // 消息
+  data?: StudentInput;         // 处理后的数据
 }
 
 // ============================================

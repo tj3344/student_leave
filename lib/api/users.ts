@@ -322,3 +322,75 @@ export function toggleUserStatus(id: number): { success: boolean; message?: stri
 
   return { success: true, isActive: newStatus };
 }
+
+/**
+ * 批量创建/更新用户
+ */
+export async function batchCreateOrUpdateUsers(
+  inputs: Array<{ username: string; password?: string; real_name: string; role: string; phone?: string; email?: string }>
+): Promise<{
+  success: boolean;
+  created: number;
+  updated: number;
+  failed: number;
+  errors: Array<{ row: number; input: typeof inputs[0]; message: string }>;
+}> {
+  const db = getDb();
+  const errors: Array<{ row: number; input: typeof inputs[0]; message: string }> = [];
+  let created = 0;
+  let updated = 0;
+
+  for (let i = 0; i < inputs.length; i++) {
+    const input = inputs[i];
+    const rowNum = i + 1;
+
+    // 检查用户名是否已存在
+    const existingUser = db
+      .prepare("SELECT id FROM users WHERE username = ?")
+      .get(input.username);
+
+    if (existingUser) {
+      // 更新现有用户
+      try {
+        const updateResult = await updateUser((existingUser as { id: number }).id, {
+          real_name: input.real_name,
+          role: input.role as "admin" | "teacher" | "class_teacher",
+          phone: input.phone,
+          email: input.email,
+          password: input.password,
+        });
+        if (updateResult.success) {
+          updated++;
+        } else {
+          errors.push({ row: rowNum, input, message: updateResult.message || "更新失败" });
+        }
+      } catch {
+        errors.push({ row: rowNum, input, message: "更新失败" });
+      }
+    } else {
+      // 创建新用户
+      try {
+        const createResult = await createUser({
+          ...input,
+          role: input.role as "admin" | "teacher" | "class_teacher",
+          password: input.password || "123456", // 确保有默认密码
+        });
+        if (createResult.success) {
+          created++;
+        } else {
+          errors.push({ row: rowNum, input, message: createResult.message || "创建失败" });
+        }
+      } catch {
+        errors.push({ row: rowNum, input, message: "创建失败" });
+      }
+    }
+  }
+
+  return {
+    success: true,
+    created,
+    updated,
+    failed: errors.length,
+    errors,
+  };
+}

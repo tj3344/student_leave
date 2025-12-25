@@ -164,11 +164,6 @@ export function createClass(
     }
   }
 
-  // 验证营养餐费用
-  if (input.meal_fee <= 0) {
-    return { success: false, message: "营养餐费用必须大于0" };
-  }
-
   // 检查班级名称在同一学期的同一年级下是否唯一
   const existing = db
     .prepare("SELECT id FROM classes WHERE semester_id = ? AND grade_id = ? AND name = ?")
@@ -180,10 +175,10 @@ export function createClass(
   // 插入班级
   const result = db
     .prepare(
-      `INSERT INTO classes (semester_id, grade_id, name, class_teacher_id, meal_fee)
-       VALUES (?, ?, ?, ?, ?)`
+      `INSERT INTO classes (semester_id, grade_id, name, class_teacher_id)
+       VALUES (?, ?, ?, ?)`
     )
-    .run(input.semester_id, input.grade_id, input.name, input.class_teacher_id || null, input.meal_fee);
+    .run(input.semester_id, input.grade_id, input.name, input.class_teacher_id || null);
 
   return { success: true, classId: result.lastInsertRowid as number };
 }
@@ -240,11 +235,6 @@ export function updateClass(
     }
   }
 
-  // 验证营养餐费用
-  if (input.meal_fee !== undefined && input.meal_fee <= 0) {
-    return { success: false, message: "营养餐费用必须大于0" };
-  }
-
   // 检查班级名称在同一学期的同一年级下是否唯一
   const name = input.name ?? existing.name;
   if (input.name !== undefined || input.grade_id !== undefined || input.semester_id !== undefined) {
@@ -275,10 +265,6 @@ export function updateClass(
   if (input.class_teacher_id !== undefined) {
     updates.push("class_teacher_id = ?");
     values.push(input.class_teacher_id);
-  }
-  if (input.meal_fee !== undefined) {
-    updates.push("meal_fee = ?");
-    values.push(input.meal_fee);
   }
 
   if (updates.length === 0) {
@@ -345,4 +331,121 @@ export function getClassStudentCount(classId: number): number {
     .prepare("SELECT COUNT(*) as count FROM students WHERE class_id = ? AND is_active = 1")
     .get(classId) as { count: number };
   return result.count;
+}
+
+/**
+ * 批量创建或更新班级
+ */
+export function batchCreateOrUpdateClasses(
+  inputs: ClassInput[]
+): {
+  success: boolean;
+  created: number;
+  updated: number;
+  failed: number;
+  errors: Array<{ row: number; input: ClassInput; message: string }>;
+} {
+  const db = getDb();
+  const errors: Array<{ row: number; input: ClassInput; message: string }> = [];
+  let created = 0;
+  let updated = 0;
+
+  for (let i = 0; i < inputs.length; i++) {
+    const input = inputs[i];
+
+    try {
+      // 检查班级是否存在（同一学期+年级+名称）
+      const existing = db
+        .prepare(
+          "SELECT id FROM classes WHERE semester_id = ? AND grade_id = ? AND name = ?"
+        )
+        .get(input.semester_id, input.grade_id, input.name) as { id: number } | undefined;
+
+      if (existing) {
+        // 更新现有班级
+        const updateResult = updateClass(existing.id, {
+          class_teacher_id: input.class_teacher_id,
+        });
+        if (updateResult.success) {
+          updated++;
+        } else {
+          errors.push({ row: i + 1, input, message: updateResult.message || '更新失败' });
+        }
+      } else {
+        // 创建新班级
+        const createResult = createClass(input);
+        if (createResult.success) {
+          created++;
+        } else {
+          errors.push({ row: i + 1, input, message: createResult.message || '创建失败' });
+        }
+      }
+    } catch {
+      errors.push({ row: i + 1, input, message: '处理失败' });
+    }
+  }
+
+  return {
+    success: true,
+    created,
+    updated,
+    failed: errors.length,
+    errors,
+  };
+}
+
+/**
+ * 根据学期名称和年级名称获取对应的 ID
+ */
+export function getSemesterAndGradeIds(
+  semesterName: string,
+  gradeName: string
+): { semester_id?: number; grade_id?: number; error?: string } {
+  const db = getDb();
+
+  // 获取学期 ID
+  const semester = db
+    .prepare("SELECT id FROM semesters WHERE name = ?")
+    .get(semesterName) as { id: number } | undefined;
+
+  if (!semester) {
+    return { error: `学期"${semesterName}"不存在` };
+  }
+
+  // 获取年级 ID（必须在指定学期下）
+  const grade = db
+    .prepare("SELECT id FROM grades WHERE name = ? AND semester_id = ?")
+    .get(gradeName, semester.id) as { id: number } | undefined;
+
+  if (!grade) {
+    return { error: `学期"${semesterName}"下不存在年级"${gradeName}"` };
+  }
+
+  return {
+    semester_id: semester.id,
+    grade_id: grade.id,
+  };
+}
+
+/**
+ * 根据班主任姓名获取用户 ID
+ */
+export function getClassTeacherId(
+  teacherName: string
+): { teacher_id?: number; error?: string } {
+  const db = getDb();
+
+  const teacher = db
+    .prepare("SELECT id, role FROM users WHERE real_name = ? AND is_active = 1")
+    .get(teacherName) as { id: number; role: string } | undefined;
+
+  if (!teacher) {
+    return { error: `班主任"${teacherName}"不存在或已被禁用` };
+  }
+
+  if (teacher.role !== 'teacher' && teacher.role !== 'class_teacher') {
+    return { error: `用户"${teacherName}"不是教师角色` };
+  }
+
+  return { teacher_id: teacher.id };
 }

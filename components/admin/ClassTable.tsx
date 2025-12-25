@@ -76,7 +76,6 @@ export function ClassTable({ data, onEdit, onDelete }: ClassTableProps) {
               <TableHead>年级</TableHead>
               <TableHead>班级名称</TableHead>
               <TableHead>班主任</TableHead>
-              <TableHead>营养餐费用</TableHead>
               <TableHead>学生人数</TableHead>
               <TableHead className="w-[70px]"></TableHead>
             </TableRow>
@@ -84,7 +83,7 @@ export function ClassTable({ data, onEdit, onDelete }: ClassTableProps) {
           <TableBody>
             {data.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
+                <TableCell colSpan={5} className="h-24 text-center">
                   暂无数据
                 </TableCell>
               </TableRow>
@@ -102,7 +101,6 @@ export function ClassTable({ data, onEdit, onDelete }: ClassTableProps) {
                       <span className="text-muted-foreground">未分配</span>
                     )}
                   </TableCell>
-                  <TableCell>¥{classItem.meal_fee.toFixed(2)}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
                       <Users className="h-3 w-3 text-muted-foreground" />

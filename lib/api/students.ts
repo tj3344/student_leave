@@ -470,3 +470,116 @@ export function getStudentStats(): {
     nutritionMeal,
   };
 }
+
+/**
+ * 根据学期名称、年级名称、班级名称获取班级ID
+ */
+export function getClassIdByNames(
+  semesterName: string,
+  gradeName: string,
+  className: string
+): { class_id?: number; error?: string } {
+  const db = getDb();
+
+  const result = db
+    .prepare(`
+      SELECT c.id
+      FROM classes c
+      INNER JOIN grades g ON c.grade_id = g.id
+      INNER JOIN semesters s ON g.semester_id = s.id
+      WHERE s.name = ? AND g.name = ? AND c.name = ?
+    `)
+    .get(semesterName, gradeName, className) as { id: number } | undefined;
+
+  if (!result) {
+    return { error: `未找到班级：${semesterName}-${gradeName}-${className}` };
+  }
+
+  return { class_id: result.id };
+}
+
+/**
+ * 批量创建/更新学生
+ */
+export function batchCreateOrUpdateStudents(
+  inputs: StudentInput[]
+): {
+  success: boolean;
+  created: number;
+  updated: number;
+  failed: number;
+  errors: Array<{ row: number; input: StudentInput; message: string }>;
+} {
+  const db = getDb();
+  const errors: Array<{ row: number; input: StudentInput; message: string }> = [];
+  let created = 0;
+  let updated = 0;
+
+  const transaction = db.transaction(() => {
+    for (let i = 0; i < inputs.length; i++) {
+      const input = inputs[i];
+      const rowNum = i + 1;
+
+      // 检查班级是否存在
+      const classExists = db.prepare("SELECT id FROM classes WHERE id = ?").get(input.class_id);
+      if (!classExists) {
+        errors.push({ row: rowNum, input, message: "班级不存在" });
+        continue;
+      }
+
+      // 检查学号是否已存在
+      const existingStudent = db
+        .prepare("SELECT id FROM students WHERE student_no = ?")
+        .get(input.student_no);
+
+      if (existingStudent) {
+        // 更新现有学生
+        try {
+          const updateResult = updateStudent((existingStudent as { id: number }).id, input);
+          if (updateResult.success) {
+            updated++;
+          } else {
+            errors.push({ row: rowNum, input, message: updateResult.message || "更新失败" });
+          }
+        } catch {
+          errors.push({ row: rowNum, input, message: "更新失败" });
+        }
+      } else {
+        // 创建新学生
+        try {
+          const createResult = createStudent(input);
+          if (createResult.success) {
+            created++;
+          } else {
+            errors.push({ row: rowNum, input, message: createResult.message || "创建失败" });
+          }
+        } catch {
+          errors.push({ row: rowNum, input, message: "创建失败" });
+        }
+      }
+    }
+  });
+
+  try {
+    transaction();
+    return {
+      success: true,
+      created,
+      updated,
+      failed: errors.length,
+      errors,
+    };
+  } catch {
+    return {
+      success: false,
+      created: 0,
+      updated: 0,
+      failed: inputs.length,
+      errors: inputs.map((input, i) => ({
+        row: i + 1,
+        input,
+        message: "批量操作失败",
+      })),
+    };
+  }
+}
