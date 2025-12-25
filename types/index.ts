@@ -484,3 +484,31 @@ export interface RestoreResult {
   message: string;
   details?: string;
 }
+
+// ============================================
+// 仪表盘统计相关类型
+// ============================================
+
+export interface DashboardStats {
+  semester: {
+    id: number;
+    name: string;
+    start_date: string;
+    end_date: string;
+  };
+  students: {
+    total: number;
+    active: number;
+    nutrition_meal: number;
+  };
+  leaves: {
+    total: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+  };
+  refunds: {
+    total_refund_amount: number;
+    refund_students_count: number;
+  };
+}
