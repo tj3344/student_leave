@@ -488,3 +488,110 @@ export function getClassRefundSummary(
   // 传递子查询参数
   return db.prepare(query).all(...studentLeaveParams, ...queryParams) as ClassRefundSummaryFull[];
 }
+
+/**
+ * 根据学期名称、年级名称、班级名称获取班级ID
+ */
+export function getClassIdByNames(
+  semesterName: string,
+  gradeName: string,
+  className: string
+): { class_id?: number; semester_id?: number; error?: string } {
+  const db = getDb();
+
+  // 获取学期 ID
+  const semester = db
+    .prepare("SELECT id FROM semesters WHERE name = ?")
+    .get(semesterName) as { id: number } | undefined;
+
+  if (!semester) {
+    return { error: `学期"${semesterName}"不存在` };
+  }
+
+  // 获取年级 ID（必须在指定学期下）
+  const grade = db
+    .prepare("SELECT id FROM grades WHERE name = ? AND semester_id = ?")
+    .get(gradeName, semester.id) as { id: number } | undefined;
+
+  if (!grade) {
+    return { error: `学期"${semesterName}"下不存在年级"${gradeName}"` };
+  }
+
+  // 获取班级 ID（必须在指定学期的指定年级下）
+  const cls = db
+    .prepare("SELECT id FROM classes WHERE name = ? AND semester_id = ? AND grade_id = ?")
+    .get(className, semester.id, grade.id) as { id: number } | undefined;
+
+  if (!cls) {
+    return { error: `学期"${semesterName}"${gradeName}"下不存在班级"${className}"` };
+  }
+
+  return {
+    class_id: cls.id,
+    semester_id: semester.id,
+  };
+}
+
+/**
+ * 批量创建或更新费用配置
+ */
+export function batchCreateOrUpdateFeeConfigs(
+  inputs: FeeConfigInput[]
+): {
+  success: boolean;
+  created: number;
+  updated: number;
+  failed: number;
+  errors: Array<{ row: number; input: FeeConfigInput; message: string }>;
+} {
+  const db = getDb();
+  const errors: Array<{ row: number; input: FeeConfigInput; message: string }> = [];
+  let created = 0;
+  let updated = 0;
+
+  for (let i = 0; i < inputs.length; i++) {
+    const input = inputs[i];
+
+    try {
+      // 检查费用配置是否存在（同一班级+学期）
+      const existing = db
+        .prepare(
+          "SELECT id FROM fee_configs WHERE class_id = ? AND semester_id = ?"
+        )
+        .get(input.class_id, input.semester_id) as { id: number } | undefined;
+
+      if (existing) {
+        // 更新现有费用配置
+        const updateResult = updateFeeConfig(existing.id, {
+          meal_fee_standard: input.meal_fee_standard,
+          prepaid_days: input.prepaid_days,
+          actual_days: input.actual_days,
+          suspension_days: input.suspension_days,
+        });
+        if (updateResult.success) {
+          updated++;
+        } else {
+          errors.push({ row: i + 1, input, message: updateResult.message || '更新失败' });
+        }
+      } else {
+        // 创建新费用配置
+        const createResult = createFeeConfig(input);
+        if (createResult.success) {
+          created++;
+        } else {
+          errors.push({ row: i + 1, input, message: createResult.message || '创建失败' });
+        }
+      }
+    } catch (error) {
+      errors.push({ row: i + 1, input, message: '处理失败' });
+    }
+  }
+
+  return {
+    success: true,
+    created,
+    updated,
+    failed: errors.length,
+    errors,
+  };
+}

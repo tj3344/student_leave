@@ -385,3 +385,22 @@ export interface ClassRefundSummaryFull {
   refund_students_count: number;
   total_refund_amount: number;
 }
+
+// 费用配置导入行类型（Excel 解析后）
+export interface FeeConfigImportRow {
+  semester_name: string;          // 学期名称*
+  grade_name: string;             // 年级名称*
+  class_name: string;             // 班级名称*
+  meal_fee_standard: string;      // 餐费标准*
+  prepaid_days: string;           // 预收天数*
+  actual_days: string;            // 实收天数*
+  suspension_days: string;        // 停课天数*
+}
+
+// 费用配置导入结果类型
+export interface FeeConfigImportResult {
+  row: number;                    // 行号
+  success: boolean;               // 是否成功
+  message?: string;               // 消息
+  data?: FeeConfigInput;          // 处理后的数据
+}

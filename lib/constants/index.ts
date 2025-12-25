@@ -130,6 +130,7 @@ export const PERMISSIONS = {
   FEE_CREATE: "fee:create",
   FEE_UPDATE: "fee:update",
   FEE_DELETE: "fee:delete",
+  FEE_IMPORT: "fee:import",
   FEE_EXPORT: "fee:export",
 
   // 系统管理
