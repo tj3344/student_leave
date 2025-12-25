@@ -266,6 +266,31 @@ export async function seedAdminUser(): Promise<void> {
 }
 
 /**
+ * 初始化系统配置
+ */
+function initSystemConfig(): void {
+  const db = getDb();
+
+  // 检查是否已初始化配置
+  const existingCount = db.prepare("SELECT COUNT(*) as count FROM system_config").get() as { count: number };
+
+  if (existingCount.count === 0) {
+    // 插入默认系统配置
+    const stmt = db.prepare(`
+      INSERT INTO system_config (config_key, config_value, description) VALUES
+        ('leave.min_days', '3', '最小请假天数'),
+        ('leave.teacher_apply_enabled', 'true', '教师请假申请功能开关'),
+        ('leave.require_approval', 'true', '请假是否需要审批'),
+        ('system.max_export_rows', '10000', '导出数据最大行数'),
+        ('system.session_timeout', '7', '会话超时天数（天）'),
+        ('system.maintenance_mode', 'false', '维护模式开关')
+    `);
+    stmt.run();
+    console.log("系统配置初始化完成");
+  }
+}
+
+/**
  * 运行数据库迁移
  */
 export async function runMigrations(): Promise<void> {
@@ -275,6 +300,9 @@ export async function runMigrations(): Promise<void> {
 
   // 创建初始管理员用户
   await seedAdminUser();
+
+  // 初始化系统配置
+  initSystemConfig();
 
   // 运行版本迁移
   migrateClassTeacherUniqueConstraint();

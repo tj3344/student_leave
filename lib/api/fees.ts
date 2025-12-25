@@ -582,7 +582,7 @@ export function batchCreateOrUpdateFeeConfigs(
           errors.push({ row: i + 1, input, message: createResult.message || '创建失败' });
         }
       }
-    } catch (error) {
+    } catch {
       errors.push({ row: i + 1, input, message: '处理失败' });
     }
   }

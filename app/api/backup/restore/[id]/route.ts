@@ -9,7 +9,7 @@ import fs from "fs";
  */
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const currentUser = await getCurrentUser();
@@ -21,13 +21,14 @@ export async function POST(
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
+    const { id } = await params;
     const { getDb } = await import("@/lib/db");
     const db = getDb();
 
     // 获取备份记录
     const record = db
       .prepare("SELECT * FROM backup_records WHERE id = ?")
-      .get(params.id) as { file_path: string; name: string } | undefined;
+      .get(id) as { file_path: string; name: string } | undefined;
 
     if (!record) {
       return NextResponse.json({ error: "备份不存在" }, { status: 404 });

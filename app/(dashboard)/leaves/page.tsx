@@ -39,6 +39,7 @@ export default function UnifiedLeavesPage() {
   const [classList, setClassList] = useState<Array<{ id: number; name: string; grade_name: string }>>([]);
   const [classFilter, setClassFilter] = useState("");
   const [semesterList, setSemesterList] = useState<Array<{ id: number; name: string }>>([]);
+  const [teacherApplyEnabled, setTeacherApplyEnabled] = useState(true); // 教师请假申请功能开关
 
   // 审核对话框状态
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
@@ -60,6 +61,8 @@ export default function UnifiedLeavesPage() {
         const data = await response.json();
         if (response.ok) {
           setCurrentUser(data.user);
+          // 获取系统配置
+          fetchSystemConfig();
         } else {
           router.push("/login");
         }
@@ -70,6 +73,19 @@ export default function UnifiedLeavesPage() {
     };
     fetchCurrentUser();
   }, [router]);
+
+  // 获取系统配置
+  const fetchSystemConfig = async () => {
+    try {
+      const response = await fetch("/api/system-config/leave.teacher_apply_enabled");
+      const data = await response.json();
+      if (data.data?.config_value) {
+        setTeacherApplyEnabled(data.data.config_value === "true" || data.data.config_value === "1");
+      }
+    } catch (error) {
+      console.error("Failed to fetch system config:", error);
+    }
+  };
 
   const fetchLeaves = async () => {
     setLoading(true);
@@ -225,7 +241,9 @@ export default function UnifiedLeavesPage() {
   };
 
   // 根据角色判断权限
-  const canCreate = currentUser?.role === "admin" || currentUser?.role === "class_teacher";
+  const canCreate = currentUser?.role === "admin" ||
+    currentUser?.role === "class_teacher" ||
+    (currentUser?.role === "teacher" && teacherApplyEnabled);
   const canReview = currentUser?.role === "admin";
   const canDelete = currentUser?.role === "admin" || currentUser?.role === "class_teacher";
   const canImport = currentUser?.role === "admin";

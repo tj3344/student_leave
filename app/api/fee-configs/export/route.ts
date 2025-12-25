@@ -52,7 +52,6 @@ export async function GET(request: NextRequest) {
 
     // 生成文件名并编码（支持中文）
     const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    const filename = `fee_configs_${timestamp}.xlsx`;
     const encodedFilename = encodeURIComponent(`费用配置列表_${timestamp}.xlsx`);
 
     // 设置响应头

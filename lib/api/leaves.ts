@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { getNumberConfig } from "./system-config";
 import type {
   LeaveInput,
   LeaveReview,
@@ -161,9 +162,12 @@ export function createLeave(
 ): { success: boolean; message?: string; leaveId?: number } {
   const db = getDb();
 
-  // 验证请假天数必须大于3天
-  if (input.leave_days <= 3) {
-    return { success: false, message: "请假天数必须大于3天" };
+  // 从系统配置获取最小请假天数
+  const minLeaveDays = getNumberConfig("leave.min_days", 3);
+
+  // 验证请假天数必须大于最小天数
+  if (input.leave_days <= minLeaveDays) {
+    return { success: false, message: `请假天数必须大于${minLeaveDays}天` };
   }
 
   // 检查学生是否存在，并获取费用配置

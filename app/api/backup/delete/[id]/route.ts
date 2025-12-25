@@ -8,7 +8,7 @@ import { deleteBackupFile } from "@/lib/utils/backup";
  */
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const currentUser = await getCurrentUser();
@@ -20,13 +20,14 @@ export async function DELETE(
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
+    const { id } = await params;
     const { getDb } = await import("@/lib/db");
     const db = getDb();
 
     // 获取备份记录
     const record = db
       .prepare("SELECT * FROM backup_records WHERE id = ?")
-      .get(params.id) as { file_path: string } | undefined;
+      .get(id) as { file_path: string } | undefined;
 
     if (!record) {
       return NextResponse.json({ error: "备份不存在" }, { status: 404 });
@@ -36,7 +37,7 @@ export async function DELETE(
     deleteBackupFile(record.file_path);
 
     // 删除数据库记录
-    db.prepare("DELETE FROM backup_records WHERE id = ?").run(params.id);
+    db.prepare("DELETE FROM backup_records WHERE id = ?").run(id);
 
     return NextResponse.json({ success: true, message: "备份删除成功" });
   } catch (error) {

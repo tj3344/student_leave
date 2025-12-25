@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Download, Trash2, Clock, HardDrive, AlertCircle, RotateCcw } from "lucide-react";
+import { Download, Trash2, Clock, HardDrive, RotateCcw } from "lucide-react";
 import type { BackupRecordWithDetails, BackupConfig, BackupModule } from "@/types";
 
 const BACKUP_MODULES = [

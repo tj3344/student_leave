@@ -87,8 +87,28 @@ export async function GET(request: NextRequest) {
     // 获取请假数据（不分页，获取所有）
     const result = getLeaves(params) as { data: LeaveWithDetails[] };
 
+    // 过滤掉 student_no 为空的记录，并确保类型匹配
+    const validData = result.data
+      .filter((leave) => leave.student_no)
+      .map((leave) => ({
+        student_no: leave.student_no || "",
+        student_name: leave.student_name || "",
+        class_name: leave.class_name,
+        grade_name: leave.grade_name,
+        semester_name: leave.semester_name,
+        start_date: leave.start_date,
+        end_date: leave.end_date,
+        leave_days: leave.leave_days,
+        reason: leave.reason,
+        status: leave.status,
+        reviewer_name: leave.reviewer_name,
+        review_time: leave.review_time,
+        is_refund: leave.is_refund,
+        refund_amount: leave.refund_amount,
+      }));
+
     // 生成 Excel 文件
-    const workbook = exportLeavesToExcel(result.data);
+    const workbook = exportLeavesToExcel(validData);
     const blob = workbookToBlob(workbook);
 
     // 生成文件名并编码（支持中文）

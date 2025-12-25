@@ -44,56 +44,58 @@ interface SemesterOption {
   school_days: number;
 }
 
-const leaveSchema = z
-  .object({
-    student_id: z.coerce.number().int().positive("请选择学生"),
-    semester_id: z.coerce.number().int().positive("请选择学期"),
-    start_date: z.string().min(1, "请选择开始日期"),
-    end_date: z.string().min(1, "请选择结束日期"),
-    leave_days: z.coerce.number().int().min(1, "请输入请假天数"),
-    reason: z.string().min(1, "请假事由不能为空").max(500, "请假事由不能超过500个字符"),
-  })
-  .refine((data) => data.start_date <= data.end_date, {
-    message: "结束日期不能早于开始日期",
-    path: ["end_date"],
-  })
-  .superRefine((data, ctx) => {
-    // 请假天数必须大于3天
-    if (data.leave_days <= 3) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "请假天数必须大于3天",
-        path: ["leave_days"],
-      });
-    }
-
-    // 获取选中学期的总天数
-    const semesterOptions = (ctx as any).semesterOptions as SemesterOption[];
-    const selectedSemester = semesterOptions?.find((s) => s.id === data.semester_id);
-    if (selectedSemester && data.leave_days > selectedSemester.school_days) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `请假天数不能超过学期总天数（${selectedSemester.school_days}天）`,
-        path: ["leave_days"],
-      });
-    }
-
-    // 请假天数不能大于日期范围的自然天数
-    if (data.start_date && data.end_date) {
-      const startDate = new Date(data.start_date);
-      const endDate = new Date(data.end_date);
-      const dayDiff = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      if (data.leave_days > dayDiff) {
+// 创建动态验证 schema 的工厂函数
+const createLeaveSchema = (minLeaveDays: number, semesterOptions: SemesterOption[]) => {
+  return z
+    .object({
+      student_id: z.coerce.number().int().positive("请选择学生"),
+      semester_id: z.coerce.number().int().positive("请选择学期"),
+      start_date: z.string().min(1, "请选择开始日期"),
+      end_date: z.string().min(1, "请选择结束日期"),
+      leave_days: z.coerce.number().int().min(1, "请输入请假天数"),
+      reason: z.string().min(1, "请假事由不能为空").max(500, "请假事由不能超过500个字符"),
+    })
+    .refine((data) => data.start_date <= data.end_date, {
+      message: "结束日期不能早于开始日期",
+      path: ["end_date"],
+    })
+    .superRefine((data, ctx) => {
+      // 请假天数必须大于最小天数（从系统配置获取）
+      if (data.leave_days <= minLeaveDays) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: `请假天数不能超过日期范围（${dayDiff}天）`,
+          message: `请假天数必须大于${minLeaveDays}天`,
           path: ["leave_days"],
         });
       }
-    }
-  });
 
-type LeaveFormValues = z.infer<typeof leaveSchema>;
+      // 获取选中学期的总天数
+      const selectedSemester = semesterOptions?.find((s) => s.id === data.semester_id);
+      if (selectedSemester && data.leave_days > selectedSemester.school_days) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: `请假天数不能超过学期总天数（${selectedSemester.school_days}天）`,
+          path: ["leave_days"],
+        });
+      }
+
+      // 请假天数不能大于日期范围的自然天数
+      if (data.start_date && data.end_date) {
+        const startDate = new Date(data.start_date);
+        const endDate = new Date(data.end_date);
+        const dayDiff = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        if (data.leave_days > dayDiff) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `请假天数不能超过日期范围（${dayDiff}天）`,
+            path: ["leave_days"],
+          });
+        }
+      }
+    });
+};
+
+type LeaveFormValues = z.infer<ReturnType<typeof createLeaveSchema>>;
 
 interface LeaveFormProps {
   open: boolean;
@@ -105,10 +107,10 @@ interface LeaveFormProps {
 export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [semesterOptions, setSemesterOptions] = useState<SemesterOption[]>([]);
-  const [selectedStudent, setSelectedStudent] = useState<{ id: number; is_nutrition_meal: number } | null>(null);
+  const [minLeaveDays, setMinLeaveDays] = useState(3); // 默认值
 
   const form = useForm<LeaveFormValues>({
-    resolver: zodResolver(leaveSchema),
+    resolver: zodResolver(createLeaveSchema(minLeaveDays, semesterOptions)),
     defaultValues: {
       student_id: 0,
       semester_id: 0,
@@ -117,15 +119,27 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFor
       leave_days: 0,
       reason: "",
     },
-    context: { semesterOptions },
   });
 
-  // 加载学期列表
+  // 加载学期列表和系统配置
   useEffect(() => {
     if (open) {
       fetchSemesters();
+      fetchSystemConfig();
     }
   }, [open]);
+
+  const fetchSystemConfig = async () => {
+    try {
+      const response = await fetch("/api/system-config/leave.min_days");
+      const data = await response.json();
+      if (data.data?.config_value) {
+        setMinLeaveDays(parseInt(data.data.config_value, 10) || 3);
+      }
+    } catch (error) {
+      console.error("Failed to fetch system config:", error);
+    }
+  };
 
   const fetchSemesters = async () => {
     try {
@@ -150,16 +164,6 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFor
 
   const handleStudentChange = (studentId: number) => {
     form.setValue("student_id", studentId);
-    // 获取学生信息
-    fetch(`/api/students/${studentId}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setSelectedStudent({
-          id: data.id,
-          is_nutrition_meal: data.is_nutrition_meal,
-        });
-      })
-      .catch(console.error);
   };
 
   const onSubmit = async (values: LeaveFormValues) => {
@@ -180,7 +184,6 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFor
       onSuccess();
       onClose();
       form.reset();
-      setSelectedStudent(null);
     } catch (error) {
       console.error("Submit leave error:", error);
       form.setError("root", {
@@ -354,7 +357,7 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFor
                   <FormControl>
                     <Input
                       type="number"
-                      placeholder="请输入请假天数（必须大于3天）"
+                      placeholder={`请输入请假天数（必须大于${minLeaveDays}天）`}
                       {...field}
                       onChange={(e) => field.onChange(parseInt(e.target.value) || 0)}
                     />
