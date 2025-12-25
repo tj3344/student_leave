@@ -73,10 +73,11 @@
 
 ### 2.3 工具函数
 - [x] 日期处理工具（lib/utils/date.ts）
-- [ ] Excel 处理工具（lib/utils/excel.ts）
+- [x] Excel 处理工具（lib/utils/excel.ts）
 - [x] 退费计算工具（lib/utils/refund.ts）
 - [x] 数据验证工具（lib/utils/validation.ts）
 - [x] 密码加密工具（lib/utils/crypto.ts）
+- [x] 备份恢复工具（lib/utils/backup.ts）
 
 ### 2.4 布局组件
 - [x] 创建认证布局（components/layouts/AuthLayout.tsx）
@@ -212,40 +213,46 @@
 
 ---
 
-## 阶段八：导入导出功能 ⏳
+## 阶段八：导入导出功能 ✅
 
 ### 8.1 导入功能
-- [ ] Excel 导入工具完善（lib/utils/excel.ts）
-- [ ] 学生导入接口（app/api/students/import/route.ts）
-- [ ] 请假记录导入接口（app/api/leaves/import/route.ts）
-- [ ] 导入组件（components/admin/ImportDialog.tsx）
-- [ ] 下载导入模板功能
-- [ ] 导入数据验证
+- [x] Excel 导入工具完善（lib/utils/excel.ts）
+- [x] 学生导入接口（app/api/students/import/route.ts）
+- [x] 请假记录导入接口（app/api/leaves/import/route.ts）
+- [x] 导入组件（components/admin/StudentImportDialog.tsx）
+- [x] 请假导入组件（components/admin/LeaveImportDialog.tsx）
+- [x] 下载导入模板功能
+- [x] 导入数据验证
 
 ### 8.2 导出功能
-- [ ] 学生导出接口（app/api/students/export/route.ts）
-- [ ] 请假记录导出接口（app/api/leaves/export/route.ts）
-- [ ] 退费清单导出接口（app/api/refunds/export/route.ts）
-- [ ] 导出按钮组件
-- [ ] Excel 格式化
+- [x] 学生导出接口（app/api/students/export/route.ts）
+- [x] 请假记录导出接口（app/api/leaves/export/route.ts）
+- [x] 退费记录导出接口（app/api/fees/refunds/export/route.ts）
+- [x] 退费汇总导出接口（app/api/fees/summary/export/route.ts）
+- [x] 费用配置导出接口（app/api/fee-configs/export/route.ts）
+- [x] 导出按钮组件
+- [x] Excel 格式化
 
 ---
 
-## 阶段九：数据备份 ⏳
+## 阶段九：数据备份 ✅
 
 ### 9.1 备份功能
-- [ ] 备份服务层（lib/api/backup.ts）
-- [ ] 创建备份接口（app/api/backup/create/route.ts）
-- [ ] 备份列表接口（app/api/backup/list/route.ts）
-- [ ] 下载备份接口（app/api/backup/download/[filename]/route.ts）
-- [ ] 备份管理页面（app/(dashboard)/admin/backup/page.tsx）
-- [ ] 手动备份功能
-- [ ] 自动定时备份（可选）
+- [x] 备份服务层（lib/utils/backup.ts）
+- [x] 创建备份接口（app/api/backup/create/route.ts）
+- [x] 备份列表接口（app/api/backup/list/route.ts）
+- [x] 下载备份接口（app/api/backup/download/[id]/route.ts）
+- [x] 删除备份接口（app/api/backup/delete/[id]/route.ts）
+- [x] 备份管理页面（app/(dashboard)/admin/backup/page.tsx）
+- [x] 手动备份功能
+- [x] 自动定时备份（lib/cron/backup.ts）
+- [x] 自动备份配置接口（app/api/backup/schedule/route.ts）
 
 ### 9.2 恢复功能
-- [ ] 恢复备份接口（app/api/backup/restore/route.ts）
-- [ ] 上传备份文件功能
-- [ ] 恢复确认对话框
+- [x] 恢复备份接口（app/api/backup/restore/route.ts）
+- [x] 从备份记录恢复接口（app/api/backup/restore/[id]/route.ts）
+- [x] 上传备份文件功能
+- [x] 恢复确认对话框
 
 ---
 
@@ -271,18 +278,21 @@
 
 ---
 
-## 阶段十一：系统设置 ⏳
+## 阶段十一：系统设置 ✅
 
 ### 11.1 系统配置
-- [ ] 系统设置接口（app/api/settings/route.ts）
-- [ ] 系统设置页面（app/(dashboard)/admin/settings/page.tsx）
-- [ ] 基本信息设置
-- [ ] 自动备份配置
-- [ ] 其他系统参数
+- [x] 系统配置服务层（lib/api/system-config.ts）
+- [x] 系统配置接口（app/api/system-config/route.ts）
+- [x] 单个配置接口（app/api/system-config/[key]/route.ts）
+- [x] 系统设置页面（app/(dashboard)/admin/settings/page.tsx）
+- [x] 请假天数配置（leave.min_days）
+- [x] 教师请假申请开关（leave.teacher_apply_enabled）
+- [x] 审批开关配置（leave.require_approval）
+- [x] 系统参数配置（会话超时、导出限制、维护模式）
 
 ### 11.2 操作日志
-- [ ] 操作日志中间件
-- [ ] 操作日志记录功能
+- [x] 操作日志记录功能（已集成到各功能模块）
+- [x] 操作日志表（operation_logs）
 - [ ] 操作日志查询页面
 - [ ] 操作日志表格组件
 
@@ -347,16 +357,16 @@
 
 ### P1（高优先级）- 已完成
 - [x] 退费管理 ✅
-- [ ] 导入导出功能 ⏳
+- [x] 导入导出功能 ✅
 - [ ] 仪表盘统计 ⏳
 
-### P2（中优先级）
-- [ ] 数据备份 ⏳
-- [ ] 系统设置 ⏳
-- [ ] 操作日志 ⏳
+### P2（中优先级）- 已完成
+- [x] 数据备份 ✅
+- [x] 系统设置 ✅
+- [ ] 操作日志查询 ⏳
 
 ### P3（低优先级）
-- [ ] 自动定时备份 ⏳
+- [x] 自动定时备份 ✅
 - [ ] 高级统计图表 ⏳
 - [ ] 其他优化功能 ⏳
 
@@ -374,18 +384,18 @@
 
 ---
 
-## 当前进度：62% 完成
+## 当前进度：85% 完成
 
 - ✅ 阶段一：项目初始化（100%）
-- ✅ 阶段二：基础框架搭建（95%）
+- ✅ 阶段二：基础框架搭建（100%）
 - ✅ 阶段三：认证系统（100%）
 - ✅ 阶段四：基础数据管理（100%）
 - ✅ 阶段五：用户与学生管理（100%）
 - ✅ 阶段六：请假功能（100%）
 - ✅ 阶段七：退费管理（100%）
-- ⏳ 阶段八：导入导出功能（0%）
-- ⏳ 阶段九：数据备份（0%）
+- ✅ 阶段八：导入导出功能（100%）
+- ✅ 阶段九：数据备份（100%）
 - ⏳ 阶段十：仪表盘与统计（0%）
-- ⏳ 阶段十一：系统设置（0%）
+- ✅ 阶段十一：系统设置（95%）
 - ⏳ 阶段十二：测试与优化（0%）
-- ⏳ 阶段十三：部署准备（30%）
+- ✅ 阶段十三：部署准备（100%）
