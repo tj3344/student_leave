@@ -195,6 +195,36 @@ export function initDatabase(): void {
     )
   `);
 
+  // 备份记录表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS backup_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name VARCHAR(100) NOT NULL,
+      type VARCHAR(20) NOT NULL,
+      modules TEXT NOT NULL,
+      file_path VARCHAR(255) NOT NULL,
+      file_size INTEGER NOT NULL,
+      created_by INTEGER NOT NULL,
+      description TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )
+  `);
+
+  // 备份配置表
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS backup_config (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      enabled BOOLEAN DEFAULT 0,
+      schedule_type VARCHAR(20) NOT NULL,
+      schedule_time VARCHAR(10) NOT NULL,
+      backup_type VARCHAR(20) NOT NULL,
+      modules TEXT NOT NULL,
+      retention_days INTEGER DEFAULT 30,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   // 创建索引
   db.exec(`
     CREATE INDEX IF NOT EXISTS idx_students_class ON students(class_id);
@@ -207,6 +237,8 @@ export function initDatabase(): void {
     CREATE UNIQUE INDEX IF NOT EXISTS idx_classes_class_teacher ON classes(class_teacher_id);
     CREATE INDEX IF NOT EXISTS idx_fee_configs_class ON fee_configs(class_id);
     CREATE INDEX IF NOT EXISTS idx_fee_configs_semester ON fee_configs(semester_id);
+    CREATE INDEX IF NOT EXISTS idx_backup_created_by ON backup_records(created_by);
+    CREATE INDEX IF NOT EXISTS idx_backup_created_at ON backup_records(created_at);
   `);
 
   console.log("Database initialized successfully");

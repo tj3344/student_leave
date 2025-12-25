@@ -426,3 +426,61 @@ export interface LeaveImportResult {
   success: boolean;            // 是否成功
   message?: string;            // 消息
 }
+
+// ============================================
+// 备份相关类型
+// ============================================
+
+export type BackupType = "full" | "partial";
+
+export type BackupModule =
+  | "users"
+  | "semesters"
+  | "grades"
+  | "classes"
+  | "students"
+  | "leave_records"
+  | "fee_configs"
+  | "system_config"
+  | "operation_logs";
+
+export interface BackupRecord {
+  id: number;
+  name: string;
+  type: BackupType;
+  modules: string;
+  file_path: string;
+  file_size: number;
+  created_by: number;
+  created_at: string;
+  description?: string;
+}
+
+export interface BackupRecordWithDetails extends BackupRecord {
+  created_by_name?: string;
+  module_count?: number;
+}
+
+export interface BackupRecordInput {
+  name: string;
+  type: BackupType;
+  modules: BackupModule[];
+  description?: string;
+}
+
+export interface BackupConfig {
+  id: number;
+  enabled: number;
+  schedule_type: "daily" | "weekly" | "monthly";
+  schedule_time: string;
+  backup_type: BackupType;
+  modules: string;
+  retention_days: number;
+  updated_at: string;
+}
+
+export interface RestoreResult {
+  success: boolean;
+  message: string;
+  details?: string;
+}
