@@ -19,8 +19,15 @@ import {
   DollarSign,
   Home,
   KeyRound,
+  ChevronUp,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ROLE_NAMES } from "@/lib/constants";
 import { ChangePasswordDialog } from "@/components/auth/ChangePasswordDialog";
 
@@ -148,31 +155,31 @@ export function Sidebar({ user }: SidebarProps) {
 
       {/* User Info */}
       <div className="border-t p-4">
-        <div className="mb-3 flex items-center gap-3 rounded-lg bg-accent p-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
-            {user.real_name?.charAt(0) || "U"}
-          </div>
-          <div className="flex-1 overflow-hidden">
-            <p className="truncate text-sm font-medium">{user.real_name}</p>
-            <p className="truncate text-xs text-muted-foreground">{ROLE_NAMES[user.role as keyof typeof ROLE_NAMES]}</p>
-          </div>
-        </div>
-        <Button
-          variant="ghost"
-          className="w-full justify-start text-muted-foreground mb-1"
-          onClick={() => setIsPasswordDialogOpen(true)}
-        >
-          <KeyRound className="mr-2 h-4 w-4" />
-          修改密码
-        </Button>
-        <Button
-          variant="ghost"
-          className="w-full justify-start text-muted-foreground hover:text-destructive"
-          onClick={handleLogout}
-        >
-          <LogOut className="mr-2 h-4 w-4" />
-          退出登录
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <div className="flex cursor-pointer items-center gap-3 rounded-lg bg-accent p-3 transition-colors hover:bg-accent/80">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                {user.real_name?.charAt(0) || "U"}
+              </div>
+              <div className="flex-1 overflow-hidden">
+                <p className="truncate text-sm font-medium">{user.real_name}</p>
+                <p className="truncate text-xs text-muted-foreground">{ROLE_NAMES[user.role as keyof typeof ROLE_NAMES]}</p>
+              </div>
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-48">
+            <DropdownMenuItem onClick={() => setIsPasswordDialogOpen(true)}>
+              <KeyRound className="mr-2 h-4 w-4" />
+              <span>修改密码</span>
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+              <LogOut className="mr-2 h-4 w-4" />
+              <span>退出登录</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <ChangePasswordDialog
