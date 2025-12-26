@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
-import { getLeaveById, deleteLeave } from "@/lib/api/leaves";
+import { getLeaveById, deleteLeave, updateLeave } from "@/lib/api/leaves";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
-import { logDelete } from "@/lib/utils/logger";
+import { logDelete, logUpdate } from "@/lib/utils/logger";
+import { getBooleanConfig } from "@/lib/api/system-config";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -50,6 +51,62 @@ export async function GET(request: NextRequest, context: RouteContext) {
 }
 
 /**
+ * PUT /api/leaves/[id] - 更新请假记录
+ */
+export async function PUT(request: NextRequest, context: RouteContext) {
+  try {
+    // 验证权限
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return NextResponse.json({ error: "未登录" }, { status: 401 });
+    }
+
+    if (!hasPermission(currentUser.role, PERMISSIONS.LEAVE_UPDATE)) {
+      return NextResponse.json({ error: "无权限" }, { status: 403 });
+    }
+
+    // 班主任需要检查系统配置开关
+    if (currentUser.role === "class_teacher") {
+      const canEdit = getBooleanConfig("permission.class_teacher_edit_leave", true);
+      if (!canEdit) {
+        return NextResponse.json({ error: "无权限，系统未开放此功能" }, { status: 403 });
+      }
+    }
+
+    const params = await context.params;
+    const id = parseInt(params.id, 10);
+
+    if (isNaN(id)) {
+      return NextResponse.json({ error: "无效的请假记录ID" }, { status: 400 });
+    }
+
+    // 检查请假记录是否存在
+    const existingLeave = getLeaveById(id);
+    if (!existingLeave) {
+      return NextResponse.json({ error: "请假记录不存在" }, { status: 404 });
+    }
+
+    // 获取更新数据
+    const body = await request.json();
+
+    // 更新请假记录
+    const result = updateLeave(id, body);
+
+    if (!result.success) {
+      return NextResponse.json({ error: result.message }, { status: 400 });
+    }
+
+    // 记录更新日志
+    await logUpdate(currentUser.id, "leaves", `更新请假记录：${existingLeave.student_name}（${existingLeave.student_no}）`);
+
+    return NextResponse.json({ success: true, message: "请假记录更新成功" });
+  } catch (error) {
+    console.error("更新请假记录失败:", error);
+    return NextResponse.json({ error: "更新请假记录失败" }, { status: 500 });
+  }
+}
+
+/**
  * DELETE /api/leaves/[id] - 删除请假记录
  */
 export async function DELETE(request: NextRequest, context: RouteContext) {
@@ -60,7 +117,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(currentUser.role, PERMISSIONS.LEAVE_CREATE)) {
+    if (!hasPermission(currentUser.role, PERMISSIONS.LEAVE_DELETE)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 

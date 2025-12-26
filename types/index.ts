@@ -231,6 +231,7 @@ export interface LeaveInput {
   end_date: string;
   leave_days: number;
   reason: string;
+  status?: "pending" | "approved" | "rejected";
 }
 
 export interface LeaveReview {

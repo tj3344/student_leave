@@ -69,6 +69,13 @@ const CONFIG_DEFINITIONS: ConfigGroup[] = [
         default: false,
         description: "开启后班主任可以删除本班学生（有请假记录的学生仍无法删除）",
       },
+      {
+        key: "permission.class_teacher_edit_leave",
+        label: "班主任编辑请假",
+        type: "boolean",
+        default: true,
+        description: "开启后班主任可以编辑本班学生的请假信息（仅限待审核和已拒绝状态）",
+      },
     ],
   },
   {

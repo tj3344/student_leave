@@ -99,8 +99,10 @@ export const PERMISSIONS = {
   LEAVE_READ: "leave:read",
   LEAVE_APPROVE: "leave:approve",
   LEAVE_REJECT: "leave:reject",
+  LEAVE_UPDATE: "leave:update",
   LEAVE_EXPORT: "leave:export",
   LEAVE_IMPORT: "leave:import",
+  LEAVE_DELETE: "leave:delete",
 
   // 班级管理
   CLASS_CREATE: "class:create",
@@ -154,7 +156,10 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
   ],
   class_teacher: [
     PERMISSIONS.STUDENT_READ,
+    PERMISSIONS.LEAVE_CREATE,
     PERMISSIONS.LEAVE_READ,
+    PERMISSIONS.LEAVE_UPDATE,
+    PERMISSIONS.LEAVE_DELETE,
     PERMISSIONS.CLASS_READ,
     PERMISSIONS.SEMESTER_READ,
     PERMISSIONS.REFUND_READ,

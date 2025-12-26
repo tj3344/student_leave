@@ -283,6 +283,7 @@ function initSystemConfig(): void {
         ('leave.require_approval', 'true', '请假是否需要审批'),
         ('permission.class_teacher_edit_student', 'false', '班主任编辑学生信息开关'),
         ('permission.class_teacher_delete_student', 'false', '班主任删除学生开关'),
+        ('permission.class_teacher_edit_leave', 'true', '班主任编辑请假信息开关'),
         ('system.max_export_rows', '10000', '导出数据最大行数'),
         ('system.session_timeout', '7', '会话超时天数（天）'),
         ('system.maintenance_mode', 'false', '维护模式开关')
@@ -301,6 +302,11 @@ function initSystemConfig(): void {
         key: "permission.class_teacher_delete_student",
         value: "false",
         description: "班主任删除学生开关"
+      },
+      {
+        key: "permission.class_teacher_edit_leave",
+        value: "true",
+        description: "班主任编辑请假信息开关"
       },
     ];
 

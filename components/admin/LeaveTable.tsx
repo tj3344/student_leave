@@ -14,7 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Eye, Check, X, Trash2 } from "lucide-react";
+import { Eye, Check, X, Trash2, Pencil } from "lucide-react";
 
 interface LeaveTableProps {
   data: LeaveWithDetails[];
@@ -23,6 +23,8 @@ interface LeaveTableProps {
   onApprove?: (leave: LeaveWithDetails) => void;
   onReject?: (leave: LeaveWithDetails) => void;
   onDelete?: (leave: LeaveWithDetails) => void;
+  onEdit?: (leave: LeaveWithDetails) => void;
+  canEdit?: boolean;
 }
 
 export function LeaveTable({
@@ -32,6 +34,8 @@ export function LeaveTable({
   onApprove,
   onReject,
   onDelete,
+  onEdit,
+  canEdit = false,
 }: LeaveTableProps) {
 
   const getStatusBadge = (status: string) => {
@@ -111,6 +115,16 @@ export function LeaveTable({
                       title="查看详情"
                     >
                       <Eye className="h-4 w-4" />
+                    </Button>
+                  )}
+                  {onEdit && canEdit && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => onEdit(leave)}
+                      title="编辑"
+                    >
+                      <Pencil className="h-4 w-4" />
                     </Button>
                   )}
                   {showReviewActions && leave.status === "pending" && (

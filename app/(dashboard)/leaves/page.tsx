@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { LeaveTable } from "@/components/admin/LeaveTable";
 import { LeaveReviewDialog } from "@/components/admin/LeaveReviewDialog";
 import { LeaveImportDialog } from "@/components/admin/LeaveImportDialog";
+import { LeaveForm } from "@/components/teacher/LeaveForm";
 import {
   Select,
   SelectContent,
@@ -40,6 +41,7 @@ export default function UnifiedLeavesPage() {
   const [classFilter, setClassFilter] = useState("");
   const [semesterList, setSemesterList] = useState<Array<{ id: number; name: string }>>([]);
   const [teacherApplyEnabled, setTeacherApplyEnabled] = useState(true); // 教师请假申请功能开关
+  const [canEditLeave, setCanEditLeave] = useState(true); // 编辑权限开关
 
   // 审核对话框状态
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
@@ -49,6 +51,10 @@ export default function UnifiedLeavesPage() {
   // 删除对话框状态
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteLeave, setDeleteLeave] = useState<LeaveWithDetails | null>(null);
+
+  // 编辑表单状态
+  const [editFormOpen, setEditFormOpen] = useState(false);
+  const [editingLeave, setEditingLeave] = useState<LeaveWithDetails | null>(null);
 
   // 导入对话框状态
   const [importOpen, setImportOpen] = useState(false);
@@ -89,6 +95,13 @@ export default function UnifiedLeavesPage() {
       const data = await response.json();
       if (data.data?.config_value) {
         setTeacherApplyEnabled(data.data.config_value === "true" || data.data.config_value === "1");
+      }
+
+      // 获取编辑权限配置
+      const editRes = await fetch("/api/system-config/permission.class_teacher_edit_leave");
+      const editData = await editRes.json();
+      if (editData.data?.config_value) {
+        setCanEditLeave(editData.data.config_value === "true" || editData.data.config_value === "1");
       }
     } catch (error) {
       console.error("Failed to fetch system config:", error);
@@ -181,6 +194,11 @@ export default function UnifiedLeavesPage() {
     setDeleteDialogOpen(true);
   };
 
+  const handleEdit = (leave: LeaveWithDetails) => {
+    setEditingLeave(leave);
+    setEditFormOpen(true);
+  };
+
   const confirmDelete = async () => {
     if (!deleteLeave) return;
 
@@ -254,6 +272,7 @@ export default function UnifiedLeavesPage() {
     (currentUser?.role === "teacher" && teacherApplyEnabled);
   const canReview = currentUser?.role === "admin";
   const canDelete = currentUser?.role === "admin" || currentUser?.role === "class_teacher";
+  const canEdit = currentUser?.role === "admin" || (currentUser?.role === "class_teacher" && canEditLeave);
   const canImport = currentUser?.role === "admin";
   const canExport = currentUser?.role === "admin" || currentUser?.role === "class_teacher";
   const showClassFilter = currentUser?.role === "admin" || currentUser?.role === "class_teacher";
@@ -372,6 +391,8 @@ export default function UnifiedLeavesPage() {
         onApprove={canReview ? handleApprove : undefined}
         onReject={canReview ? handleReject : undefined}
         onDelete={canDelete ? handleDelete : undefined}
+        onEdit={canEdit ? handleEdit : undefined}
+        canEdit={canEdit}
       />
 
       {/* 审核对话框 */}
@@ -410,6 +431,23 @@ export default function UnifiedLeavesPage() {
           setImportOpen(false);
           fetchLeaves();
         }}
+      />
+
+      {/* 编辑表单 */}
+      <LeaveForm
+        open={editFormOpen}
+        onClose={() => {
+          setEditFormOpen(false);
+          setEditingLeave(null);
+        }}
+        onSuccess={() => {
+          setEditFormOpen(false);
+          setEditingLeave(null);
+          fetchLeaves();
+        }}
+        editingLeave={editingLeave ?? undefined}
+        mode={editingLeave ? "edit" : "create"}
+        currentUser={currentUser}
       />
     </div>
   );

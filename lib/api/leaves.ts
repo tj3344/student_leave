@@ -525,6 +525,149 @@ export function recalculateAllLeaveRefunds(): { updated: number; message: string
 }
 
 /**
+ * 更新请假记录
+ */
+export function updateLeave(
+  id: number,
+  input: LeaveInput
+): { success: boolean; message?: string } {
+  const db = getDb();
+
+  // 从系统配置获取最小请假天数
+  const minLeaveDays = getNumberConfig("leave.min_days", 3);
+
+  // 验证请假天数必须大于最小天数
+  if (input.leave_days <= minLeaveDays) {
+    return { success: false, message: `请假天数必须大于${minLeaveDays}天` };
+  }
+
+  // 检查请假记录是否存在
+  const existingLeave = db
+    .prepare(
+      `SELECT lr.*, s.is_nutrition_meal, c.id as class_id
+       FROM leave_records lr
+       LEFT JOIN students s ON lr.student_id = s.id
+       LEFT JOIN classes c ON s.class_id = c.id
+       WHERE lr.id = ?`
+    )
+    .get(id) as
+    | {
+        id: number;
+        status: string;
+        student_id: number;
+        semester_id: number;
+        is_nutrition_meal: number;
+        class_id: number;
+      }
+    | undefined;
+
+  if (!existingLeave) {
+    return { success: false, message: "请假记录不存在" };
+  }
+
+  // 只能编辑待审核和已拒绝状态的记录（除非明确指定了新状态）
+  const newStatus = input.status;
+  if (existingLeave.status === "approved" && !newStatus) {
+    return { success: false, message: "已批准的请假记录不能编辑" };
+  }
+
+  // 检查学生是否存在，并获取费用配置
+  const student = db
+    .prepare(
+      `SELECT s.id, s.is_nutrition_meal, s.class_id,
+              c.id as class_id_check, c.semester_id as class_semester_id,
+              fc.meal_fee_standard
+       FROM students s
+       LEFT JOIN classes c ON s.class_id = c.id
+       LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = ?
+       WHERE s.id = ?`
+    )
+    .get(input.semester_id, input.student_id) as
+    | {
+        id: number;
+        is_nutrition_meal: number;
+        class_id: number;
+        class_id_check: number | null;
+        class_semester_id: number | null;
+        meal_fee_standard: number | null;
+      }
+    | undefined;
+
+  if (!student) {
+    return { success: false, message: "学生不存在" };
+  }
+
+  // 获取学期信息验证学期总天数
+  const semester = db
+    .prepare("SELECT school_days FROM semesters WHERE id = ?")
+    .get(input.semester_id) as { school_days: number } | undefined;
+
+  if (!semester) {
+    return { success: false, message: "学期不存在" };
+  }
+
+  if (input.leave_days > semester.school_days) {
+    return { success: false, message: `请假天数不能超过学期总天数（${semester.school_days}天）` };
+  }
+
+  // 验证请假天数不能超过日期范围的自然天数
+  const startDate = new Date(input.start_date);
+  const endDate = new Date(input.end_date);
+  const dayDiff = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  if (input.leave_days > dayDiff) {
+    return { success: false, message: `请假天数不能超过日期范围（${dayDiff}天）` };
+  }
+
+  // 计算退费金额
+  const isNutritionMeal = student.is_nutrition_meal === 1;
+  const mealFeeStandard = student.meal_fee_standard ?? 0;
+  const refundAmount = isNutritionMeal ? 0 : input.leave_days * mealFeeStandard;
+
+  // 构建更新 SQL，根据是否包含状态字段来决定更新哪些列
+  if (newStatus) {
+    // 包含状态更新 - 需要清除审核信息
+    db.prepare(
+      `UPDATE leave_records
+       SET student_id = ?, semester_id = ?, start_date = ?, end_date = ?,
+           leave_days = ?, reason = ?, status = ?, is_refund = ?, refund_amount = ?,
+           reviewer_id = NULL, review_time = NULL, review_remark = NULL, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    ).run(
+      input.student_id,
+      input.semester_id,
+      input.start_date,
+      input.end_date,
+      input.leave_days,
+      input.reason,
+      newStatus,
+      isNutritionMeal ? 0 : 1,
+      isNutritionMeal ? null : refundAmount,
+      id
+    );
+  } else {
+    // 不包含状态更新
+    db.prepare(
+      `UPDATE leave_records
+       SET student_id = ?, semester_id = ?, start_date = ?, end_date = ?,
+           leave_days = ?, reason = ?, is_refund = ?, refund_amount = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`
+    ).run(
+      input.student_id,
+      input.semester_id,
+      input.start_date,
+      input.end_date,
+      input.leave_days,
+      input.reason,
+      isNutritionMeal ? 0 : 1,
+      isNutritionMeal ? null : refundAmount,
+      id
+    );
+  }
+
+  return { success: true };
+}
+
+/**
  * 根据学生信息获取学生ID和学期ID
  * 验证学生是否存在以及班级学期关联是否正确
  */

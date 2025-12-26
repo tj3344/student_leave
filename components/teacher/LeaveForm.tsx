@@ -36,7 +36,7 @@ import { Loader2, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { StudentSelector } from "@/components/shared/StudentSelector";
-import type { User } from "@/types";
+import type { User, LeaveWithDetails } from "@/types";
 
 interface SemesterOption {
   id: number;
@@ -46,16 +46,23 @@ interface SemesterOption {
 }
 
 // 创建动态验证 schema 的工厂函数
-const createLeaveSchema = (minLeaveDays: number, semesterOptions: SemesterOption[]) => {
-  return z
-    .object({
-      student_id: z.coerce.number().int().positive("请选择学生"),
-      semester_id: z.coerce.number().int().positive("请选择学期"),
-      start_date: z.string().min(1, "请选择开始日期"),
-      end_date: z.string().min(1, "请选择结束日期"),
-      leave_days: z.coerce.number().int().min(1, "请输入请假天数"),
-      reason: z.string().min(1, "请假事由不能为空").max(500, "请假事由不能超过500个字符"),
-    })
+const createLeaveSchema = (minLeaveDays: number, semesterOptions: SemesterOption[], includeStatus: boolean = false) => {
+  let schema = z.object({
+    student_id: z.coerce.number().int().positive("请选择学生"),
+    semester_id: z.coerce.number().int().positive("请选择学期"),
+    start_date: z.string().min(1, "请选择开始日期"),
+    end_date: z.string().min(1, "请选择结束日期"),
+    leave_days: z.coerce.number().int().min(1, "请输入请假天数"),
+    reason: z.string().min(1, "请假事由不能为空").max(500, "请假事由不能超过500个字符"),
+  });
+
+  if (includeStatus) {
+    schema = schema.extend({
+      status: z.enum(["pending", "approved", "rejected"]).optional(),
+    });
+  }
+
+  return schema
     .refine((data) => data.start_date <= data.end_date, {
       message: "结束日期不能早于开始日期",
       path: ["end_date"],
@@ -103,16 +110,22 @@ interface LeaveFormProps {
   onClose: () => void;
   onSuccess: () => void;
   defaultClassId?: number;
+  editingLeave?: LeaveWithDetails;
+  mode?: "create" | "edit";
+  currentUser?: User | null;
 }
 
-export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFormProps) {
+export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLeave, mode = "create", currentUser }: LeaveFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [semesterOptions, setSemesterOptions] = useState<SemesterOption[]>([]);
   const [minLeaveDays, setMinLeaveDays] = useState(3); // 默认值
   const [teacherClassId, setTeacherClassId] = useState<number | undefined>(defaultClassId);
 
-  const form = useForm<LeaveFormValues>({
-    resolver: zodResolver(createLeaveSchema(minLeaveDays, semesterOptions)),
+  // 判断是否包含状态选择（仅管理员编辑模式）
+  const includeStatus = currentUser?.role === "admin" && mode === "edit";
+
+  const form = useForm({
+    resolver: zodResolver(createLeaveSchema(minLeaveDays, semesterOptions, includeStatus)),
     defaultValues: {
       student_id: 0,
       semester_id: 0,
@@ -120,6 +133,7 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFor
       end_date: "",
       leave_days: 0,
       reason: "",
+      ...(includeStatus && { status: undefined as "pending" | "approved" | "rejected" | undefined }),
     },
   });
 
@@ -129,8 +143,21 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFor
       fetchCurrentUser();
       fetchSemesters();
       fetchSystemConfig();
+
+      // 编辑模式下设置初始值
+      if (mode === "edit" && editingLeave) {
+        form.reset({
+          student_id: editingLeave.student_id,
+          semester_id: editingLeave.semester_id,
+          start_date: editingLeave.start_date,
+          end_date: editingLeave.end_date,
+          leave_days: editingLeave.leave_days,
+          reason: editingLeave.reason,
+          ...(includeStatus && { status: editingLeave.status as "pending" | "approved" | "rejected" }),
+        });
+      }
     }
-  }, [open]);
+  }, [open, mode, editingLeave, includeStatus]);
 
   // 获取当前用户信息
   const fetchCurrentUser = async () => {
@@ -203,8 +230,11 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFor
   const onSubmit = async (values: LeaveFormValues) => {
     setIsSubmitting(true);
     try {
-      const response = await fetch("/api/leaves", {
-        method: "POST",
+      const url = mode === "edit" && editingLeave ? `/api/leaves/${editingLeave.id}` : "/api/leaves";
+      const method = mode === "edit" ? "PUT" : "POST";
+
+      const response = await fetch(url, {
+        method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(values),
       });
@@ -234,7 +264,7 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFor
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>新增请假申请</DialogTitle>
+          <DialogTitle>{mode === "edit" ? "编辑请假申请" : "新增请假申请"}</DialogTitle>
           <DialogDescription>填写学生请假信息，系统将自动计算退费金额</DialogDescription>
         </DialogHeader>
 
@@ -421,6 +451,32 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFor
               )}
             />
 
+            {/* 状态选择 - 仅管理员编辑模式显示 */}
+            {includeStatus && (
+              <FormField
+                control={form.control}
+                name="status"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>审核状态</FormLabel>
+                    <Select onValueChange={(v) => field.onChange(v as "pending" | "approved" | "rejected")} value={field.value}>
+                      <FormControl>
+                        <SelectTrigger>
+                          <SelectValue placeholder="选择状态" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="pending">待审核</SelectItem>
+                        <SelectItem value="approved">已批准</SelectItem>
+                        <SelectItem value="rejected">已拒绝</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            )}
+
             {form.formState.errors.root && (
               <div className="bg-destructive/15 text-destructive text-sm p-3 rounded-md">
                 {form.formState.errors.root.message}
@@ -433,7 +489,7 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFor
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                提交申请
+                {mode === "edit" ? "保存修改" : "提交申请"}
               </Button>
             </DialogFooter>
           </form>

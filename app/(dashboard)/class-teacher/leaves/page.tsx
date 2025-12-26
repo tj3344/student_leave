@@ -38,6 +38,7 @@ export default function ClassTeacherLeavesPage() {
   const [semesterFilter, setSemesterFilter] = useState("");
   const [semesterList, setSemesterList] = useState<Array<{ id: number; name: string }>>([]);
   const [classInfo, setClassInfo] = useState<{ id: number; name: string; grade_name: string } | null>(null);
+  const [canEditLeave, setCanEditLeave] = useState(true); // 编辑权限开关
 
   // 表单对话框状态
   const [formOpen, setFormOpen] = useState(false);
@@ -50,6 +51,9 @@ export default function ClassTeacherLeavesPage() {
   // 删除对话框状态
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [deleteLeave, setDeleteLeave] = useState<LeaveWithDetails | null>(null);
+
+  // 编辑表单状态
+  const [editingLeave, setEditingLeave] = useState<LeaveWithDetails | null>(null);
 
   // 获取当前用户信息
   useEffect(() => {
@@ -87,6 +91,13 @@ export default function ClassTeacherLeavesPage() {
       const data = await response.json();
       if (response.ok && data.data) {
         setClassInfo(data.data);
+      }
+
+      // 获取编辑权限配置
+      const editRes = await fetch("/api/system-config/permission.class_teacher_edit_leave");
+      const editData = await editRes.json();
+      if (editData.data?.config_value) {
+        setCanEditLeave(editData.data.config_value === "true" || editData.data.config_value === "1");
       }
     } catch (error) {
       console.error("Fetch class info error:", error);
@@ -147,6 +158,11 @@ export default function ClassTeacherLeavesPage() {
   const handleDelete = (leave: LeaveWithDetails) => {
     setDeleteLeave(leave);
     setDeleteDialogOpen(true);
+  };
+
+  const handleEdit = (leave: LeaveWithDetails) => {
+    setEditingLeave(leave);
+    setFormOpen(true);
   };
 
   const confirmDelete = async () => {
@@ -287,16 +303,25 @@ export default function ClassTeacherLeavesPage() {
         showReviewActions={false}
         onViewDetail={handleViewDetail}
         onDelete={handleDelete}
+        onEdit={canEditLeave ? handleEdit : undefined}
+        canEdit={canEditLeave}
       />
 
       {/* 表单对话框 */}
       <LeaveForm
         open={formOpen}
-        onClose={() => setFormOpen(false)}
+        onClose={() => {
+          setFormOpen(false);
+          setEditingLeave(null);
+        }}
         onSuccess={() => {
           setFormOpen(false);
+          setEditingLeave(null);
           fetchLeaves();
         }}
+        editingLeave={editingLeave ?? undefined}
+        mode={editingLeave ? "edit" : "create"}
+        defaultClassId={classInfo?.id}
       />
 
       {/* 审核对话框 */}
