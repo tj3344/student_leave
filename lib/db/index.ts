@@ -281,12 +281,39 @@ function initSystemConfig(): void {
         ('leave.min_days', '3', '最小请假天数'),
         ('leave.teacher_apply_enabled', 'true', '教师请假申请功能开关'),
         ('leave.require_approval', 'true', '请假是否需要审批'),
+        ('permission.class_teacher_edit_student', 'false', '班主任编辑学生信息开关'),
+        ('permission.class_teacher_delete_student', 'false', '班主任删除学生开关'),
         ('system.max_export_rows', '10000', '导出数据最大行数'),
         ('system.session_timeout', '7', '会话超时天数（天）'),
         ('system.maintenance_mode', 'false', '维护模式开关')
     `);
     stmt.run();
     console.log("系统配置初始化完成");
+  } else {
+    // 为已有数据库添加新配置项（如果不存在）
+    const newConfigs = [
+      {
+        key: "permission.class_teacher_edit_student",
+        value: "false",
+        description: "班主任编辑学生信息开关"
+      },
+      {
+        key: "permission.class_teacher_delete_student",
+        value: "false",
+        description: "班主任删除学生开关"
+      },
+    ];
+
+    for (const config of newConfigs) {
+      const existing = db.prepare("SELECT config_key FROM system_config WHERE config_key = ?").get(config.key);
+      if (!existing) {
+        db.prepare(`
+          INSERT INTO system_config (config_key, config_value, description)
+          VALUES (?, ?, ?)
+        `).run(config.key, config.value, config.description);
+        console.log(`添加新配置项: ${config.key}`);
+      }
+    }
   }
 }
 

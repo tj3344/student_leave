@@ -57,7 +57,16 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
 
     if (!hasPermission(currentUser.role, PERMISSIONS.STUDENT_UPDATE)) {
-      return NextResponse.json({ error: "无权限" }, { status: 403 });
+      // 如果是班主任，检查是否有编辑权限配置
+      if (currentUser.role === "class_teacher") {
+        const { getBooleanConfig } = await import("@/lib/api/system-config");
+        const canEdit = getBooleanConfig("permission.class_teacher_edit_student", false);
+        if (!canEdit) {
+          return NextResponse.json({ error: "班主任无编辑权限" }, { status: 403 });
+        }
+      } else {
+        return NextResponse.json({ error: "无权限" }, { status: 403 });
+      }
     }
 
     const params = await context.params;
@@ -105,7 +114,16 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     }
 
     if (!hasPermission(currentUser.role, PERMISSIONS.STUDENT_DELETE)) {
-      return NextResponse.json({ error: "无权限" }, { status: 403 });
+      // 如果是班主任，检查是否有删除权限配置
+      if (currentUser.role === "class_teacher") {
+        const { getBooleanConfig } = await import("@/lib/api/system-config");
+        const canDelete = getBooleanConfig("permission.class_teacher_delete_student", false);
+        if (!canDelete) {
+          return NextResponse.json({ error: "班主任无删除权限" }, { status: 403 });
+        }
+      } else {
+        return NextResponse.json({ error: "无权限" }, { status: 403 });
+      }
     }
 
     const params = await context.params;

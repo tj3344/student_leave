@@ -52,6 +52,26 @@ const CONFIG_DEFINITIONS: ConfigGroup[] = [
     ],
   },
   {
+    title: "权限管理配置",
+    description: "控制不同角色的功能权限",
+    configs: [
+      {
+        key: "permission.class_teacher_edit_student",
+        label: "班主任编辑学生",
+        type: "boolean",
+        default: false,
+        description: "开启后班主任可以编辑本班学生信息",
+      },
+      {
+        key: "permission.class_teacher_delete_student",
+        label: "班主任删除学生",
+        type: "boolean",
+        default: false,
+        description: "开启后班主任可以删除本班学生（有请假记录的学生仍无法删除）",
+      },
+    ],
+  },
+  {
     title: "系统参数配置",
     description: "设置系统运行参数",
     configs: [

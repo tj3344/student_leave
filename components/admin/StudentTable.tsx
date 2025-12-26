@@ -35,9 +35,11 @@ interface StudentTableProps {
   data: StudentWithDetails[];
   onEdit: (student: StudentWithDetails) => void;
   onRefresh: () => void;
+  canEdit?: boolean;
+  canDelete?: boolean;
 }
 
-export function StudentTable({ data, onEdit, onRefresh }: StudentTableProps) {
+export function StudentTable({ data, onEdit, onRefresh, canEdit = true, canDelete = true }: StudentTableProps) {
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; student?: StudentWithDetails }>({
     open: false,
   });
@@ -47,45 +49,37 @@ export function StudentTable({ data, onEdit, onRefresh }: StudentTableProps) {
     if (!deleteDialog.student) return;
 
     setIsProcessing(true);
-    try {
-      const response = await fetch(`/api/students/${deleteDialog.student.id}`, {
-        method: "DELETE",
-      });
+    const response = await fetch(`/api/students/${deleteDialog.student.id}`, {
+      method: "DELETE",
+    });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "删除失败");
-      }
+    const data = await response.json();
 
+    if (data.success) {
       setDeleteDialog({ open: false, student: undefined });
       onRefresh();
-    } catch (error) {
-      console.error("Delete student error:", error);
-      alert(error instanceof Error ? error.message : "删除失败，请稍后重试");
-    } finally {
-      setIsProcessing(false);
+    } else {
+      alert(data.error || "删除失败，请稍后重试");
     }
+
+    setIsProcessing(false);
   };
 
   const handleToggleStatus = async (student: StudentWithDetails) => {
     setIsProcessing(true);
-    try {
-      const response = await fetch(`/api/students/${student.id}`, {
-        method: "PATCH",
-      });
+    const response = await fetch(`/api/students/${student.id}`, {
+      method: "PATCH",
+    });
 
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "操作失败");
-      }
+    const data = await response.json();
 
+    if (data.success) {
       onRefresh();
-    } catch (error) {
-      console.error("Toggle student status error:", error);
-      alert(error instanceof Error ? error.message : "操作失败，请稍后重试");
-    } finally {
-      setIsProcessing(false);
+    } else {
+      alert(data.error || "操作失败，请稍后重试");
     }
+
+    setIsProcessing(false);
   };
 
   return (
@@ -141,10 +135,12 @@ export function StudentTable({ data, onEdit, onRefresh }: StudentTableProps) {
                         </Button>
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onEdit(student)}>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          编辑
-                        </DropdownMenuItem>
+                        {canEdit && (
+                          <DropdownMenuItem onClick={() => onEdit(student)}>
+                            <Pencil className="mr-2 h-4 w-4" />
+                            编辑
+                          </DropdownMenuItem>
+                        )}
                         <DropdownMenuItem onClick={() => handleToggleStatus(student)}>
                           {student.is_active ? (
                             <>
@@ -158,14 +154,18 @@ export function StudentTable({ data, onEdit, onRefresh }: StudentTableProps) {
                             </>
                           )}
                         </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => setDeleteDialog({ open: true, student })}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          删除
-                        </DropdownMenuItem>
+                        {canDelete && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              className="text-destructive"
+                              onClick={() => setDeleteDialog({ open: true, student })}
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              删除
+                            </DropdownMenuItem>
+                          </>
+                        )}
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>

@@ -7,6 +7,7 @@ import type { StudentWithDetails, User } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StudentTable } from "@/components/admin/StudentTable";
+import { StudentForm } from "@/components/admin/StudentForm";
 import {
   Select,
   SelectContent,
@@ -23,6 +24,10 @@ export default function ClassTeacherStudentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [classInfo, setClassInfo] = useState<{ id: number; name: string; grade_name: string } | null>(null);
+  const [canEditStudent, setCanEditStudent] = useState(false);
+  const [canDeleteStudent, setCanDeleteStudent] = useState(false);
+  const [formOpen, setFormOpen] = useState(false);
+  const [editingStudent, setEditingStudent] = useState<StudentWithDetails | undefined>();
 
   // 获取当前用户信息
   useEffect(() => {
@@ -87,11 +92,50 @@ export default function ClassTeacherStudentsPage() {
     }
   };
 
+  // 获取班主任编辑和删除权限配置
+  useEffect(() => {
+    const fetchConfigs = async () => {
+      try {
+        // 获取编辑权限
+        const editRes = await fetch("/api/system-config/permission.class_teacher_edit_student");
+        const editData = await editRes.json();
+        setCanEditStudent(editData.data?.config_value === "true");
+
+        // 获取删除权限
+        const deleteRes = await fetch("/api/system-config/permission.class_teacher_delete_student");
+        const deleteData = await deleteRes.json();
+        setCanDeleteStudent(deleteData.data?.config_value === "true");
+      } catch (error) {
+        console.error("Fetch config error:", error);
+      }
+    };
+    fetchConfigs();
+  }, []);
+
   useEffect(() => {
     if (classInfo) {
       fetchStudents();
     }
   }, [classInfo, searchQuery, statusFilter]);
+
+  // 编辑学生处理函数
+  const handleEdit = (student: StudentWithDetails) => {
+    setEditingStudent(student);
+    setFormOpen(true);
+  };
+
+  // 表单关闭处理
+  const handleFormClose = () => {
+    setFormOpen(false);
+    setEditingStudent(undefined);
+  };
+
+  // 表单成功处理
+  const handleFormSuccess = () => {
+    fetchStudents();
+    setFormOpen(false);
+    setEditingStudent(undefined);
+  };
 
   // 导出学生列表
   const handleExport = async () => {
@@ -183,10 +227,17 @@ export default function ClassTeacherStudentsPage() {
 
       <StudentTable
         data={students}
-        onEdit={() => {
-          /* 班主任只能查看，不能编辑 */
-        }}
+        onEdit={handleEdit}
         onRefresh={fetchStudents}
+        canEdit={canEditStudent}
+        canDelete={canDeleteStudent}
+      />
+
+      <StudentForm
+        open={formOpen}
+        onClose={handleFormClose}
+        onSuccess={handleFormSuccess}
+        student={editingStudent}
       />
     </div>
   );
