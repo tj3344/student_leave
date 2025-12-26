@@ -63,14 +63,36 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
   const form = useForm<FeeConfigFormValues>({
     resolver: zodResolver(feeConfigSchema),
     defaultValues: {
-      semester_id: feeConfig?.semester_id || 0,
-      class_id: feeConfig?.class_id || 0,
-      meal_fee_standard: feeConfig?.meal_fee_standard || 0,
-      prepaid_days: feeConfig?.prepaid_days || 0,
-      actual_days: feeConfig?.actual_days || 0,
-      suspension_days: feeConfig?.suspension_days || 0,
+      semester_id: 0,
+      class_id: 0,
+      meal_fee_standard: 0,
+      prepaid_days: 0,
+      actual_days: 0,
+      suspension_days: 0,
     },
   });
+
+  useEffect(() => {
+    if (feeConfig) {
+      form.reset({
+        semester_id: feeConfig.semester_id,
+        class_id: feeConfig.class_id,
+        meal_fee_standard: feeConfig.meal_fee_standard,
+        prepaid_days: feeConfig.prepaid_days,
+        actual_days: feeConfig.actual_days,
+        suspension_days: feeConfig.suspension_days,
+      });
+    } else {
+      form.reset({
+        semester_id: 0,
+        class_id: 0,
+        meal_fee_standard: 0,
+        prepaid_days: 0,
+        actual_days: 0,
+        suspension_days: 0,
+      });
+    }
+  }, [feeConfig, form]);
 
   const fetchOptions = async (semesterId?: number) => {
     setLoading(true);

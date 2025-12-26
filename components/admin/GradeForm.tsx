@@ -56,11 +56,27 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
   const form = useForm<GradeFormValues>({
     resolver: zodResolver(gradeSchema),
     defaultValues: {
-      semester_id: grade?.semester_id || 0,
-      name: grade?.name || "",
-      sort_order: grade?.sort_order ?? 0,
+      semester_id: 0,
+      name: "",
+      sort_order: 0,
     },
   });
+
+  useEffect(() => {
+    if (grade) {
+      form.reset({
+        semester_id: grade.semester_id,
+        name: grade.name,
+        sort_order: grade.sort_order ?? 0,
+      });
+    } else {
+      form.reset({
+        semester_id: 0,
+        name: "",
+        sort_order: 0,
+      });
+    }
+  }, [grade, form]);
 
   const fetchSemesters = async () => {
     setLoading(true);

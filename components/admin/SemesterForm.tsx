@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -58,13 +58,33 @@ export function SemesterForm({ open, onClose, onSuccess, semester }: SemesterFor
   const form = useForm<SemesterFormValues>({
     resolver: zodResolver(semesterSchema),
     defaultValues: {
-      name: semester?.name || "",
-      start_date: semester?.start_date || "",
-      end_date: semester?.end_date || "",
-      school_days: semester?.school_days || 0,
-      is_current: semester?.is_current === 1,
+      name: "",
+      start_date: "",
+      end_date: "",
+      school_days: 0,
+      is_current: false,
     },
   });
+
+  useEffect(() => {
+    if (semester) {
+      form.reset({
+        name: semester.name,
+        start_date: semester.start_date,
+        end_date: semester.end_date,
+        school_days: semester.school_days,
+        is_current: semester.is_current === 1,
+      });
+    } else {
+      form.reset({
+        name: "",
+        start_date: "",
+        end_date: "",
+        school_days: 0,
+        is_current: false,
+      });
+    }
+  }, [semester, form]);
 
   const onSubmit = async (values: SemesterFormValues) => {
     setIsSubmitting(true);

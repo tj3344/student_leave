@@ -59,12 +59,30 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
   const form = useForm<ClassFormValues>({
     resolver: zodResolver(classSchema),
     defaultValues: {
-      semester_id: classData?.semester_id || 0,
-      grade_id: classData?.grade_id || 0,
-      name: classData?.name || "",
-      class_teacher_id: classData?.class_teacher_id || undefined,
+      semester_id: 0,
+      grade_id: 0,
+      name: "",
+      class_teacher_id: undefined,
     },
   });
+
+  useEffect(() => {
+    if (classData) {
+      form.reset({
+        semester_id: classData.semester_id,
+        grade_id: classData.grade_id,
+        name: classData.name,
+        class_teacher_id: classData.class_teacher_id,
+      });
+    } else {
+      form.reset({
+        semester_id: 0,
+        grade_id: 0,
+        name: "",
+        class_teacher_id: undefined,
+      });
+    }
+  }, [classData, form]);
 
   const fetchOptions = async (semesterId?: number) => {
     setLoading(true);

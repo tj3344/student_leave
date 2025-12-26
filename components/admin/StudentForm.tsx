@@ -71,18 +71,48 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
   const form = useForm<StudentFormValues>({
     resolver: zodResolver(studentSchema),
     defaultValues: {
-      student_no: student?.student_no || "",
-      name: student?.name || "",
-      gender: (student?.gender === "男" || student?.gender === "女") ? student.gender : undefined,
-      class_id: student?.class_id || 0,
-      birth_date: student?.birth_date || "",
-      parent_name: student?.parent_name || "",
-      parent_phone: student?.parent_phone || "",
-      address: student?.address || "",
-      is_nutrition_meal: student?.is_nutrition_meal ?? 0,
-      enrollment_date: student?.enrollment_date || "",
+      student_no: "",
+      name: "",
+      gender: undefined,
+      class_id: 0,
+      birth_date: "",
+      parent_name: "",
+      parent_phone: "",
+      address: "",
+      is_nutrition_meal: 0,
+      enrollment_date: "",
     },
   });
+
+  useEffect(() => {
+    if (student) {
+      form.reset({
+        student_no: student.student_no,
+        name: student.name,
+        gender: (student.gender === "男" || student.gender === "女") ? student.gender : undefined,
+        class_id: student.class_id,
+        birth_date: student.birth_date || "",
+        parent_name: student.parent_name || "",
+        parent_phone: student.parent_phone || "",
+        address: student.address || "",
+        is_nutrition_meal: student.is_nutrition_meal ?? 0,
+        enrollment_date: student.enrollment_date || "",
+      });
+    } else {
+      form.reset({
+        student_no: "",
+        name: "",
+        gender: undefined,
+        class_id: 0,
+        birth_date: "",
+        parent_name: "",
+        parent_phone: "",
+        address: "",
+        is_nutrition_meal: 0,
+        enrollment_date: "",
+      });
+    }
+  }, [student, form]);
 
   // 加载班级列表
   useEffect(() => {

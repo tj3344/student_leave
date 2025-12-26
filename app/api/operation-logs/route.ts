@@ -85,10 +85,27 @@ export async function GET(request: NextRequest) {
       WHERE ${whereClause}
       ORDER BY ol.${sort} ${order.toUpperCase()}
       LIMIT ? OFFSET ?
-    `).all(...queryParams, limit, offset);
+    `).all(...queryParams, limit, offset) as Array<{
+      id: number;
+      user_id: number | null;
+      action: string;
+      module: string;
+      description: string | null;
+      ip_address: string | null;
+      created_at: string;
+      username: string | null;
+      real_name: string | null;
+      role: string | null;
+    }>;
+
+    // 6. 转换时间格式为 ISO 8601（UTC），确保前端正确解析时区
+    const formattedLogs = logs.map((log) => ({
+      ...log,
+      created_at: new Date(log.created_at + "Z").toISOString(),
+    }));
 
     return NextResponse.json({
-      data: logs,
+      data: formattedLogs,
       total: countResult.total,
       page,
       limit,

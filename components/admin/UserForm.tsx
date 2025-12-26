@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -73,15 +73,39 @@ export function UserForm({ open, onClose, onSuccess, user }: UserFormProps) {
   const form = useForm<UserFormValues>({
     resolver: zodResolver(userSchema),
     defaultValues: {
-      username: user?.username || "",
+      username: "",
       password: "",
-      real_name: user?.real_name || "",
-      role: defaultRole,
-      phone: user?.phone || "",
-      email: user?.email || "",
-      is_active: user?.is_active ?? 1,
+      real_name: "",
+      role: "teacher",
+      phone: "",
+      email: "",
+      is_active: 1,
     },
   });
+
+  useEffect(() => {
+    if (user) {
+      form.reset({
+        username: user.username,
+        password: "",
+        real_name: user.real_name,
+        role: defaultRole,
+        phone: user.phone || "",
+        email: user.email || "",
+        is_active: user.is_active ?? 1,
+      });
+    } else {
+      form.reset({
+        username: "",
+        password: "",
+        real_name: "",
+        role: "teacher",
+        phone: "",
+        email: "",
+        is_active: 1,
+      });
+    }
+  }, [user, form, defaultRole]);
 
   const onSubmit = async (values: UserFormValues) => {
     setIsSubmitting(true);
