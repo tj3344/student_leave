@@ -36,6 +36,13 @@ const CONFIG_DEFINITIONS: ConfigGroup[] = [
         description: "请假申请必须大于此天数",
       },
       {
+        key: "leave.retroactive_days",
+        label: "允许补请假天数",
+        type: "number",
+        default: 0,
+        description: "允许提交过去日期的请假申请的最大天数。设置为0表示禁止补请假，只能申请未来日期",
+      },
+      {
         key: "leave.teacher_apply_enabled",
         label: "教师请假申请功能",
         type: "boolean",

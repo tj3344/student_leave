@@ -232,6 +232,8 @@ export function initDatabase(): void {
     CREATE INDEX IF NOT EXISTS idx_leave_records_student ON leave_records(student_id);
     CREATE INDEX IF NOT EXISTS idx_leave_records_semester ON leave_records(semester_id);
     CREATE INDEX IF NOT EXISTS idx_leave_records_status ON leave_records(status);
+    CREATE INDEX IF NOT EXISTS idx_leave_records_dates ON leave_records(start_date, end_date);
+    CREATE INDEX IF NOT EXISTS idx_leave_records_student_dates ON leave_records(student_id, start_date, end_date);
     CREATE INDEX IF NOT EXISTS idx_classes_grade ON classes(grade_id);
     CREATE INDEX IF NOT EXISTS idx_logs_user ON operation_logs(user_id);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_classes_class_teacher ON classes(class_teacher_id);
@@ -279,6 +281,7 @@ function initSystemConfig(): void {
     const stmt = db.prepare(`
       INSERT INTO system_config (config_key, config_value, description) VALUES
         ('leave.min_days', '3', '最小请假天数'),
+        ('leave.retroactive_days', '0', '允许补请假天数（0表示禁止补请假）'),
         ('leave.teacher_apply_enabled', 'true', '教师请假申请功能开关'),
         ('leave.require_approval', 'true', '请假是否需要审批'),
         ('permission.class_teacher_edit_student', 'false', '班主任编辑学生信息开关'),
@@ -307,6 +310,11 @@ function initSystemConfig(): void {
         key: "permission.class_teacher_edit_leave",
         value: "true",
         description: "班主任编辑请假信息开关"
+      },
+      {
+        key: "leave.retroactive_days",
+        value: "0",
+        description: "允许补请假天数（0表示禁止补请假）"
       },
     ];
 

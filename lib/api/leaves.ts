@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { getNumberConfig } from "./system-config";
+import { validateLeaveRequest } from "@/lib/utils/leave-validation";
 import type {
   LeaveInput,
   LeaveReview,
@@ -168,6 +169,17 @@ export function createLeave(
   // 验证请假天数必须大于最小天数
   if (input.leave_days <= minLeaveDays) {
     return { success: false, message: `请假天数必须大于${minLeaveDays}天` };
+  }
+
+  // 验证补请假天数和日期重叠
+  const validation = validateLeaveRequest(
+    input.student_id,
+    input.semester_id,
+    input.start_date,
+    input.end_date
+  );
+  if (!validation.success) {
+    return { success: false, message: validation.message };
   }
 
   // 检查学生是否存在，并获取费用配置
@@ -563,6 +575,18 @@ export function updateLeave(
 
   if (!existingLeave) {
     return { success: false, message: "请假记录不存在" };
+  }
+
+  // 验证补请假天数和日期重叠（排除自身记录）
+  const validation = validateLeaveRequest(
+    input.student_id,
+    input.semester_id,
+    input.start_date,
+    input.end_date,
+    id  // 排除当前编辑的记录
+  );
+  if (!validation.success) {
+    return { success: false, message: validation.message };
   }
 
   // 只能编辑待审核和已拒绝状态的记录（除非明确指定了新状态）
