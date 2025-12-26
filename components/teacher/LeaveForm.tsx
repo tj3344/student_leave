@@ -109,7 +109,6 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFor
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [semesterOptions, setSemesterOptions] = useState<SemesterOption[]>([]);
   const [minLeaveDays, setMinLeaveDays] = useState(3); // 默认值
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [teacherClassId, setTeacherClassId] = useState<number | undefined>(defaultClassId);
 
   const form = useForm<LeaveFormValues>({
@@ -140,7 +139,6 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFor
       const data = await response.json();
       if (response.ok && data.user) {
         const user = data.user as User;
-        setCurrentUser(user);
 
         // 如果是班主任，获取其管理的班级ID
         if (user.role === "class_teacher" && !defaultClassId) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -17,9 +18,11 @@ import {
   LogOut,
   DollarSign,
   Home,
+  KeyRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ROLE_NAMES } from "@/lib/constants";
+import { ChangePasswordDialog } from "@/components/auth/ChangePasswordDialog";
 
 const navigation = [
   {
@@ -76,6 +79,7 @@ interface SidebarProps {
 
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
+  const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -154,6 +158,14 @@ export function Sidebar({ user }: SidebarProps) {
         </div>
         <Button
           variant="ghost"
+          className="w-full justify-start text-muted-foreground mb-1"
+          onClick={() => setIsPasswordDialogOpen(true)}
+        >
+          <KeyRound className="mr-2 h-4 w-4" />
+          修改密码
+        </Button>
+        <Button
+          variant="ghost"
           className="w-full justify-start text-muted-foreground hover:text-destructive"
           onClick={handleLogout}
         >
@@ -161,6 +173,11 @@ export function Sidebar({ user }: SidebarProps) {
           退出登录
         </Button>
       </div>
+
+      <ChangePasswordDialog
+        open={isPasswordDialogOpen}
+        onOpenChange={setIsPasswordDialogOpen}
+      />
     </div>
   );
 }

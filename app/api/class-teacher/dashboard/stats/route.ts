@@ -88,7 +88,7 @@ export async function GET() {
       },
       students: {
         total: studentStats.total,
-        nutrition_meal: studentStats.nutrition_meal,
+        nutrition_meal: studentStats.nutrition_meal || 0,
       },
       leaves: {
         total: leaveStats.total || 0,
