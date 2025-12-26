@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { restoreFromSQL } from "@/lib/utils/backup";
+import { logRestore } from "@/lib/utils/logger";
 import fs from "fs";
 
 /**
@@ -46,18 +47,8 @@ export async function POST(
     const result = restoreFromSQL(sqlContent);
 
     if (result.success) {
-      // 记录操作日志
-      db.prepare(
-        `
-        INSERT INTO operation_logs (user_id, action, module, description)
-        VALUES (?, ?, ?, ?)
-      `
-      ).run(
-        currentUser.id,
-        "restore",
-        "backup",
-        `从备份记录恢复数据: ${record.name}`
-      );
+      // 记录恢复日志
+      await logRestore(currentUser.id, `从备份恢复数据：${record.name}`);
     }
 
     return NextResponse.json(result);

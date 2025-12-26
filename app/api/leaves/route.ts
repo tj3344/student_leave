@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { getLeaves, createLeave } from "@/lib/api/leaves";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
+import { logCreate } from "@/lib/utils/logger";
 import type { LeaveInput } from "@/types";
 
 /**
@@ -117,6 +118,9 @@ export async function POST(request: NextRequest) {
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
+
+    // 记录创建请假日志
+    await logCreate(currentUser.id, "leaves", `创建请假申请：学生ID ${leaveInput.student_id}，请假 ${leaveInput.leave_days} 天`);
 
     return NextResponse.json(
       { success: true, leaveId: result.leaveId, message: "请假申请创建成功" },

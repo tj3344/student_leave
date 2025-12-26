@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { reviewLeave } from "@/lib/api/leaves";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
+import { logApprove } from "@/lib/utils/logger";
+import { getLeaveById } from "@/lib/api/leaves";
 import type { LeaveReview } from "@/types";
 
 type RouteContext = {
@@ -30,6 +32,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "无效的请假记录ID" }, { status: 400 });
     }
 
+    // 获取请假记录用于日志
+    const leave = getLeaveById(id);
+
     // 解析请求体
     const body = await request.json();
     const review: LeaveReview = {
@@ -42,6 +47,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
+    }
+
+    // 记录批准日志
+    if (leave) {
+      await logApprove(currentUser.id, "leaves", `批准请假申请：${leave.student_name}（${leave.student_no}），请假 ${leave.leave_days} 天`);
     }
 
     return NextResponse.json({ success: true, message: "请假已批准" });

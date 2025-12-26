@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { batchCreateLeaves, getStudentIdByInfo } from "@/lib/api/leaves";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
+import { logImport } from "@/lib/utils/logger";
 import type { LeaveImportRow, LeaveInput } from "@/types";
 
 /**
@@ -143,6 +144,9 @@ export async function POST(request: NextRequest) {
 
     // 执行批量导入
     const result = batchCreateLeaves(validatedLeaves, currentUser.id);
+
+    // 记录导入日志
+    await logImport(currentUser.id, "leaves", `导入请假记录：新增 ${result.created} 条，失败 ${result.failed} 条`);
 
     return NextResponse.json({
       success: true,

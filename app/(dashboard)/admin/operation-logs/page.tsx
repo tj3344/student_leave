@@ -78,7 +78,7 @@ export default function OperationLogsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部模块</SelectItem>
-            {Object.entries(OPERATION_MODULES).map(([key, value]) => (
+            {Object.values(OPERATION_MODULES).map((value) => (
               <SelectItem key={value} value={value}>
                 {MODULE_NAMES[value]}
               </SelectItem>
@@ -91,7 +91,7 @@ export default function OperationLogsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">全部操作</SelectItem>
-            {Object.entries(OPERATION_ACTIONS).map(([key, value]) => (
+            {Object.values(OPERATION_ACTIONS).map((value) => (
               <SelectItem key={value} value={value}>
                 {ACTION_NAMES[value]}
               </SelectItem>

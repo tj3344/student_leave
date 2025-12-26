@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { generateBackupSQL, getBackupDir, generateBackupFileName } from "@/lib/utils/backup";
+import { logBackup } from "@/lib/utils/logger";
 import fs from "fs";
 import type { BackupRecordInput } from "@/types";
 
@@ -57,6 +58,9 @@ export async function POST(request: NextRequest) {
         currentUser.id,
         description || null
       );
+
+    // 记录备份日志
+    await logBackup(currentUser.id, `创建备份：${name}（${type}），模块：${modules.join(", ")}`);
 
     return NextResponse.json({
       success: true,

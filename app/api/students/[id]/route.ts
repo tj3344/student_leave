@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { getStudentById, updateStudent, deleteStudent, toggleStudentStatus } from "@/lib/api/students";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
+import { logUpdate, logDelete } from "@/lib/utils/logger";
 import type { StudentInput } from "@/types";
 
 type RouteContext = {
@@ -70,11 +71,19 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const body = await request.json();
     const studentUpdate = body as Partial<StudentInput> & { is_active?: number };
 
+    // 获取学生信息用于日志
+    const student = getStudentById(id);
+
     // 更新学生
     const result = updateStudent(id, studentUpdate);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
+    }
+
+    // 记录更新日志
+    if (student) {
+      await logUpdate(currentUser.id, "students", `更新学生：${student.name}（${student.student_no}）`);
     }
 
     return NextResponse.json({ success: true, message: "学生更新成功" });
@@ -106,11 +115,19 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "无效的学生ID" }, { status: 400 });
     }
 
+    // 获取学生信息用于日志
+    const student = getStudentById(id);
+
     // 删除学生
     const result = deleteStudent(id);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
+    }
+
+    // 记录删除日志
+    if (student) {
+      await logDelete(currentUser.id, "students", `删除学生：${student.name}（${student.student_no}）`);
     }
 
     return NextResponse.json({ success: true, message: "学生删除成功" });

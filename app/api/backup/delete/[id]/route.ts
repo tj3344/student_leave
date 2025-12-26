@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { deleteBackupFile } from "@/lib/utils/backup";
+import { logDelete } from "@/lib/utils/logger";
 
 /**
  * DELETE /api/backup/delete/[id] - 删除备份
@@ -27,7 +28,7 @@ export async function DELETE(
     // 获取备份记录
     const record = db
       .prepare("SELECT * FROM backup_records WHERE id = ?")
-      .get(id) as { file_path: string } | undefined;
+      .get(id) as { file_path: string; name: string } | undefined;
 
     if (!record) {
       return NextResponse.json({ error: "备份不存在" }, { status: 404 });
@@ -38,6 +39,9 @@ export async function DELETE(
 
     // 删除数据库记录
     db.prepare("DELETE FROM backup_records WHERE id = ?").run(id);
+
+    // 记录删除日志
+    await logDelete(currentUser.id, "backup", `删除备份：${record.name}`);
 
     return NextResponse.json({ success: true, message: "备份删除成功" });
   } catch (error) {

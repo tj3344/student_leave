@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { getLeaveById, deleteLeave } from "@/lib/api/leaves";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
+import { logDelete } from "@/lib/utils/logger";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -86,6 +87,9 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
+
+    // 记录删除日志
+    await logDelete(currentUser.id, "leaves", `删除请假记录：${leave.student_name}（${leave.student_no}）`);
 
     return NextResponse.json({ success: true, message: "请假记录删除成功" });
   } catch (error) {

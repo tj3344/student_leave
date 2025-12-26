@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { getStudents, createStudent, batchCreateStudents } from "@/lib/api/students";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
+import { logCreate } from "@/lib/utils/logger";
 import type { StudentInput } from "@/types";
 
 /**
@@ -105,6 +106,9 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: result.message }, { status: 400 });
       }
 
+      // 记录批量创建日志
+      await logCreate(currentUser.id, "students", `批量创建学生：成功 ${result.createdCount} 条，失败 ${result.errors?.length || 0} 条`);
+
       return NextResponse.json(
         {
           success: true,
@@ -128,6 +132,9 @@ export async function POST(request: NextRequest) {
       if (!result.success) {
         return NextResponse.json({ error: result.message }, { status: 400 });
       }
+
+      // 记录创建学生日志
+      await logCreate(currentUser.id, "students", `创建学生：${studentInput.name}（${studentInput.student_no}）`);
 
       return NextResponse.json(
         { success: true, studentId: result.studentId, message: "学生创建成功" },

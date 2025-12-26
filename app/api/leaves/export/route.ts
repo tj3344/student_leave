@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/api/auth";
 import { getLeaves } from "@/lib/api/leaves";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { exportLeavesToExcel, workbookToBlob } from "@/lib/utils/excel";
+import { logExport } from "@/lib/utils/logger";
 import type { LeaveWithDetails } from "@/types";
 
 /**
@@ -66,6 +67,10 @@ export async function GET(request: NextRequest) {
         const blob = workbookToBlob(workbook);
         const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
         const encodedFilename = encodeURIComponent(`请假列表_${timestamp}.xlsx`);
+
+        // 记录导出日志
+        await logExport(currentUser.id, "leaves", `导出请假列表：0 条记录（无数据）`);
+
         return new NextResponse(blob as Blob, {
           status: 200,
           headers: {
@@ -110,6 +115,9 @@ export async function GET(request: NextRequest) {
     // 生成 Excel 文件
     const workbook = exportLeavesToExcel(validData);
     const blob = workbookToBlob(workbook);
+
+    // 记录导出日志
+    await logExport(currentUser.id, "leaves", `导出请假列表，共 ${validData.length} 条记录`);
 
     // 生成文件名并编码（支持中文）
     const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");

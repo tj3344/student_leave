@@ -158,3 +158,25 @@ export async function logRestore(
 ): Promise<void> {
   await logOperation(userId, "restore", "backup", description);
 }
+
+/**
+ * 记录批准操作
+ */
+export async function logApprove(
+  userId: number | undefined,
+  module: string,
+  description: string
+): Promise<void> {
+  await logOperation(userId, "approve", module, description);
+}
+
+/**
+ * 记录拒绝操作
+ */
+export async function logReject(
+  userId: number | undefined,
+  module: string,
+  description: string
+): Promise<void> {
+  await logOperation(userId, "reject", module, description);
+}

@@ -5,6 +5,7 @@ import {
   getClassIdByNames,
 } from "@/lib/api/students";
 import { hasPermission, PERMISSIONS, GENDERS } from "@/lib/constants";
+import { logImport } from "@/lib/utils/logger";
 import type { StudentImportRow, StudentInput } from "@/types";
 
 /**
@@ -125,6 +126,9 @@ export async function POST(request: NextRequest) {
 
     // 执行批量导入
     const result = batchCreateOrUpdateStudents(validatedStudents);
+
+    // 记录导入日志
+    await logImport(currentUser.id, "students", `导入学生数据：新增 ${result.created} 条，更新 ${result.updated} 条，失败 ${result.failed} 条`);
 
     return NextResponse.json({
       success: true,
