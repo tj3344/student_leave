@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(user, PERMISSIONS.FEE_READ)) {
+    if (!hasPermission(user, PERMISSIONS.REFUND_READ)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 

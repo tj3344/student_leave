@@ -36,6 +36,7 @@ import { Loader2, CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { StudentSelector } from "@/components/shared/StudentSelector";
+import type { User } from "@/types";
 
 interface SemesterOption {
   id: number;
@@ -108,6 +109,8 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFor
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [semesterOptions, setSemesterOptions] = useState<SemesterOption[]>([]);
   const [minLeaveDays, setMinLeaveDays] = useState(3); // 默认值
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [teacherClassId, setTeacherClassId] = useState<number | undefined>(defaultClassId);
 
   const form = useForm<LeaveFormValues>({
     resolver: zodResolver(createLeaveSchema(minLeaveDays, semesterOptions)),
@@ -124,10 +127,43 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFor
   // 加载学期列表和系统配置
   useEffect(() => {
     if (open) {
+      fetchCurrentUser();
       fetchSemesters();
       fetchSystemConfig();
     }
   }, [open]);
+
+  // 获取当前用户信息
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await fetch("/api/auth/me");
+      const data = await response.json();
+      if (response.ok && data.user) {
+        const user = data.user as User;
+        setCurrentUser(user);
+
+        // 如果是班主任，获取其管理的班级ID
+        if (user.role === "class_teacher" && !defaultClassId) {
+          fetchTeacherClassId();
+        }
+      }
+    } catch (error) {
+      console.error("Fetch current user error:", error);
+    }
+  };
+
+  // 获取班主任管理的班级ID
+  const fetchTeacherClassId = async () => {
+    try {
+      const response = await fetch("/api/class-teacher/class");
+      const data = await response.json();
+      if (response.ok && data.data?.id) {
+        setTeacherClassId(data.data.id);
+      }
+    } catch (error) {
+      console.error("Fetch teacher class error:", error);
+    }
+  };
 
   const fetchSystemConfig = async () => {
     try {
@@ -249,7 +285,7 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId }: LeaveFor
                       value={field.value}
                       onChange={handleStudentChange}
                       semesterId={semesterId}
-                      classId={defaultClassId}
+                      classId={teacherClassId}
                       placeholder="请选择学生"
                     />
                   </FormControl>

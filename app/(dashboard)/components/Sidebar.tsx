@@ -29,6 +29,14 @@ const navigation = [
     ],
   },
   {
+    category: "班级管理",
+    items: [
+      { name: "班级学生", href: "/class-teacher/students", icon: Users, roles: ["class_teacher"] },
+      { name: "请假管理", href: "/class-teacher/leaves", icon: ClipboardList, roles: ["class_teacher"] },
+      { name: "退费记录", href: "/class-teacher/refunds", icon: Receipt, roles: ["class_teacher"] },
+    ],
+  },
+  {
     category: "数据管理",
     items: [
       { name: "学期管理", href: "/admin/semesters", icon: Calendar, roles: ["admin"] },
@@ -49,7 +57,7 @@ const navigation = [
   {
     category: "请假管理",
     items: [
-      { name: "请假管理", href: "/leaves", icon: ClipboardList, roles: ["admin", "teacher", "class_teacher"] },
+      { name: "请假管理", href: "/leaves", icon: ClipboardList, roles: ["admin", "teacher"] },
       { name: "审核管理", href: "/admin/leaves/pending", icon: ClipboardList, roles: ["admin"] },
     ],
   },

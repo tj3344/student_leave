@@ -144,7 +144,7 @@ export default function ClassTeacherDashboardPage() {
       </div>
 
       {/* 快捷入口区域 */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         {/* 请假管理 */}
         <Card>
           <CardHeader>
@@ -152,11 +152,30 @@ export default function ClassTeacherDashboardPage() {
             <CardDescription>查看和管理班级学生请假记录</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Link href="/leaves">
+            <Link href="/class-teacher/leaves">
               <Button variant="outline" className="w-full justify-between">
                 <span className="flex items-center gap-2">
                   <ClipboardList className="h-4 w-4" />
-                  请假记录
+                  请假管理
+                </span>
+                <ArrowRight className="h-4 w-4" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
+        {/* 退费记录 */}
+        <Card>
+          <CardHeader>
+            <CardTitle>退费记录</CardTitle>
+            <CardDescription>查看班级学生退费金额</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <Link href="/class-teacher/refunds">
+              <Button variant="outline" className="w-full justify-between">
+                <span className="flex items-center gap-2">
+                  <DollarSign className="h-4 w-4" />
+                  退费记录
                 </span>
                 <ArrowRight className="h-4 w-4" />
               </Button>
