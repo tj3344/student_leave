@@ -1,0 +1,100 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/api/auth";
+import { getDb } from "@/lib/db";
+import { ROLE_PERMISSIONS, PERMISSIONS } from "@/lib/constants";
+
+/**
+ * GET /api/operation-logs - 获取操作日志列表
+ */
+export async function GET(request: NextRequest) {
+  try {
+    // 1. 验证权限
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return NextResponse.json({ error: "未登录" }, { status: 401 });
+    }
+    if (!ROLE_PERMISSIONS[currentUser.role]?.includes(PERMISSIONS.SYSTEM_LOGS)) {
+      return NextResponse.json({ error: "无权限访问" }, { status: 403 });
+    }
+
+    // 2. 获取查询参数
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get("page") || "1");
+    const limit = parseInt(searchParams.get("limit") || "20");
+    const search = searchParams.get("search") || "";
+    const moduleFilter = searchParams.get("module") || "";
+    const actionFilter = searchParams.get("action") || "";
+    const startDate = searchParams.get("start_date") || "";
+    const endDate = searchParams.get("end_date") || "";
+    const sort = searchParams.get("sort") || "created_at";
+    const order = searchParams.get("order") || "desc";
+    const offset = (page - 1) * limit;
+
+    const db = getDb();
+
+    // 3. 构建查询条件
+    const whereConditions: string[] = ["1=1"];
+    const queryParams: (string | number)[] = [];
+
+    if (search) {
+      whereConditions.push("(u.username LIKE ? OR u.real_name LIKE ?)");
+      queryParams.push(`%${search}%`, `%${search}%`);
+    }
+    if (moduleFilter) {
+      whereConditions.push("ol.module = ?");
+      queryParams.push(moduleFilter);
+    }
+    if (actionFilter) {
+      whereConditions.push("ol.action = ?");
+      queryParams.push(actionFilter);
+    }
+    if (startDate) {
+      whereConditions.push("DATE(ol.created_at) >= ?");
+      queryParams.push(startDate);
+    }
+    if (endDate) {
+      whereConditions.push("DATE(ol.created_at) <= ?");
+      queryParams.push(endDate);
+    }
+
+    const whereClause = whereConditions.join(" AND ");
+
+    // 4. 查询总数
+    const countResult = db.prepare(`
+      SELECT COUNT(*) as total
+      FROM operation_logs ol
+      LEFT JOIN users u ON ol.user_id = u.id
+      WHERE ${whereClause}
+    `).get(...queryParams) as { total: number };
+
+    // 5. 查询数据
+    const logs = db.prepare(`
+      SELECT
+        ol.id,
+        ol.user_id,
+        ol.action,
+        ol.module,
+        ol.description,
+        ol.ip_address,
+        ol.created_at,
+        u.username,
+        u.real_name,
+        u.role
+      FROM operation_logs ol
+      LEFT JOIN users u ON ol.user_id = u.id
+      WHERE ${whereClause}
+      ORDER BY ol.${sort} ${order.toUpperCase()}
+      LIMIT ? OFFSET ?
+    `).all(...queryParams, limit, offset);
+
+    return NextResponse.json({
+      data: logs,
+      total: countResult.total,
+      page,
+      limit,
+    });
+  } catch (error) {
+    console.error("获取操作日志失败:", error);
+    return NextResponse.json({ error: "获取操作日志失败" }, { status: 500 });
+  }
+}

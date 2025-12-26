@@ -69,6 +69,7 @@ const navigation = [
     items: [
       { name: "数据备份", href: "/admin/backup", icon: Database, roles: ["admin"] },
       { name: "系统设置", href: "/admin/settings", icon: Settings, roles: ["admin"] },
+      { name: "操作日志", href: "/admin/operation-logs", icon: FileText, roles: ["admin"] },
     ],
   },
 ];

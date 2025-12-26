@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/api/auth";
 import { getUsers } from "@/lib/api/users";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { exportUsersToExcel, workbookToBlob } from "@/lib/utils/excel";
+import { logExport } from "@/lib/utils/logger";
 
 /**
  * GET /api/users/export - 导出用户列表
@@ -46,6 +47,9 @@ export async function GET(request: NextRequest) {
     // 生成 Excel 文件
     const workbook = exportUsersToExcel(result.data);
     const blob = workbookToBlob(workbook);
+
+    // 记录日志
+    await logExport(currentUser.id, "users", `导出用户列表，共 ${result.data.length} 条记录`);
 
     // 生成文件名并编码（支持中文）
     const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");

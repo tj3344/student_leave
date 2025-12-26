@@ -180,3 +180,63 @@ export function hasAnyPermission(role: string, permissions: string[]): boolean {
   const rolePermissions = ROLE_PERMISSIONS[role] || [];
   return permissions.some((p) => rolePermissions.includes(p));
 }
+
+// ============================================
+// 操作日志常量
+// ============================================
+
+export const OPERATION_MODULES = {
+  USERS: "users",
+  STUDENTS: "students",
+  LEAVES: "leaves",
+  CLASSES: "classes",
+  SEMESTERS: "semesters",
+  GRADES: "grades",
+  FEES: "fees",
+  SYSTEM: "system",
+  AUTH: "auth",
+  BACKUP: "backup",
+} as const;
+
+export const MODULE_NAMES: Record<string, string> = {
+  users: "用户管理",
+  students: "学生管理",
+  leaves: "请假管理",
+  classes: "班级管理",
+  semesters: "学期管理",
+  grades: "年级管理",
+  fees: "费用管理",
+  system: "系统设置",
+  auth: "认证系统",
+  backup: "数据备份",
+};
+
+export const OPERATION_ACTIONS = {
+  CREATE: "create",
+  UPDATE: "update",
+  DELETE: "delete",
+  LOGIN: "login",
+  LOGOUT: "logout",
+  VIEW: "view",
+  EXPORT: "export",
+  IMPORT: "import",
+  BACKUP: "backup",
+  RESTORE: "restore",
+  APPROVE: "approve",
+  REJECT: "reject",
+} as const;
+
+export const ACTION_NAMES: Record<string, string> = {
+  create: "创建",
+  update: "更新",
+  delete: "删除",
+  login: "登录",
+  logout: "登出",
+  view: "查看",
+  export: "导出",
+  import: "导入",
+  backup: "备份",
+  restore: "恢复",
+  approve: "批准",
+  reject: "拒绝",
+};

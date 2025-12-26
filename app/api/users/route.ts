@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { getUsers, createUser } from "@/lib/api/users";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
+import { logCreate } from "@/lib/utils/logger";
 import type { UserInput } from "@/types";
 
 /**
@@ -82,6 +83,9 @@ export async function POST(request: NextRequest) {
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
+
+    // 记录日志
+    await logCreate(currentUser.id, "users", `创建用户：${userInput.real_name}（${userInput.username}）`);
 
     return NextResponse.json(
       { success: true, userId: result.userId, message: "用户创建成功" },

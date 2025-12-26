@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { getUserById, updateUser, deleteUser, toggleUserStatus, resetUserPassword } from "@/lib/api/users";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
+import { logUpdate, logDelete } from "@/lib/utils/logger";
 import type { UserUpdate } from "@/types";
 
 type RouteContext = {
@@ -77,6 +78,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
 
+    // 记录日志
+    await logUpdate(currentUser.id, "users", `更新用户：${userUpdate.real_name || id}`);
+
     return NextResponse.json({ success: true, message: "用户更新成功" });
   } catch (error) {
     console.error("更新用户失败:", error);
@@ -106,11 +110,19 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "无效的用户ID" }, { status: 400 });
     }
 
+    // 获取用户信息用于日志
+    const user = getUserById(id);
+
     // 删除用户
     const result = deleteUser(id);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
+    }
+
+    // 记录日志
+    if (user) {
+      await logDelete(currentUser.id, "users", `删除用户：${user.real_name}（${user.username}）`);
     }
 
     return NextResponse.json({ success: true, message: "用户删除成功" });

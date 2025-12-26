@@ -5,6 +5,7 @@ import type { User } from "@/types";
 import type { LoginInput, UserCreateInput } from "@/lib/utils/validation";
 import { loginSchema, userCreateSchema } from "@/lib/utils/validation";
 import { hasPermission as checkPermission } from "@/lib/constants";
+import { logLogin } from "@/lib/utils/logger";
 
 const SESSION_COOKIE_NAME = "student_leave_session";
 const SESSION_MAX_AGE = 7 * 24 * 60 * 60; // 7 天
@@ -48,6 +49,10 @@ export async function login(
   // 返回用户信息（不包含密码）
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { password_hash, ...userWithoutPassword } = user;
+
+  // 记录登录日志
+  await logLogin(user.id);
+
   return { success: true, user: userWithoutPassword };
 }
 

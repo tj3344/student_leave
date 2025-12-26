@@ -283,6 +283,19 @@ export interface OperationLogInput {
   ip_address?: string;
 }
 
+export interface OperationLogWithUser extends OperationLog {
+  username?: string;
+  real_name?: string;
+  role?: string;
+}
+
+export interface OperationLogsResponse {
+  data: OperationLogWithUser[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
 // ============================================
 // 分页相关类型
 // ============================================
