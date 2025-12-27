@@ -135,14 +135,19 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "操作失败");
+        const error = new Error(data.error || "操作失败");
+        Object.assign(error, { status: response.status });
+        throw error;
       }
 
       onSuccess();
       onClose();
       form.reset();
-    } catch (error) {
-      console.error("Submit grade error:", error);
+    } catch (error: unknown) {
+      const err = error as { status?: number };
+      if (err.status !== 400) {
+        console.error("Submit grade error:", error);
+      }
       form.setError("root", {
         message: error instanceof Error ? error.message : "操作失败，请稍后重试",
       });

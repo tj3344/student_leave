@@ -181,14 +181,22 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "操作失败");
+        // 400 是业务验证错误，不需要控制台输出
+        // 500 等才是真正的系统错误
+        const error = new Error(data.error || "操作失败");
+        Object.assign(error, { status: response.status });
+        throw error;
       }
 
       onSuccess();
       onClose();
       form.reset();
-    } catch (error) {
-      console.error("Submit class error:", error);
+    } catch (error: unknown) {
+      // 只在非 400 错误时才输出到控制台
+      const err = error as { status?: number };
+      if (err.status !== 400) {
+        console.error("Submit class error:", error);
+      }
       form.setError("root", {
         message: error instanceof Error ? error.message : "操作失败，请稍后重试",
       });
