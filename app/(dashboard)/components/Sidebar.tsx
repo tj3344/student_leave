@@ -98,7 +98,7 @@ export function Sidebar({ user }: SidebarProps) {
     <div className="flex h-full w-64 flex-col border-r bg-background">
       {/* Logo */}
       <div className="flex h-16 items-center border-b px-6">
-        <Link href="/admin" className="flex items-center gap-2 font-semibold">
+        <Link href="/admin" prefetch={false} className="flex items-center gap-2 font-semibold">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <School className="h-5 w-5" />
           </div>
@@ -135,6 +135,7 @@ export function Sidebar({ user }: SidebarProps) {
                     <Link
                       key={item.name}
                       href={item.href}
+                      prefetch={false}
                       className={cn(
                         "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                         isActive

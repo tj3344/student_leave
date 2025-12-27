@@ -205,7 +205,7 @@ export default function AdminDashboardPage() {
             <CardDescription>管理系统基础数据</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Link href="/admin/students">
+            <Link href="/admin/students" prefetch={false}>
               <Button variant="outline" className="w-full justify-between">
                 <span className="flex items-center gap-2">
                   <Users className="h-4 w-4" />
@@ -214,7 +214,7 @@ export default function AdminDashboardPage() {
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
-            <Link href="/leaves">
+            <Link href="/leaves" prefetch={false}>
               <Button variant="outline" className="w-full justify-between">
                 <span className="flex items-center gap-2">
                   <ClipboardList className="h-4 w-4" />
@@ -233,7 +233,7 @@ export default function AdminDashboardPage() {
             <CardDescription>用户和系统设置</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
-            <Link href="/admin/users">
+            <Link href="/admin/users" prefetch={false}>
               <Button variant="outline" className="w-full justify-between">
                 <span className="flex items-center gap-2">
                   <Users className="h-4 w-4" />
@@ -242,7 +242,7 @@ export default function AdminDashboardPage() {
                 <ArrowRight className="h-4 w-4" />
               </Button>
             </Link>
-            <Link href="/admin/settings">
+            <Link href="/admin/settings" prefetch={false}>
               <Button variant="outline" className="w-full justify-between">
                 <span className="flex items-center gap-2">
                   <Settings className="h-4 w-4" />
