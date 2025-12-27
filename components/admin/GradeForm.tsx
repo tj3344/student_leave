@@ -81,9 +81,19 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
   const fetchSemesters = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/semesters");
-      const data = await response.json();
-      setSemesters(data.data || []);
+      const [semestersRes, currentRes] = await Promise.all([
+        fetch("/api/semesters"),
+        fetch("/api/semesters/current"),
+      ]);
+
+      const semestersData = await semestersRes.json();
+      setSemesters(semestersData.data || []);
+
+      // 新增时，设置当前学期为默认值
+      if (!grade && currentRes.ok) {
+        const currentSemester = await currentRes.json();
+        form.setValue("semester_id", currentSemester.id);
+      }
     } catch (error) {
       console.error("Fetch semesters error:", error);
     } finally {
