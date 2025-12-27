@@ -164,7 +164,7 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
                   <FormLabel>所属学期 *</FormLabel>
                   <Select
                     onValueChange={(v) => field.onChange(parseInt(v, 10))}
-                    value={field.value.toString()}
+                    value={field.value === 0 ? "" : field.value.toString()}
                     disabled={loading || isEdit}
                   >
                     <FormControl>
