@@ -58,6 +58,7 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [classes, setClasses] = useState<ClassWithDetails[]>([]);
   const [loading, setLoading] = useState(false);
+  const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const isEdit = !!feeConfig;
 
   const form = useForm<FeeConfigFormValues>({
@@ -72,6 +73,7 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
     },
   });
 
+  // 只在 feeConfig 或 currentSemesterId 变化时重置表单
   useEffect(() => {
     if (feeConfig) {
       form.reset({
@@ -82,6 +84,25 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
         actual_days: feeConfig.actual_days,
         suspension_days: feeConfig.suspension_days,
       });
+    } else if (currentSemesterId) {
+      // 新增时，使用当前学期作为默认值，并获取该学期的班级
+      form.reset({
+        semester_id: currentSemesterId,
+        class_id: 0,
+        meal_fee_standard: 0,
+        prepaid_days: 0,
+        actual_days: 0,
+        suspension_days: 0,
+      });
+      // 获取当前学期的班级列表
+      fetch(`/api/classes?semester_id=${currentSemesterId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          setClasses(data.data || []);
+        })
+        .catch((error) => {
+          console.error("Fetch classes error:", error);
+        });
     } else {
       form.reset({
         semester_id: 0,
@@ -92,16 +113,26 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
         suspension_days: 0,
       });
     }
-  }, [feeConfig, form]);
+  }, [feeConfig, currentSemesterId]);
 
   const fetchOptions = async (semesterId?: number) => {
     setLoading(true);
     try {
-      const semestersRes = await fetch("/api/semesters");
+      const [semestersRes, currentRes] = await Promise.all([
+        fetch("/api/semesters"),
+        fetch("/api/semesters/current"),
+      ]);
+
       const semestersData = await semestersRes.json();
       setSemesters(semestersData.data || []);
 
-      // 如果有学期ID，获取该学期下的班级
+      // 获取当前学期ID
+      if (currentRes.ok && !feeConfig) {
+        const currentSemester = await currentRes.json();
+        setCurrentSemesterId(currentSemester.id);
+      }
+
+      // 如果有学期ID（编辑模式），获取该学期下的班级
       if (semesterId) {
         const classesRes = await fetch(`/api/classes?semester_id=${semesterId}`);
         const classesData = await classesRes.json();
@@ -116,6 +147,11 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
 
   useEffect(() => {
     if (open) {
+      // 新增时，重置当前学期ID，触发重新获取
+      if (!feeConfig) {
+        setCurrentSemesterId(null);
+        setClasses([]);
+      }
       fetchOptions(feeConfig?.semester_id);
     }
   }, [open]);
@@ -195,7 +231,7 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
                   <FormLabel>所属学期 *</FormLabel>
                   <Select
                     onValueChange={(v) => handleSemesterChange(parseInt(v, 10))}
-                    value={field.value.toString()}
+                    value={field.value === 0 ? "" : field.value.toString()}
                     disabled={loading || isEdit}
                   >
                     <FormControl>
@@ -224,7 +260,7 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
                   <FormLabel>班级 *</FormLabel>
                   <Select
                     onValueChange={(v) => field.onChange(parseInt(v, 10))}
-                    value={field.value.toString()}
+                    value={field.value === 0 ? "" : field.value.toString()}
                     disabled={loading}
                   >
                     <FormControl>

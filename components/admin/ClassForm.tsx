@@ -54,6 +54,7 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
   const [grades, setGrades] = useState<Grade[]>([]);
   const [teachers, setTeachers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
+  const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const isEdit = !!classData;
 
   const form = useForm<ClassFormValues>({
@@ -66,6 +67,7 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
     },
   });
 
+  // 只在 classData 或 currentSemesterId 变化时重置表单
   useEffect(() => {
     if (classData) {
       form.reset({
@@ -74,6 +76,23 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
         name: classData.name,
         class_teacher_id: classData.class_teacher_id,
       });
+    } else if (currentSemesterId) {
+      // 新增时，使用当前学期作为默认值，并获取该学期的年级
+      form.reset({
+        semester_id: currentSemesterId,
+        grade_id: 0,
+        name: "",
+        class_teacher_id: undefined,
+      });
+      // 获取当前学期的年级列表
+      fetch(`/api/grades?semester_id=${currentSemesterId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          setGrades(data.data || []);
+        })
+        .catch((error) => {
+          console.error("Fetch grades error:", error);
+        });
     } else {
       form.reset({
         semester_id: 0,
@@ -82,14 +101,15 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
         class_teacher_id: undefined,
       });
     }
-  }, [classData, form]);
+  }, [classData, currentSemesterId]);
 
   const fetchOptions = async (semesterId?: number) => {
     setLoading(true);
     try {
-      const [semestersRes, teachersRes] = await Promise.all([
+      const [semestersRes, teachersRes, currentRes] = await Promise.all([
         fetch("/api/semesters"),
         fetch("/api/users?role=teacher,class_teacher"),
+        fetch("/api/semesters/current"),
       ]);
 
       const semestersData = await semestersRes.json();
@@ -98,7 +118,13 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
       setSemesters(semestersData.data || []);
       setTeachers(teachersData.data || []);
 
-      // 如果有学期ID，获取该学期下的年级
+      // 获取当前学期ID
+      if (currentRes.ok && !classData) {
+        const currentSemester = await currentRes.json();
+        setCurrentSemesterId(currentSemester.id);
+      }
+
+      // 如果有学期ID（编辑模式），获取该学期下的年级
       if (semesterId) {
         const gradesRes = await fetch(`/api/grades?semester_id=${semesterId}`);
         const gradesData = await gradesRes.json();
@@ -113,6 +139,11 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
 
   useEffect(() => {
     if (open) {
+      // 新增时，重置当前学期ID，触发重新获取
+      if (!classData) {
+        setCurrentSemesterId(null);
+        setGrades([]);
+      }
       fetchOptions(classData?.semester_id);
     }
   }, [open]);
@@ -192,7 +223,7 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
                   <FormLabel>所属学期 *</FormLabel>
                   <Select
                     onValueChange={(v) => handleSemesterChange(parseInt(v, 10))}
-                    value={field.value.toString()}
+                    value={field.value === 0 ? "" : field.value.toString()}
                     disabled={loading || isEdit}
                   >
                     <FormControl>
@@ -221,7 +252,7 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
                   <FormLabel>所属年级 *</FormLabel>
                   <Select
                     onValueChange={(v) => field.onChange(parseInt(v, 10))}
-                    value={field.value.toString()}
+                    value={field.value === 0 ? "" : field.value.toString()}
                     disabled={loading}
                   >
                     <FormControl>
