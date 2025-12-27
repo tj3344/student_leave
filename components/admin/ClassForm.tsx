@@ -36,7 +36,7 @@ const classSchema = z.object({
   semester_id: z.coerce.number().min(1, "请选择学期"),
   grade_id: z.coerce.number().min(1, "请选择年级"),
   name: z.string().min(1, "班级名称不能为空").max(20, "班级名称不能超过20个字符"),
-  class_teacher_id: z.coerce.number().optional(),
+  class_teacher_id: z.coerce.number().nullable().optional(),
 });
 
 type ClassFormValues = z.infer<typeof classSchema>;
@@ -263,8 +263,8 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
                 <FormItem>
                   <FormLabel>班主任</FormLabel>
                   <Select
-                    onValueChange={(v) => field.onChange(v === "0" ? undefined : parseInt(v, 10))}
-                    value={field.value?.toString() || "0"}
+                    onValueChange={(v) => field.onChange(v === "0" ? null : parseInt(v, 10))}
+                    value={field.value === null ? "0" : (field.value?.toString() || "")}
                     disabled={loading}
                   >
                     <FormControl>
