@@ -51,6 +51,7 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [loading, setLoading] = useState(false);
+  const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const isEdit = !!grade;
 
   const form = useForm<GradeFormValues>({
@@ -62,12 +63,20 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
     },
   });
 
+  // 只在 grade 变化时重置表单
   useEffect(() => {
     if (grade) {
       form.reset({
         semester_id: grade.semester_id,
         name: grade.name,
         sort_order: grade.sort_order ?? 0,
+      });
+    } else if (currentSemesterId) {
+      // 新增时，使用当前学期作为默认值
+      form.reset({
+        semester_id: currentSemesterId,
+        name: "",
+        sort_order: 0,
       });
     } else {
       form.reset({
@@ -76,7 +85,7 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
         sort_order: 0,
       });
     }
-  }, [grade, form]);
+  }, [grade, currentSemesterId]);
 
   const fetchSemesters = async () => {
     setLoading(true);
@@ -89,10 +98,10 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
       const semestersData = await semestersRes.json();
       setSemesters(semestersData.data || []);
 
-      // 新增时，设置当前学期为默认值
-      if (!grade && currentRes.ok) {
+      // 获取当前学期ID
+      if (currentRes.ok) {
         const currentSemester = await currentRes.json();
-        form.setValue("semester_id", currentSemester.id);
+        setCurrentSemesterId(currentSemester.id);
       }
     } catch (error) {
       console.error("Fetch semesters error:", error);
@@ -103,6 +112,10 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
 
   useEffect(() => {
     if (open) {
+      // 新增时，重置当前学期ID，触发重新获取
+      if (!grade) {
+        setCurrentSemesterId(null);
+      }
       fetchSemesters();
     }
   }, [open]);
