@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, memo, useMemo } from "react";
 import { MoreHorizontal, Pencil, Trash2, GripVertical } from "lucide-react";
 import type { Grade } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -35,13 +35,13 @@ interface GradeTableProps {
   onDelete: () => void;
 }
 
-export function GradeTable({ data, onEdit, onDelete }: GradeTableProps) {
+function GradeTableInternal({ data, onEdit, onDelete }: GradeTableProps) {
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; grade?: Grade }>({
     open: false,
   });
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (!deleteDialog.grade) return;
 
     setIsDeleting(true);
@@ -51,8 +51,8 @@ export function GradeTable({ data, onEdit, onDelete }: GradeTableProps) {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "删除失败");
+        const result = await response.json();
+        throw new Error(result.error || "删除失败");
       }
 
       setDeleteDialog({ open: false, grade: undefined });
@@ -63,7 +63,36 @@ export function GradeTable({ data, onEdit, onDelete }: GradeTableProps) {
     } finally {
       setIsDeleting(false);
     }
-  };
+  }, [deleteDialog.grade, onDelete]);
+
+  const handleEdit = useCallback((grade: Grade) => {
+    onEdit(grade);
+  }, [onEdit]);
+
+  const openDeleteDialog = useCallback((grade: Grade) => {
+    setDeleteDialog({ open: true, grade });
+  }, []);
+
+  const tableRows = useMemo(() => {
+    if (data.length === 0) {
+      return (
+        <TableRow>
+          <TableCell colSpan={4} className="h-24 text-center">
+            暂无数据
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    return data.map((grade) => (
+      <GradeRow
+        key={grade.id}
+        grade={grade}
+        onEdit={handleEdit}
+        onOpenDeleteDialog={openDeleteDialog}
+      />
+    ));
+  }, [data, handleEdit, openDeleteDialog]);
 
   return (
     <>
@@ -78,47 +107,7 @@ export function GradeTable({ data, onEdit, onDelete }: GradeTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={4} className="h-24 text-center">
-                  暂无数据
-                </TableCell>
-              </TableRow>
-            ) : (
-              data.map((grade) => (
-                <TableRow key={grade.id}>
-                  <TableCell>
-                    <div className="cursor-grab active:cursor-grabbing">
-                      <GripVertical className="h-4 w-4 text-muted-foreground" />
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-medium">{grade.name}</TableCell>
-                  <TableCell>{grade.sort_order}</TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onEdit(grade)}>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          编辑
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => setDeleteDialog({ open: true, grade })}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          删除
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
+            {tableRows}
           </TableBody>
         </Table>
       </div>
@@ -149,3 +138,47 @@ export function GradeTable({ data, onEdit, onDelete }: GradeTableProps) {
     </>
   );
 }
+
+interface GradeRowProps {
+  grade: Grade;
+  onEdit: (grade: Grade) => void;
+  onOpenDeleteDialog: (grade: Grade) => void;
+}
+
+const GradeRow = memo(function GradeRow({ grade, onEdit, onOpenDeleteDialog }: GradeRowProps) {
+  return (
+    <TableRow>
+      <TableCell>
+        <div className="cursor-grab active:cursor-grabbing">
+          <GripVertical className="h-4 w-4 text-muted-foreground" />
+        </div>
+      </TableCell>
+      <TableCell className="font-medium">{grade.name}</TableCell>
+      <TableCell>{grade.sort_order}</TableCell>
+      <TableCell>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onEdit(grade)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              编辑
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => onOpenDeleteDialog(grade)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              删除
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+});
+
+export const GradeTable = memo(GradeTableInternal);

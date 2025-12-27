@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, memo, useMemo } from "react";
 import { MoreHorizontal, Pencil, Trash2, Users } from "lucide-react";
 import type { ClassWithDetails } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -36,14 +36,14 @@ interface ClassTableProps {
   onDelete: () => void;
 }
 
-export function ClassTable({ data, onEdit, onDelete }: ClassTableProps) {
+function ClassTableInternal({ data, onEdit, onDelete }: ClassTableProps) {
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean;
     classItem?: ClassWithDetails;
   }>({ open: false });
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (!deleteDialog.classItem) return;
 
     setIsDeleting(true);
@@ -53,8 +53,8 @@ export function ClassTable({ data, onEdit, onDelete }: ClassTableProps) {
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "删除失败");
+        const result = await response.json();
+        throw new Error(result.error || "删除失败");
       }
 
       setDeleteDialog({ open: false, classItem: undefined });
@@ -65,7 +65,36 @@ export function ClassTable({ data, onEdit, onDelete }: ClassTableProps) {
     } finally {
       setIsDeleting(false);
     }
-  };
+  }, [deleteDialog.classItem, onDelete]);
+
+  const handleEdit = useCallback((classItem: ClassWithDetails) => {
+    onEdit(classItem);
+  }, [onEdit]);
+
+  const openDeleteDialog = useCallback((classItem: ClassWithDetails) => {
+    setDeleteDialog({ open: true, classItem });
+  }, []);
+
+  const tableRows = useMemo(() => {
+    if (data.length === 0) {
+      return (
+        <TableRow>
+          <TableCell colSpan={5} className="h-24 text-center">
+            暂无数据
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    return data.map((classItem) => (
+      <ClassRow
+        key={classItem.id}
+        classItem={classItem}
+        onEdit={handleEdit}
+        onOpenDeleteDialog={openDeleteDialog}
+      />
+    ));
+  }, [data, handleEdit, openDeleteDialog]);
 
   return (
     <>
@@ -81,57 +110,7 @@ export function ClassTable({ data, onEdit, onDelete }: ClassTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="h-24 text-center">
-                  暂无数据
-                </TableCell>
-              </TableRow>
-            ) : (
-              data.map((classItem) => (
-                <TableRow key={classItem.id}>
-                  <TableCell>
-                    <Badge variant="outline">{classItem.grade_name || "-"}</Badge>
-                  </TableCell>
-                  <TableCell className="font-medium">{classItem.name}</TableCell>
-                  <TableCell>
-                    {classItem.class_teacher_name ? (
-                      <Badge variant="secondary">{classItem.class_teacher_name}</Badge>
-                    ) : (
-                      <span className="text-muted-foreground">未分配</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Users className="h-3 w-3 text-muted-foreground" />
-                      <span>{classItem.student_count}</span>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onEdit(classItem)}>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          编辑
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => setDeleteDialog({ open: true, classItem })}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          删除
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
+            {tableRows}
           </TableBody>
         </Table>
       </div>
@@ -165,3 +144,57 @@ export function ClassTable({ data, onEdit, onDelete }: ClassTableProps) {
     </>
   );
 }
+
+interface ClassRowProps {
+  classItem: ClassWithDetails;
+  onEdit: (classItem: ClassWithDetails) => void;
+  onOpenDeleteDialog: (classItem: ClassWithDetails) => void;
+}
+
+const ClassRow = memo(function ClassRow({ classItem, onEdit, onOpenDeleteDialog }: ClassRowProps) {
+  return (
+    <TableRow>
+      <TableCell>
+        <Badge variant="outline">{classItem.grade_name || "-"}</Badge>
+      </TableCell>
+      <TableCell className="font-medium">{classItem.name}</TableCell>
+      <TableCell>
+        {classItem.class_teacher_name ? (
+          <Badge variant="secondary">{classItem.class_teacher_name}</Badge>
+        ) : (
+          <span className="text-muted-foreground">未分配</span>
+        )}
+      </TableCell>
+      <TableCell>
+        <div className="flex items-center gap-1">
+          <Users className="h-3 w-3 text-muted-foreground" />
+          <span>{classItem.student_count}</span>
+        </div>
+      </TableCell>
+      <TableCell>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onEdit(classItem)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              编辑
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => onOpenDeleteDialog(classItem)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              删除
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+});
+
+export const ClassTable = memo(ClassTableInternal);

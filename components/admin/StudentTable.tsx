@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, memo, useMemo } from "react";
 import { MoreHorizontal, Pencil, Trash2, Power, PowerOff } from "lucide-react";
 import type { StudentWithDetails } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -39,13 +39,13 @@ interface StudentTableProps {
   canDelete?: boolean;
 }
 
-export function StudentTable({ data, onEdit, onRefresh, canEdit = true, canDelete = true }: StudentTableProps) {
+function StudentTableInternal({ data, onEdit, onRefresh, canEdit = true, canDelete = true }: StudentTableProps) {
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; student?: StudentWithDetails }>({
     open: false,
   });
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (!deleteDialog.student) return;
 
     setIsProcessing(true);
@@ -53,34 +53,66 @@ export function StudentTable({ data, onEdit, onRefresh, canEdit = true, canDelet
       method: "DELETE",
     });
 
-    const data = await response.json();
+    const result = await response.json();
 
-    if (data.success) {
+    if (result.success) {
       setDeleteDialog({ open: false, student: undefined });
       onRefresh();
     } else {
-      alert(data.error || "删除失败，请稍后重试");
+      alert(result.error || "删除失败，请稍后重试");
     }
 
     setIsProcessing(false);
-  };
+  }, [deleteDialog.student, onRefresh]);
 
-  const handleToggleStatus = async (student: StudentWithDetails) => {
+  const handleToggleStatus = useCallback(async (student: StudentWithDetails) => {
     setIsProcessing(true);
     const response = await fetch(`/api/students/${student.id}`, {
       method: "PATCH",
     });
 
-    const data = await response.json();
+    const result = await response.json();
 
-    if (data.success) {
+    if (result.success) {
       onRefresh();
     } else {
-      alert(data.error || "操作失败，请稍后重试");
+      alert(result.error || "操作失败，请稍后重试");
     }
 
     setIsProcessing(false);
-  };
+  }, [onRefresh]);
+
+  const handleEdit = useCallback((student: StudentWithDetails) => {
+    onEdit(student);
+  }, [onEdit]);
+
+  const openDeleteDialog = useCallback((student: StudentWithDetails) => {
+    setDeleteDialog({ open: true, student });
+  }, []);
+
+  const tableRows = useMemo(() => {
+    if (data.length === 0) {
+      return (
+        <TableRow>
+          <TableCell colSpan={9} className="h-24 text-center">
+            暂无数据
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    return data.map((student) => (
+      <StudentRow
+        key={student.id}
+        student={student}
+        canEdit={canEdit}
+        canDelete={canDelete}
+        onEdit={handleEdit}
+        onToggleStatus={handleToggleStatus}
+        onOpenDeleteDialog={openDeleteDialog}
+      />
+    ));
+  }, [data, canEdit, canDelete, handleEdit, handleToggleStatus, openDeleteDialog]);
 
   return (
     <>
@@ -100,78 +132,7 @@ export function StudentTable({ data, onEdit, onRefresh, canEdit = true, canDelet
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={9} className="h-24 text-center">
-                  暂无数据
-                </TableCell>
-              </TableRow>
-            ) : (
-              data.map((student) => (
-                <TableRow key={student.id}>
-                  <TableCell className="font-medium">{student.student_no}</TableCell>
-                  <TableCell>{student.name}</TableCell>
-                  <TableCell>{student.gender || "-"}</TableCell>
-                  <TableCell>
-                    {student.grade_name} {student.class_name}
-                  </TableCell>
-                  <TableCell>{student.parent_name || "-"}</TableCell>
-                  <TableCell>{student.parent_phone || "-"}</TableCell>
-                  <TableCell>
-                    <Badge variant={student.is_nutrition_meal ? "default" : "secondary"}>
-                      {student.nutrition_meal_name}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={student.is_active ? "default" : "secondary"}>
-                      {student.is_active ? "在校" : "离校"}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {canEdit && (
-                          <DropdownMenuItem onClick={() => onEdit(student)}>
-                            <Pencil className="mr-2 h-4 w-4" />
-                            编辑
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onClick={() => handleToggleStatus(student)}>
-                          {student.is_active ? (
-                            <>
-                              <PowerOff className="mr-2 h-4 w-4" />
-                              标记离校
-                            </>
-                          ) : (
-                            <>
-                              <Power className="mr-2 h-4 w-4" />
-                              标记在校
-                            </>
-                          )}
-                        </DropdownMenuItem>
-                        {canDelete && (
-                          <>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              className="text-destructive"
-                              onClick={() => setDeleteDialog({ open: true, student })}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              删除
-                            </DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
+            {tableRows}
           </TableBody>
         </Table>
       </div>
@@ -205,3 +166,90 @@ export function StudentTable({ data, onEdit, onRefresh, canEdit = true, canDelet
     </>
   );
 }
+
+// 表格行组件 - 使用 memo 优化
+interface StudentRowProps {
+  student: StudentWithDetails;
+  canEdit: boolean;
+  canDelete: boolean;
+  onEdit: (student: StudentWithDetails) => void;
+  onToggleStatus: (student: StudentWithDetails) => void;
+  onOpenDeleteDialog: (student: StudentWithDetails) => void;
+}
+
+const StudentRow = memo(function StudentRow({
+  student,
+  canEdit,
+  canDelete,
+  onEdit,
+  onToggleStatus,
+  onOpenDeleteDialog,
+}: StudentRowProps) {
+  return (
+    <TableRow>
+      <TableCell className="font-medium">{student.student_no}</TableCell>
+      <TableCell>{student.name}</TableCell>
+      <TableCell>{student.gender || "-"}</TableCell>
+      <TableCell>
+        {student.grade_name} {student.class_name}
+      </TableCell>
+      <TableCell>{student.parent_name || "-"}</TableCell>
+      <TableCell>{student.parent_phone || "-"}</TableCell>
+      <TableCell>
+        <Badge variant={student.is_nutrition_meal ? "default" : "secondary"}>
+          {student.nutrition_meal_name}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <Badge variant={student.is_active ? "default" : "secondary"}>
+          {student.is_active ? "在校" : "离校"}
+        </Badge>
+      </TableCell>
+      <TableCell>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {canEdit && (
+              <DropdownMenuItem onClick={() => onEdit(student)}>
+                <Pencil className="mr-2 h-4 w-4" />
+                编辑
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={() => onToggleStatus(student)}>
+              {student.is_active ? (
+                <>
+                  <PowerOff className="mr-2 h-4 w-4" />
+                  标记离校
+                </>
+              ) : (
+                <>
+                  <Power className="mr-2 h-4 w-4" />
+                  标记在校
+                </>
+              )}
+            </DropdownMenuItem>
+            {canDelete && (
+              <>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive"
+                  onClick={() => onOpenDeleteDialog(student)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  删除
+                </DropdownMenuItem>
+              </>
+            )}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+});
+
+// 使用 memo 包装整个组件
+export const StudentTable = memo(StudentTableInternal);

@@ -166,12 +166,7 @@ export function createStudent(input: StudentInput): {
       1
     );
 
-  // 更新班级学生数量
-  db.prepare(
-    `UPDATE classes SET student_count = (
-      SELECT COUNT(*) FROM students WHERE class_id = ? AND is_active = 1
-    ) WHERE id = ?`
-  ).run(input.class_id, input.class_id);
+  // 学生数量通过数据库触发器自动维护，无需手动更新
 
   return { success: true, studentId: result.lastInsertRowid as number };
 }
@@ -261,22 +256,7 @@ export function updateStudent(
 
   db.prepare(`UPDATE students SET ${updates.join(", ")} WHERE id = ?`).run(...params);
 
-  // 更新相关班级的学生数量
-  const classId = input.class_id ?? existingStudent.class_id;
-  db.prepare(
-    `UPDATE classes SET student_count = (
-      SELECT COUNT(*) FROM students WHERE class_id = ? AND is_active = 1
-    ) WHERE id = ?`
-  ).run(classId, classId);
-
-  // 如果班级发生变化，更新原班级的学生数量
-  if (input.class_id && input.class_id !== existingStudent.class_id) {
-    db.prepare(
-      `UPDATE classes SET student_count = (
-        SELECT COUNT(*) FROM students WHERE class_id = ? AND is_active = 1
-      ) WHERE id = ?`
-    ).run(existingStudent.class_id, existingStudent.class_id);
-  }
+  // 学生数量通过数据库触发器自动维护，无需手动更新
 
   return { success: true };
 }
@@ -306,12 +286,7 @@ export function deleteStudent(id: number): { success: boolean; message?: string 
   // 删除学生
   db.prepare("DELETE FROM students WHERE id = ?").run(id);
 
-  // 更新班级学生数量
-  db.prepare(
-    `UPDATE classes SET student_count = (
-      SELECT COUNT(*) FROM students WHERE class_id = ? AND is_active = 1
-    ) WHERE id = ?`
-  ).run(existingStudent.class_id, existingStudent.class_id);
+  // 学生数量通过数据库触发器自动维护，无需手动更新
 
   return { success: true };
 }
@@ -351,12 +326,7 @@ export function toggleStudentStatus(id: number): { success: boolean; message?: s
     id
   );
 
-  // 更新班级学生数量
-  db.prepare(
-    `UPDATE classes SET student_count = (
-      SELECT COUNT(*) FROM students WHERE class_id = ? AND is_active = 1
-    ) WHERE id = ?`
-  ).run(student.class_id, student.class_id);
+  // 学生数量通过数据库触发器自动维护，无需手动更新
 
   return { success: true, isActive: newStatus };
 }
@@ -419,15 +389,7 @@ export function batchCreateStudents(
       }
     }
 
-    // 更新所有相关班级的学生数量
-    const classIds = [...new Set(students.map((s) => s.class_id))];
-    for (const classId of classIds) {
-      db.prepare(
-        `UPDATE classes SET student_count = (
-          SELECT COUNT(*) FROM students WHERE class_id = ? AND is_active = 1
-        ) WHERE id = ?`
-      ).run(classId, classId);
-    }
+    // 学生数量通过数据库触发器自动维护，无需手动更新
   });
 
   try {

@@ -205,11 +205,11 @@ export function createClass(
     return { success: false, message: "该年级下已存在同名班级" };
   }
 
-  // 插入班级
+  // 插入班级（meal_fee 默认为 0，实际餐费标准从 fee_configs 表获取）
   const result = db
     .prepare(
-      `INSERT INTO classes (semester_id, grade_id, name, class_teacher_id)
-       VALUES (?, ?, ?, ?)`
+      `INSERT INTO classes (semester_id, grade_id, name, class_teacher_id, meal_fee)
+       VALUES (?, ?, ?, ?, 0)`
     )
     .run(input.semester_id, input.grade_id, input.name, input.class_teacher_id || null);
 

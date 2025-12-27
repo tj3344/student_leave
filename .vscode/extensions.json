@@ -1,0 +1,28 @@
+{
+  "recommendations": [
+    // TypeScript/JavaScript 支持 (VSCode 内置)
+    // 无需单独安装
+
+    // ESLint
+    "dbaeumer.vscode-eslint",
+
+    // Prettier
+    "esbenp.prettier-vscode",
+
+    // Tailwind CSS
+    "bradlc.vscode-tailwindcss",
+
+    // Next.js 相关
+    "formulahendry.auto-rename-tag",
+    "christian-kohler.path-intellisense",
+
+    // Git
+    "eamodio.gitlens",
+
+    // 中文支持
+    "ms-ceintl.vscode-language-pack-zh-hans"
+  ],
+  "unwantedRecommendations": [
+    "ms-vscode.vscode-typescript-next"
+  ]
+}

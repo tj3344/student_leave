@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import type { Semester, SemesterInput, PaginationParams, PaginatedResponse } from "@/types";
+import { cached, clearSemesterCache } from "@/lib/cache";
 
 /**
  * 获取学期列表
@@ -60,13 +61,19 @@ export function getSemesterById(id: number): Semester | null {
 }
 
 /**
- * 获取当前学期
+ * 获取当前学期（带10分钟缓存）
  */
 export function getCurrentSemester(): Semester | null {
-  const db = getDb();
-  return db
-    .prepare("SELECT * FROM semesters WHERE is_current = 1")
-    .get() as Semester | null;
+  return cached(
+    "semester:current",
+    () => {
+      const db = getDb();
+      return db
+        .prepare("SELECT * FROM semesters WHERE is_current = 1")
+        .get() as Semester | null;
+    },
+    10 * 60 * 1000 // 10分钟缓存
+  );
 }
 
 /**
@@ -90,6 +97,8 @@ export function createSemester(
   // 如果设置为当前学期，取消其他学期的当前状态
   if (input.is_current) {
     db.prepare("UPDATE semesters SET is_current = 0").run();
+    // 清除缓存
+    clearSemesterCache();
   }
 
   // 插入学期
@@ -139,6 +148,8 @@ export function updateSemester(
   // 如果设置为当前学期，取消其他学期的当前状态
   if (input.is_current) {
     db.prepare("UPDATE semesters SET is_current = 0").run();
+    // 清除缓存
+    clearSemesterCache();
   }
 
   // 构建更新语句
@@ -202,6 +213,9 @@ export function deleteSemester(id: number): { success: boolean; message?: string
   // 删除学期
   db.prepare("DELETE FROM semesters WHERE id = ?").run(id);
 
+  // 清除缓存
+  clearSemesterCache();
+
   return { success: true };
 }
 
@@ -222,6 +236,9 @@ export function setCurrentSemester(id: number): { success: boolean; message?: st
 
   // 设置当前学期
   db.prepare("UPDATE semesters SET is_current = 1 WHERE id = ?").run(id);
+
+  // 清除缓存
+  clearSemesterCache();
 
   return { success: true };
 }

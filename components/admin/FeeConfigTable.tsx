@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, memo, useMemo } from "react";
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import type { FeeConfigWithDetails } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -36,13 +36,13 @@ interface FeeConfigTableProps {
   onRefresh: () => void;
 }
 
-export function FeeConfigTable({ data, onEdit, onRefresh }: FeeConfigTableProps) {
+function FeeConfigTableInternal({ data, onEdit, onRefresh }: FeeConfigTableProps) {
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; feeConfig?: FeeConfigWithDetails }>({
     open: false,
   });
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (!deleteDialog.feeConfig) return;
 
     setIsProcessing(true);
@@ -52,8 +52,8 @@ export function FeeConfigTable({ data, onEdit, onRefresh }: FeeConfigTableProps)
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "删除失败");
+        const result = await response.json();
+        throw new Error(result.error || "删除失败");
       }
 
       setDeleteDialog({ open: false, feeConfig: undefined });
@@ -64,11 +64,41 @@ export function FeeConfigTable({ data, onEdit, onRefresh }: FeeConfigTableProps)
     } finally {
       setIsProcessing(false);
     }
-  };
+  }, [deleteDialog.feeConfig, onRefresh]);
 
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = useCallback((amount: number) => {
     return `¥${amount.toFixed(2)}`;
-  };
+  }, []);
+
+  const handleEdit = useCallback((feeConfig: FeeConfigWithDetails) => {
+    onEdit(feeConfig);
+  }, [onEdit]);
+
+  const openDeleteDialog = useCallback((feeConfig: FeeConfigWithDetails) => {
+    setDeleteDialog({ open: true, feeConfig });
+  }, []);
+
+  const tableRows = useMemo(() => {
+    if (data.length === 0) {
+      return (
+        <TableRow>
+          <TableCell colSpan={8} className="h-24 text-center">
+            暂无数据
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    return data.map((item) => (
+      <FeeConfigRow
+        key={item.id}
+        item={item}
+        formatCurrency={formatCurrency}
+        onEdit={handleEdit}
+        onOpenDeleteDialog={openDeleteDialog}
+      />
+    ));
+  }, [data, formatCurrency, handleEdit, openDeleteDialog]);
 
   return (
     <>
@@ -87,50 +117,7 @@ export function FeeConfigTable({ data, onEdit, onRefresh }: FeeConfigTableProps)
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center">
-                  暂无数据
-                </TableCell>
-              </TableRow>
-            ) : (
-              data.map((item) => (
-                <TableRow key={item.id}>
-                  <TableCell>{item.semester_name}</TableCell>
-                  <TableCell>
-                    {item.grade_name} {item.class_name}
-                  </TableCell>
-                  <TableCell>{item.class_teacher_name || "-"}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(item.meal_fee_standard)}</TableCell>
-                  <TableCell className="text-center">{item.prepaid_days}</TableCell>
-                  <TableCell className="text-center">{item.actual_days}</TableCell>
-                  <TableCell className="text-center">{item.suspension_days}</TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => onEdit(item)}>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          编辑
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <DropdownMenuItem
-                          onClick={() => setDeleteDialog({ open: true, feeConfig: item })}
-                          className="text-destructive focus:text-destructive"
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          删除
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
+            {tableRows}
           </TableBody>
         </Table>
       </div>
@@ -155,3 +142,51 @@ export function FeeConfigTable({ data, onEdit, onRefresh }: FeeConfigTableProps)
     </>
   );
 }
+
+interface FeeConfigRowProps {
+  item: FeeConfigWithDetails;
+  formatCurrency: (amount: number) => string;
+  onEdit: (feeConfig: FeeConfigWithDetails) => void;
+  onOpenDeleteDialog: (feeConfig: FeeConfigWithDetails) => void;
+}
+
+const FeeConfigRow = memo(function FeeConfigRow({ item, formatCurrency, onEdit, onOpenDeleteDialog }: FeeConfigRowProps) {
+  return (
+    <TableRow>
+      <TableCell>{item.semester_name}</TableCell>
+      <TableCell>
+        {item.grade_name} {item.class_name}
+      </TableCell>
+      <TableCell>{item.class_teacher_name || "-"}</TableCell>
+      <TableCell className="text-right">{formatCurrency(item.meal_fee_standard)}</TableCell>
+      <TableCell className="text-center">{item.prepaid_days}</TableCell>
+      <TableCell className="text-center">{item.actual_days}</TableCell>
+      <TableCell className="text-center">{item.suspension_days}</TableCell>
+      <TableCell>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onEdit(item)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              编辑
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onClick={() => onOpenDeleteDialog(item)}
+              className="text-destructive focus:text-destructive"
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              删除
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+});
+
+export const FeeConfigTable = memo(FeeConfigTableInternal);

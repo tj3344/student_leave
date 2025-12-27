@@ -1,26 +1,29 @@
 import { getDb } from "@/lib/db";
 import type { SystemConfig } from "@/types";
+import { cached, clearSystemConfigCache } from "@/lib/cache";
 
 /**
  * 获取单个配置的字符串值
  */
 export function getConfig(key: string): string | undefined {
-  const db = getDb();
-  const config = db
-    .prepare("SELECT config_value FROM system_config WHERE config_key = ?")
-    .get(key) as { config_value: string } | undefined;
-
-  return config?.config_value;
+  const allConfigs = getAllConfigs();
+  return allConfigs.find((c) => c.config_key === key)?.config_value;
 }
 
 /**
- * 获取所有配置
+ * 获取所有配置（带10分钟缓存）
  */
 export function getAllConfigs(): SystemConfig[] {
-  const db = getDb();
-  return db
-    .prepare("SELECT * FROM system_config ORDER BY config_key")
-    .all() as SystemConfig[];
+  return cached(
+    "system_config:all",
+    () => {
+      const db = getDb();
+      return db
+        .prepare("SELECT * FROM system_config ORDER BY config_key")
+        .all() as SystemConfig[];
+    },
+    10 * 60 * 1000 // 10分钟缓存
+  );
 }
 
 /**
@@ -33,6 +36,12 @@ export function updateConfig(key: string, value: string): boolean {
       "UPDATE system_config SET config_value = ?, updated_at = CURRENT_TIMESTAMP WHERE config_key = ?"
     )
     .run(value, key);
+
+  // 清除缓存
+  if (result.changes > 0) {
+    clearSystemConfigCache();
+  }
+
   return result.changes > 0;
 }
 
@@ -58,7 +67,14 @@ export function updateConfigs(
     return success;
   });
 
-  return updateMany(configs);
+  const result = updateMany(configs);
+
+  // 清除缓存
+  if (result) {
+    clearSystemConfigCache();
+  }
+
+  return result;
 }
 
 /**

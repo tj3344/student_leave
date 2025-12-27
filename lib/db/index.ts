@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
 import { hashPassword } from "@/lib/utils/crypto";
+import { initStudentCountTriggers } from "./triggers";
 
 // 数据库文件路径
 const DB_DIR = path.join(process.cwd(), "data");
@@ -227,18 +228,45 @@ export function initDatabase(): void {
 
   // 创建索引
   db.exec(`
+    -- 学生表索引
     CREATE INDEX IF NOT EXISTS idx_students_class ON students(class_id);
     CREATE INDEX IF NOT EXISTS idx_students_student_no ON students(student_no);
+    CREATE INDEX IF NOT EXISTS idx_students_is_active ON students(is_active);
+    CREATE INDEX IF NOT EXISTS idx_students_class_active ON students(class_id, is_active);
+    CREATE INDEX IF NOT EXISTS idx_students_nutrition ON students(is_nutrition_meal);
+
+    -- 用户表索引
+    CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+    CREATE INDEX IF NOT EXISTS idx_users_is_active ON users(is_active);
+
+    -- 班级表索引
+    CREATE INDEX IF NOT EXISTS idx_classes_grade ON classes(grade_id);
+    CREATE INDEX IF NOT EXISTS idx_classes_semester ON classes(semester_id);
+    CREATE INDEX IF NOT EXISTS idx_classes_semester_grade ON classes(semester_id, grade_id);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_classes_class_teacher ON classes(class_teacher_id);
+
+    -- 请假记录表索引
     CREATE INDEX IF NOT EXISTS idx_leave_records_student ON leave_records(student_id);
     CREATE INDEX IF NOT EXISTS idx_leave_records_semester ON leave_records(semester_id);
     CREATE INDEX IF NOT EXISTS idx_leave_records_status ON leave_records(status);
     CREATE INDEX IF NOT EXISTS idx_leave_records_dates ON leave_records(start_date, end_date);
     CREATE INDEX IF NOT EXISTS idx_leave_records_student_dates ON leave_records(student_id, start_date, end_date);
-    CREATE INDEX IF NOT EXISTS idx_classes_grade ON classes(grade_id);
+    CREATE INDEX IF NOT EXISTS idx_leave_records_student_semester ON leave_records(student_id, semester_id);
+    CREATE INDEX IF NOT EXISTS idx_leave_records_status_dates ON leave_records(status, start_date, end_date);
+    CREATE INDEX IF NOT EXISTS idx_leave_records_applicant ON leave_records(applicant_id);
+    CREATE INDEX IF NOT EXISTS idx_leave_records_reviewer ON leave_records(reviewer_id);
+
+    -- 系统配置表索引
+    CREATE INDEX IF NOT EXISTS idx_config_key ON system_config(config_key);
+
+    -- 操作日志表索引
     CREATE INDEX IF NOT EXISTS idx_logs_user ON operation_logs(user_id);
-    CREATE UNIQUE INDEX IF NOT EXISTS idx_classes_class_teacher ON classes(class_teacher_id);
+
+    -- 费用配置表索引
     CREATE INDEX IF NOT EXISTS idx_fee_configs_class ON fee_configs(class_id);
     CREATE INDEX IF NOT EXISTS idx_fee_configs_semester ON fee_configs(semester_id);
+
+    -- 备份记录表索引
     CREATE INDEX IF NOT EXISTS idx_backup_created_by ON backup_records(created_by);
     CREATE INDEX IF NOT EXISTS idx_backup_created_at ON backup_records(created_at);
   `);
@@ -344,6 +372,9 @@ export async function runMigrations(): Promise<void> {
 
   // 初始化系统配置
   initSystemConfig();
+
+  // 初始化学生数量统计触发器
+  initStudentCountTriggers();
 
   // 运行版本迁移
   migrateClassTeacherUniqueConstraint();

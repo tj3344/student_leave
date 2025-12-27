@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, memo, useMemo } from "react";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { MoreHorizontal, Pencil, Trash2, Star } from "lucide-react";
@@ -39,13 +39,13 @@ interface SemesterTableProps {
   onRefresh: () => void;
 }
 
-export function SemesterTable({ data, onEdit, onDelete, onRefresh }: SemesterTableProps) {
+function SemesterTableInternal({ data, onEdit, onDelete, onRefresh }: SemesterTableProps) {
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; semester?: Semester }>({
     open: false,
   });
   const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleDelete = async () => {
+  const handleDelete = useCallback(async () => {
     if (!deleteDialog.semester) return;
 
     setIsDeleting(true);
@@ -55,8 +55,8 @@ export function SemesterTable({ data, onEdit, onDelete, onRefresh }: SemesterTab
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "删除失败");
+        const result = await response.json();
+        throw new Error(result.error || "删除失败");
       }
 
       setDeleteDialog({ open: false, semester: undefined });
@@ -67,9 +67,9 @@ export function SemesterTable({ data, onEdit, onDelete, onRefresh }: SemesterTab
     } finally {
       setIsDeleting(false);
     }
-  };
+  }, [deleteDialog.semester, onDelete]);
 
-  const handleSetCurrent = async (semester: Semester) => {
+  const handleSetCurrent = useCallback(async (semester: Semester) => {
     try {
       const response = await fetch(`/api/semesters/${semester.id}`, {
         method: "PATCH",
@@ -78,8 +78,8 @@ export function SemesterTable({ data, onEdit, onDelete, onRefresh }: SemesterTab
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "操作失败");
+        const result = await response.json();
+        throw new Error(result.error || "操作失败");
       }
 
       onRefresh();
@@ -87,7 +87,37 @@ export function SemesterTable({ data, onEdit, onDelete, onRefresh }: SemesterTab
       console.error("Set current semester error:", error);
       alert(error instanceof Error ? error.message : "操作失败，请稍后重试");
     }
-  };
+  }, [onRefresh]);
+
+  const handleEdit = useCallback((semester: Semester) => {
+    onEdit(semester);
+  }, [onEdit]);
+
+  const openDeleteDialog = useCallback((semester: Semester) => {
+    setDeleteDialog({ open: true, semester });
+  }, []);
+
+  const tableRows = useMemo(() => {
+    if (data.length === 0) {
+      return (
+        <TableRow>
+          <TableCell colSpan={6} className="h-24 text-center">
+            暂无数据
+          </TableCell>
+        </TableRow>
+      );
+    }
+
+    return data.map((semester) => (
+      <SemesterRow
+        key={semester.id}
+        semester={semester}
+        onEdit={handleEdit}
+        onSetCurrent={handleSetCurrent}
+        onOpenDeleteDialog={openDeleteDialog}
+      />
+    ));
+  }, [data, handleEdit, handleSetCurrent, openDeleteDialog]);
 
   return (
     <>
@@ -104,71 +134,7 @@ export function SemesterTable({ data, onEdit, onDelete, onRefresh }: SemesterTab
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={6} className="h-24 text-center">
-                  暂无数据
-                </TableCell>
-              </TableRow>
-            ) : (
-              data.map((semester) => (
-                <TableRow key={semester.id}>
-                  <TableCell className="font-medium">
-                    <div className="flex items-center gap-2">
-                      {semester.name}
-                      {semester.is_current === 1 && (
-                        <Badge variant="default" className="gap-1">
-                          <Star className="h-3 w-3 fill-current" />
-                          当前
-                        </Badge>
-                      )}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {format(new Date(semester.start_date), "yyyy-MM-dd", { locale: zhCN })}
-                  </TableCell>
-                  <TableCell>
-                    {format(new Date(semester.end_date), "yyyy-MM-dd", { locale: zhCN })}
-                  </TableCell>
-                  <TableCell>{semester.school_days} 天</TableCell>
-                  <TableCell>
-                    {semester.is_current === 1 ? (
-                      <Badge variant="default">当前学期</Badge>
-                    ) : (
-                      <Badge variant="secondary">非当前</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" size="icon" className="h-8 w-8">
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        {semester.is_current !== 1 && (
-                          <DropdownMenuItem onClick={() => handleSetCurrent(semester)}>
-                            <Star className="mr-2 h-4 w-4" />
-                            设为当前学期
-                          </DropdownMenuItem>
-                        )}
-                        <DropdownMenuItem onClick={() => onEdit(semester)}>
-                          <Pencil className="mr-2 h-4 w-4" />
-                          编辑
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          className="text-destructive"
-                          onClick={() => setDeleteDialog({ open: true, semester })}
-                        >
-                          <Trash2 className="mr-2 h-4 w-4" />
-                          删除
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </TableCell>
-                </TableRow>
-              ))
-            )}
+            {tableRows}
           </TableBody>
         </Table>
       </div>
@@ -199,3 +165,72 @@ export function SemesterTable({ data, onEdit, onDelete, onRefresh }: SemesterTab
     </>
   );
 }
+
+interface SemesterRowProps {
+  semester: Semester;
+  onEdit: (semester: Semester) => void;
+  onSetCurrent: (semester: Semester) => void;
+  onOpenDeleteDialog: (semester: Semester) => void;
+}
+
+const SemesterRow = memo(function SemesterRow({ semester, onEdit, onSetCurrent, onOpenDeleteDialog }: SemesterRowProps) {
+  return (
+    <TableRow>
+      <TableCell className="font-medium">
+        <div className="flex items-center gap-2">
+          {semester.name}
+          {semester.is_current === 1 && (
+            <Badge variant="default" className="gap-1">
+              <Star className="h-3 w-3 fill-current" />
+              当前
+            </Badge>
+          )}
+        </div>
+      </TableCell>
+      <TableCell>
+        {format(new Date(semester.start_date), "yyyy-MM-dd", { locale: zhCN })}
+      </TableCell>
+      <TableCell>
+        {format(new Date(semester.end_date), "yyyy-MM-dd", { locale: zhCN })}
+      </TableCell>
+      <TableCell>{semester.school_days} 天</TableCell>
+      <TableCell>
+        {semester.is_current === 1 ? (
+          <Badge variant="default">当前学期</Badge>
+        ) : (
+          <Badge variant="secondary">非当前</Badge>
+        )}
+      </TableCell>
+      <TableCell>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8">
+              <MoreHorizontal className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {semester.is_current !== 1 && (
+              <DropdownMenuItem onClick={() => onSetCurrent(semester)}>
+                <Star className="mr-2 h-4 w-4" />
+                设为当前学期
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem onClick={() => onEdit(semester)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              编辑
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={() => onOpenDeleteDialog(semester)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              删除
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </TableCell>
+    </TableRow>
+  );
+});
+
+export const SemesterTable = memo(SemesterTableInternal);
