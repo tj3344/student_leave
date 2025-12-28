@@ -95,19 +95,19 @@ export function Sidebar({ user }: SidebarProps) {
   };
 
   return (
-    <div className="flex h-full w-64 flex-col border-r bg-background">
+    <div className="flex h-full w-64 flex-col border-r border-sidebar-border bg-sidebar shadow-soft">
       {/* Logo */}
-      <div className="flex h-16 items-center border-b px-6">
-        <Link href="/admin" prefetch={false} className="flex items-center gap-2 font-semibold">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+      <div className="flex h-16 items-center border-b border-sidebar-border px-6">
+        <Link href="/admin" prefetch={false} className="flex items-center gap-3 font-semibold transition-transform hover:scale-[1.02]">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-primary shadow-soft text-primary-foreground">
             <School className="h-5 w-5" />
           </div>
-          <span className="text-lg">学生请假管理</span>
+          <span className="text-lg font-semibold">学生请假管理</span>
         </Link>
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
+      <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-6">
         {navigation.map((section) => {
           const filteredItems = section.items.filter((item) =>
             item.roles.includes(user.role)
@@ -116,8 +116,8 @@ export function Sidebar({ user }: SidebarProps) {
           if (filteredItems.length === 0) return null;
 
           return (
-            <div key={section.category} className="mb-6">
-              <h3 className="mb-2 px-3 text-xs font-semibold uppercase text-muted-foreground">
+            <div key={section.category}>
+              <h3 className="mb-3 px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                 {section.category}
               </h3>
               <div className="space-y-1">
@@ -137,10 +137,10 @@ export function Sidebar({ user }: SidebarProps) {
                       href={item.href}
                       prefetch={false}
                       className={cn(
-                        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                        "flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition-all duration-200 cursor-pointer",
                         isActive
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+                          ? "bg-gradient-primary text-primary-foreground shadow-soft"
+                          : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.01]"
                       )}
                     >
                       <Icon className="h-4 w-4" />
@@ -155,11 +155,11 @@ export function Sidebar({ user }: SidebarProps) {
       </nav>
 
       {/* User Info */}
-      <div className="border-t p-4">
+      <div className="border-t border-sidebar-border p-4">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <div className="flex cursor-pointer items-center gap-3 rounded-lg bg-accent p-3 transition-colors hover:bg-accent/80">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary text-primary-foreground">
+            <div className="flex cursor-pointer items-center gap-3 rounded-xl bg-sidebar-accent p-3 shadow-soft transition-all duration-300 hover:shadow-soft-hover hover:scale-[1.01]">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-primary shadow-soft text-primary-foreground font-semibold">
                 {user.real_name?.charAt(0) || "U"}
               </div>
               <div className="flex-1 overflow-hidden">
@@ -169,13 +169,13 @@ export function Sidebar({ user }: SidebarProps) {
               <ChevronUp className="h-4 w-4 text-muted-foreground" />
             </div>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem onClick={() => setIsPasswordDialogOpen(true)}>
+          <DropdownMenuContent align="end" className="w-48 rounded-xl shadow-soft-lg">
+            <DropdownMenuItem onClick={() => setIsPasswordDialogOpen(true)} className="cursor-pointer rounded-lg">
               <KeyRound className="mr-2 h-4 w-4" />
               <span>修改密码</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive">
+            <DropdownMenuItem onClick={handleLogout} className="text-destructive focus:text-destructive cursor-pointer rounded-lg">
               <LogOut className="mr-2 h-4 w-4" />
               <span>退出登录</span>
             </DropdownMenuItem>

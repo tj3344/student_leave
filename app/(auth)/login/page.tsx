@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { School } from "lucide-react";
 
 function LoginForm() {
   const router = useRouter();
@@ -47,22 +48,33 @@ function LoginForm() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 px-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">学生请假管理系统</CardTitle>
-          <CardDescription className="text-center">请使用您的账号登录</CardDescription>
+    <div className="flex min-h-screen items-center justify-center bg-gradient-soft relative overflow-hidden px-4">
+      {/* 背景装饰 */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-primary/5 rounded-full blur-3xl" />
+        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-primary/8 rounded-full blur-3xl" />
+      </div>
+
+      <Card className="relative w-full max-w-md border-soft shadow-soft-lg">
+        <CardHeader className="space-y-3 pb-6">
+          <div className="flex justify-center">
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-primary shadow-soft">
+              <School className="h-7 w-7 text-primary-foreground" />
+            </div>
+          </div>
+          <CardTitle className="text-2xl font-bold text-center">欢迎回来</CardTitle>
+          <CardDescription className="text-center text-base">登录学生请假管理系统</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-5">
             {error && (
-              <Alert variant="destructive">
+              <Alert variant="destructive" className="rounded-xl">
                 <AlertDescription>{error}</AlertDescription>
               </Alert>
             )}
 
-            <div className="space-y-2">
-              <Label htmlFor="username">用户名</Label>
+            <div className="space-y-2.5">
+              <Label htmlFor="username" className="text-sm font-medium">用户名</Label>
               <Input
                 id="username"
                 type="text"
@@ -74,8 +86,8 @@ function LoginForm() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">密码</Label>
+            <div className="space-y-2.5">
+              <Label htmlFor="password" className="text-sm font-medium">密码</Label>
               <Input
                 id="password"
                 type="password"
@@ -92,7 +104,7 @@ function LoginForm() {
             </Button>
           </form>
         </CardContent>
-        <CardFooter className="text-center text-sm text-muted-foreground">
+        <CardFooter className="text-center text-sm text-muted-foreground pt-2">
           系统角色：管理员 / 教师 / 班主任
         </CardFooter>
       </Card>

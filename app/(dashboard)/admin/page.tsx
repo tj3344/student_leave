@@ -140,8 +140,8 @@ export default function AdminDashboardPage() {
       {/* 标题区域 */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">管理后台</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-3xl font-bold tracking-tight">管理后台</h1>
+          <p className="text-muted-foreground mt-1">
             当前学期：{stats.semester.name}
             <span className="ml-2 text-sm">
               ({stats.semester.start_date} ~ {stats.semester.end_date})
@@ -154,7 +154,7 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* 统计卡片网格 */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {/* 学生统计卡片 */}
         <StatCard
           title="在籍学生"
@@ -197,58 +197,58 @@ export default function AdminDashboardPage() {
       </div>
 
       {/* 快捷入口区域 */}
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-6 md:grid-cols-2">
         {/* 数据管理 */}
-        <Card>
+        <Card className="shadow-soft">
           <CardHeader>
             <CardTitle>数据管理</CardTitle>
             <CardDescription>管理系统基础数据</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <Link href="/admin/students" prefetch={false}>
-              <Button variant="outline" className="w-full justify-between">
+              <Button variant="outline" className="w-full justify-between group cursor-pointer">
                 <span className="flex items-center gap-2">
                   <Users className="h-4 w-4" />
                   学生管理
                 </span>
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Button>
             </Link>
             <Link href="/leaves" prefetch={false}>
-              <Button variant="outline" className="w-full justify-between">
+              <Button variant="outline" className="w-full justify-between group cursor-pointer">
                 <span className="flex items-center gap-2">
                   <ClipboardList className="h-4 w-4" />
                   请假管理
                 </span>
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Button>
             </Link>
           </CardContent>
         </Card>
 
         {/* 系统管理 */}
-        <Card>
+        <Card className="shadow-soft">
           <CardHeader>
             <CardTitle>系统管理</CardTitle>
             <CardDescription>用户和系统设置</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <Link href="/admin/users" prefetch={false}>
-              <Button variant="outline" className="w-full justify-between">
+              <Button variant="outline" className="w-full justify-between group cursor-pointer">
                 <span className="flex items-center gap-2">
                   <Users className="h-4 w-4" />
                   用户管理
                 </span>
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Button>
             </Link>
             <Link href="/admin/settings" prefetch={false}>
-              <Button variant="outline" className="w-full justify-between">
+              <Button variant="outline" className="w-full justify-between group cursor-pointer">
                 <span className="flex items-center gap-2">
                   <Settings className="h-4 w-4" />
                   系统设置
                 </span>
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </Button>
             </Link>
           </CardContent>
