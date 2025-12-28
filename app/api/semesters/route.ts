@@ -4,6 +4,9 @@ import { getSemesters, createSemester } from "@/lib/api/semesters";
 import { PERMISSIONS } from "@/lib/constants";
 import type { SemesterInput } from "@/types";
 
+// 缓存配置：学期列表是相对静态的数据，缓存 24 小时
+export const revalidate = 86400;
+
 // GET /api/semesters - 获取学期列表
 export async function GET(request: NextRequest) {
   try {

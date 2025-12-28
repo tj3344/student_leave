@@ -4,6 +4,9 @@ import { getGrades, createGrade, updateGradesOrder } from "@/lib/api/grades";
 import { hasPermission } from "@/lib/api/auth";
 import type { GradeInput } from "@/types";
 
+// 缓存配置：年级列表是相对静态的数据，缓存 24 小时
+export const revalidate = 86400;
+
 // GET /api/grades - 获取年级列表
 export async function GET(request: NextRequest) {
   try {

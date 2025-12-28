@@ -22,7 +22,8 @@ export function getUsers(
   const queryParams: (string | number)[] = [];
 
   if (params.search) {
-    whereClause += " AND (u.username LIKE ? OR u.real_name LIKE ? OR u.phone LIKE ?)";
+    // 使用 COLLATE NOCASE 索引优化搜索
+    whereClause += " AND (u.username LIKE ? COLLATE NOCASE OR u.real_name LIKE ? COLLATE NOCASE OR u.phone LIKE ? COLLATE NOCASE)";
     const searchTerm = `%${params.search}%`;
     queryParams.push(searchTerm, searchTerm, searchTerm);
   }

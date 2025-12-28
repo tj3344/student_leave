@@ -2,12 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { Plus, RefreshCw, Search, Upload, Download } from "lucide-react";
+import dynamic from "next/dynamic";
 import type { User } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { UserForm } from "@/components/admin/UserForm";
-import { UserTable } from "@/components/admin/UserTable";
-import { UserImportDialog } from "@/components/admin/UserImportDialog";
 import {
   Select,
   SelectContent,
@@ -15,6 +13,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+// 懒加载组件
+const UserForm = dynamic(() => import("@/components/admin/UserForm").then(m => ({ default: m.UserForm })), {
+  ssr: false,
+});
+const UserTable = dynamic(() => import("@/components/admin/UserTable").then(m => ({ default: m.UserTable })), {
+  ssr: false,
+});
+const UserImportDialog = dynamic(() => import("@/components/admin/UserImportDialog").then(m => ({ default: m.UserImportDialog })), {
+  ssr: false,
+});
 // 用户管理页面可选角色（班主任在班级管理中分配）
 const USER_MANAGEMENT_ROLES: Record<string, string> = {
   admin: "管理员",

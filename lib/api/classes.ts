@@ -90,7 +90,8 @@ export function getClasses(
   const queryParams: (string | number)[] = [];
 
   if (params?.search) {
-    whereClause += " AND c.name LIKE ?";
+    // 使用 COLLATE NOCASE 索引优化搜索
+    whereClause += " AND c.name LIKE ? COLLATE NOCASE";
     queryParams.push(`%${params.search}%`);
   }
 

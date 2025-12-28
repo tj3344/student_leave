@@ -2,12 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { Plus, RefreshCw, Search, Upload, Download } from "lucide-react";
+import dynamic from "next/dynamic";
 import type { StudentWithDetails } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { StudentForm } from "@/components/admin/StudentForm";
-import { StudentTable } from "@/components/admin/StudentTable";
-import { StudentImportDialog } from "@/components/admin/StudentImportDialog";
 import {
   Select,
   SelectContent,
@@ -15,6 +13,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+// 懒加载组件
+const StudentForm = dynamic(() => import("@/components/admin/StudentForm").then(m => ({ default: m.StudentForm })), {
+  ssr: false,
+});
+const StudentTable = dynamic(() => import("@/components/admin/StudentTable").then(m => ({ default: m.StudentTable })), {
+  ssr: false,
+});
+const StudentImportDialog = dynamic(() => import("@/components/admin/StudentImportDialog").then(m => ({ default: m.StudentImportDialog })), {
+  ssr: false,
+});
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<StudentWithDetails[]>([]);

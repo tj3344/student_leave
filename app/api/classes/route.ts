@@ -4,6 +4,9 @@ import { getClasses, createClass } from "@/lib/api/classes";
 import { hasPermission } from "@/lib/api/auth";
 import type { ClassInput } from "@/types";
 
+// 缓存配置：班级列表是相对静态的数据，缓存 24 小时
+export const revalidate = 86400;
+
 // GET /api/classes - 获取班级列表
 export async function GET(request: NextRequest) {
   try {

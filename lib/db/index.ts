@@ -269,6 +269,23 @@ export function initDatabase(): void {
     -- 备份记录表索引
     CREATE INDEX IF NOT EXISTS idx_backup_created_by ON backup_records(created_by);
     CREATE INDEX IF NOT EXISTS idx_backup_created_at ON backup_records(created_at);
+
+    -- 搜索优化索引（使用 COLLATE NOCASE 进行不区分大小写的搜索）
+    -- 学生表搜索索引
+    CREATE INDEX IF NOT EXISTS idx_students_name ON students(name COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_students_student_no ON students(student_no COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_students_parent_phone ON students(parent_phone COLLATE NOCASE);
+
+    -- 用户表搜索索引
+    CREATE INDEX IF NOT EXISTS idx_users_username ON users(username COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_users_real_name ON users(real_name COLLATE NOCASE);
+    CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone COLLATE NOCASE);
+
+    -- 班级表搜索索引
+    CREATE INDEX IF NOT EXISTS idx_classes_name ON classes(name COLLATE NOCASE);
+
+    -- 学期表搜索索引
+    CREATE INDEX IF NOT EXISTS idx_semesters_name ON semesters(name COLLATE NOCASE);
   `);
 
   console.log("Database initialized successfully");

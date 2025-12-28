@@ -33,7 +33,8 @@ export function getGrades(params?: PaginationParams & { semester_id?: number }):
   const queryParams: (string | number)[] = [];
 
   if (params?.search) {
-    whereClause = "WHERE name LIKE ?";
+    // 使用 COLLATE NOCASE 索引优化搜索
+    whereClause = "WHERE name LIKE ? COLLATE NOCASE";
     queryParams.push(`%${params.search}%`);
   }
 

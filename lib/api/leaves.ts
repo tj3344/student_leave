@@ -35,8 +35,9 @@ export function getLeaves(
   const queryParams: (string | number)[] = [];
 
   if (params.search) {
+    // 使用 COLLATE NOCASE 索引优化搜索（reason 字段不包含敏感信息，直接搜索）
     whereClause +=
-      " AND (s.student_no LIKE ? OR s.name LIKE ? OR u.real_name LIKE ? OR lr.reason LIKE ?)";
+      " AND (s.student_no LIKE ? COLLATE NOCASE OR s.name LIKE ? COLLATE NOCASE OR u.real_name LIKE ? COLLATE NOCASE OR lr.reason LIKE ?)";
     const searchTerm = `%${params.search}%`;
     queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
   }
@@ -348,6 +349,7 @@ export function getPendingLeaveCount(): number {
 
 /**
  * 获取请假统计
+ * 优化：使用单条查询获取所有统计数据，避免多次查询
  */
 export function getLeaveStats(semesterId?: number): {
   total: number;
@@ -366,42 +368,32 @@ export function getLeaveStats(semesterId?: number): {
     params.push(semesterId);
   }
 
-  const total = (
-    db.prepare(`SELECT COUNT(*) as count FROM leave_records ${whereClause}`).get(...params) as {
-      count: number;
-    }
-  ).count;
-
-  const pending = (
-    db.prepare(`SELECT COUNT(*) as count FROM leave_records ${whereClause} AND status = 'pending'`).get(
-      ...params
-    ) as { count: number }
-  ).count;
-
-  const approved = (
-    db.prepare(`SELECT COUNT(*) as count FROM leave_records ${whereClause} AND status = 'approved'`).get(
-      ...params
-    ) as { count: number }
-  ).count;
-
-  const rejected = (
-    db.prepare(`SELECT COUNT(*) as count FROM leave_records ${whereClause} AND status = 'rejected'`).get(
-      ...params
-    ) as { count: number }
-  ).count;
-
-  const totalRefundAmount = (
-    db
-      .prepare(`SELECT COALESCE(SUM(refund_amount), 0) as amount FROM leave_records ${whereClause} AND status = 'approved'`)
-      .get(...params) as { amount: number }
-  ).amount;
+  // 使用单条查询获取所有统计数据，将 5 次查询优化为 1 次
+  const result = db
+    .prepare(`
+      SELECT
+        COUNT(*) as total,
+        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
+        SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected,
+        COALESCE(SUM(CASE WHEN status = 'approved' THEN refund_amount ELSE 0 END), 0) as totalRefundAmount
+      FROM leave_records
+      ${whereClause}
+    `)
+    .get(...params) as {
+      total: number;
+      pending: number;
+      approved: number;
+      rejected: number;
+      totalRefundAmount: number;
+    };
 
   return {
-    total,
-    pending,
-    approved,
-    rejected,
-    totalRefundAmount,
+    total: result.total,
+    pending: result.pending || 0,
+    approved: result.approved || 0,
+    rejected: result.rejected || 0,
+    totalRefundAmount: result.totalRefundAmount,
   };
 }
 
@@ -490,49 +482,32 @@ export function getLeavesByStudent(studentId: number, semesterId?: number): Leav
 /**
  * 重新计算所有请假记录的退费金额
  * 使用新的费用配置
+ * 优化：使用单条 SQL 批量更新，避免 N+1 查询问题
  */
 export function recalculateAllLeaveRefunds(): { updated: number; message: string } {
   const db = getDb();
 
-  // 获取所有需要更新的请假记录
-  const leaves = db
+  // 使用单条 SQL 批量更新所有记录，避免 N+1 查询问题
+  const result = db
     .prepare(`
-      SELECT lr.id, lr.student_id, lr.semester_id, lr.leave_days, lr.is_refund,
-             s.is_nutrition_meal,
-             fc.meal_fee_standard
-      FROM leave_records lr
-      LEFT JOIN students s ON lr.student_id = s.id
+      UPDATE leave_records
+      SET refund_amount =
+        CASE
+          WHEN s.is_nutrition_meal = 1 THEN NULL
+          ELSE leave_records.leave_days * COALESCE(fc.meal_fee_standard, 0)
+        END,
+        updated_at = CURRENT_TIMESTAMP
+      FROM leave_records
+      LEFT JOIN students s ON leave_records.student_id = s.id
       LEFT JOIN classes c ON s.class_id = c.id
-      LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = lr.semester_id
-      WHERE lr.is_refund = 1
+      LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = leave_records.semester_id
+      WHERE leave_records.is_refund = 1
     `)
-    .all() as {
-      id: number;
-      student_id: number;
-      semester_id: number;
-      leave_days: number;
-      is_refund: number;
-      is_nutrition_meal: number;
-      meal_fee_standard: number | null;
-    }[];
-
-  let updatedCount = 0;
-
-  for (const leave of leaves) {
-    const isNutritionMeal = leave.is_nutrition_meal === 1;
-    const mealFeeStandard = leave.meal_fee_standard ?? 0;
-    const refundAmount = isNutritionMeal ? null : leave.leave_days * mealFeeStandard;
-
-    db.prepare(
-      `UPDATE leave_records SET refund_amount = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`
-    ).run(refundAmount, leave.id);
-
-    updatedCount++;
-  }
+    .run();
 
   return {
-    updated: updatedCount,
-    message: `已更新 ${updatedCount} 条请假记录的退费金额`,
+    updated: result.changes,
+    message: `已更新 ${result.changes} 条请假记录的退费金额`,
   };
 }
 

@@ -21,7 +21,8 @@ export function getStudents(
   const queryParams: (string | number)[] = [];
 
   if (params.search) {
-    whereClause += " AND (s.student_no LIKE ? OR s.name LIKE ? OR s.parent_phone LIKE ?)";
+    // 使用 COLLATE NOCASE 索引优化搜索（虽然前导通配符无法完全利用索引）
+    whereClause += " AND (s.student_no LIKE ? COLLATE NOCASE OR s.name LIKE ? COLLATE NOCASE OR s.parent_phone LIKE ? COLLATE NOCASE)";
     const searchTerm = `%${params.search}%`;
     queryParams.push(searchTerm, searchTerm, searchTerm);
   }

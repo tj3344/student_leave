@@ -4,6 +4,9 @@ import { getDb } from "@/lib/db";
 import { getCurrentSemester } from "@/lib/api/semesters";
 import type { DashboardStats } from "@/types";
 
+// 缓存配置：统计数据缓存 1 小时
+export const revalidate = 3600;
+
 /**
  * GET /api/dashboard/stats - 获取管理员仪表盘统计数据
  */

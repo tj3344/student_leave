@@ -5,6 +5,9 @@ import { hasPermission } from "@/lib/api/auth";
 import { PERMISSIONS } from "@/lib/constants";
 import type { FeeConfigInput } from "@/types";
 
+// 缓存配置：费用配置是相对静态的数据，缓存 24 小时
+export const revalidate = 86400;
+
 /**
  * GET /api/fee-configs - 获取费用配置列表
  */

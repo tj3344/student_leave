@@ -1,11 +1,14 @@
 import { cookies } from "next/headers";
 import { getDb } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/utils/crypto";
-import type { User } from "@/types";
+import type { User, UserRole } from "@/types";
 import type { LoginInput, UserCreateInput } from "@/lib/utils/validation";
 import { loginSchema, userCreateSchema } from "@/lib/utils/validation";
-import { hasPermission as checkPermission } from "@/lib/constants";
+import { hasPermission as checkPermission, ROLES } from "@/lib/constants";
 import { logLogin } from "@/lib/utils/logger";
+
+// 允许登录的角色
+const ALLOWED_LOGIN_ROLES: UserRole[] = [ROLES.ADMIN, ROLES.CLASS_TEACHER];
 
 const SESSION_COOKIE_NAME = "student_leave_session";
 const SESSION_MAX_AGE = 7 * 24 * 60 * 60; // 7 天
@@ -34,6 +37,11 @@ export async function login(
   const isValid = await verifyPassword(validated.password, user.password_hash);
   if (!isValid) {
     return { success: false, message: "用户名或密码错误" };
+  }
+
+  // 检查角色权限
+  if (!ALLOWED_LOGIN_ROLES.includes(user.role)) {
+    return { success: false, message: "无权限登录，仅管理员和班主任可登录" };
   }
 
   // 设置会话

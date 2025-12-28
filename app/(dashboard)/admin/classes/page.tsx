@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Plus, RefreshCw, Download, Upload } from "lucide-react";
+import dynamic from "next/dynamic";
 import type { ClassWithDetails, Grade } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,9 +12,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ClassForm } from "@/components/admin/ClassForm";
-import { ClassTable } from "@/components/admin/ClassTable";
-import { ClassImportDialog } from "@/components/admin/ClassImportDialog";
+
+// 懒加载组件
+const ClassForm = dynamic(() => import("@/components/admin/ClassForm").then(m => ({ default: m.ClassForm })), {
+  ssr: false,
+});
+const ClassTable = dynamic(() => import("@/components/admin/ClassTable").then(m => ({ default: m.ClassTable })), {
+  ssr: false,
+});
+const ClassImportDialog = dynamic(() => import("@/components/admin/ClassImportDialog").then(m => ({ default: m.ClassImportDialog })), {
+  ssr: false,
+});
 
 export default function ClassesPage() {
   const [classes, setClasses] = useState<ClassWithDetails[]>([]);

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Plus, RefreshCw, Download, Upload } from "lucide-react";
+import dynamic from "next/dynamic";
 import type { FeeConfigWithDetails, Semester } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,9 +12,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { FeeConfigForm } from "@/components/admin/FeeConfigForm";
-import { FeeConfigTable } from "@/components/admin/FeeConfigTable";
-import { FeeConfigImportDialog } from "@/components/admin/FeeConfigImportDialog";
+
+// 懒加载组件
+const FeeConfigForm = dynamic(() => import("@/components/admin/FeeConfigForm").then(m => ({ default: m.FeeConfigForm })), {
+  ssr: false,
+});
+const FeeConfigTable = dynamic(() => import("@/components/admin/FeeConfigTable").then(m => ({ default: m.FeeConfigTable })), {
+  ssr: false,
+});
+const FeeConfigImportDialog = dynamic(() => import("@/components/admin/FeeConfigImportDialog").then(m => ({ default: m.FeeConfigImportDialog })), {
+  ssr: false,
+});
 
 export default function FeesPage() {
   const [feeConfigs, setFeeConfigs] = useState<FeeConfigWithDetails[]>([]);
