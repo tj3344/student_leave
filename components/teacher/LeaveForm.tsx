@@ -121,6 +121,12 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
   const [minLeaveDays, setMinLeaveDays] = useState(3); // 默认值
   const [teacherClassId, setTeacherClassId] = useState<number | undefined>(defaultClassId);
 
+  // 管理员筛选状态
+  const [gradeList, setGradeList] = useState<Array<{ id: number; name: string }>>([]);
+  const [classList, setClassList] = useState<Array<{ id: number; name: string; grade_id: number }>>([]);
+  const [selectedGradeId, setSelectedGradeId] = useState<number | undefined>();
+  const [selectedClassId, setSelectedClassId] = useState<number | undefined>();
+
   // 判断是否包含状态选择（仅管理员编辑模式）
   const includeStatus = currentUser?.role === "admin" && mode === "edit";
 
@@ -144,6 +150,11 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
       fetchSemesters();
       fetchSystemConfig();
 
+      // 管理员加载年级列表
+      if (currentUser?.role === "admin") {
+        fetchGrades();
+      }
+
       // 编辑模式下设置初始值
       if (mode === "edit" && editingLeave) {
         form.reset({
@@ -157,7 +168,7 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
         });
       }
     }
-  }, [open, mode, editingLeave, includeStatus]);
+  }, [open, mode, editingLeave, includeStatus, currentUser?.role]);
 
   // 获取当前用户信息
   const fetchCurrentUser = async () => {
@@ -187,6 +198,30 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
       }
     } catch (error) {
       console.error("Fetch teacher class error:", error);
+    }
+  };
+
+  // 获取年级列表（管理员）
+  const fetchGrades = async () => {
+    try {
+      const response = await fetch("/api/grades");
+      const data = await response.json();
+      setGradeList(data.data || []);
+    } catch (error) {
+      console.error("Fetch grades error:", error);
+    }
+  };
+
+  // 获取班级列表（管理员）
+  const fetchClasses = async (gradeId?: number) => {
+    try {
+      const params = new URLSearchParams();
+      if (gradeId) params.append("grade_id", String(gradeId));
+      const response = await fetch(`/api/classes?${params.toString()}`);
+      const data = await response.json();
+      setClassList(data.data || []);
+    } catch (error) {
+      console.error("Fetch classes error:", error);
     }
   };
 
@@ -301,6 +336,55 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
               )}
             />
 
+            {/* 管理员：年级和班级筛选 */}
+            {currentUser?.role === "admin" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">年级 *</label>
+                  <Select
+                    value={selectedGradeId ? String(selectedGradeId) : ""}
+                    onValueChange={(v) => {
+                      const gradeId = parseInt(v, 10);
+                      setSelectedGradeId(gradeId);
+                      setSelectedClassId(undefined); // 重置班级选择
+                      fetchClasses(gradeId); // 加载该年级的班级
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="请选择年级" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {gradeList.map((grade) => (
+                        <SelectItem key={grade.id} value={String(grade.id)}>
+                          {grade.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">班级 *</label>
+                  <Select
+                    value={selectedClassId ? String(selectedClassId) : ""}
+                    onValueChange={(v) => setSelectedClassId(parseInt(v, 10))}
+                    disabled={!selectedGradeId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={selectedGradeId ? "请选择班级" : "请先选择年级"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {classList.map((cls) => (
+                        <SelectItem key={cls.id} value={String(cls.id)}>
+                          {cls.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
             {/* 学生选择 */}
             <FormField
               control={form.control}
@@ -313,8 +397,9 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
                       value={field.value}
                       onChange={handleStudentChange}
                       semesterId={semesterId}
-                      classId={teacherClassId}
-                      placeholder="请选择学生"
+                      classId={currentUser?.role === "admin" ? selectedClassId : teacherClassId}
+                      disabled={currentUser?.role === "admin" && !selectedClassId}
+                      placeholder={currentUser?.role === "admin" ? "请先选择年级和班级" : "请选择学生"}
                     />
                   </FormControl>
                   <FormMessage />

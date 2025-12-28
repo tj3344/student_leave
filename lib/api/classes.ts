@@ -66,6 +66,11 @@ export function getClasses(
       queryParams.push(params.semester_id);
     }
 
+    if (params?.grade_id) {
+      whereConditions.push("c.grade_id = ?");
+      queryParams.push(params.grade_id);
+    }
+
     if (params?.class_teacher_id) {
       whereConditions.push("c.class_teacher_id = ?");
       queryParams.push(params.class_teacher_id);
