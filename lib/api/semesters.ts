@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { validateOrderBy, SORT_FIELDS, DEFAULT_SORT_FIELDS } from "@/lib/utils/sql-security";
 import type { Semester, SemesterInput, PaginationParams, PaginatedResponse } from "@/types";
 import { cached, clearSemesterCache } from "@/lib/cache";
 
@@ -35,12 +36,15 @@ export function getSemesters(params?: PaginationParams): PaginatedResponse<Semes
     .get(...queryParams) as { total: number };
   const total = countResult.total;
 
-  // 获取数据
-  const order = params?.order || "desc";
-  const sort = params?.sort || "start_date";
+  // 获取数据（使用白名单验证防止 SQL 注入）
+  const { orderBy, order } = validateOrderBy(
+    params?.sort,
+    params?.order,
+    { allowedFields: SORT_FIELDS.semesters, defaultField: DEFAULT_SORT_FIELDS.semesters }
+  );
   const data = db
     .prepare(
-      `SELECT * FROM semesters ${whereClause} ORDER BY ${sort} ${order} LIMIT ? OFFSET ?`
+      `SELECT * FROM semesters ${whereClause} ORDER BY ${orderBy} ${order} LIMIT ? OFFSET ?`
     )
     .all(...queryParams, limit, offset) as Semester[];
 

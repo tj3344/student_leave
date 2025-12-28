@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { getNumberConfig } from "./system-config";
+import { validateOrderBy, SORT_FIELDS, DEFAULT_SORT_FIELDS } from "@/lib/utils/sql-security";
 import { validateLeaveRequest } from "@/lib/utils/leave-validation";
 import type {
   LeaveInput,
@@ -67,9 +68,12 @@ export function getLeaves(
     queryParams.push(params.applicant_id);
   }
 
-  // 排序
-  const orderBy = params.sort || "lr.created_at";
-  const order = params.order || "desc";
+  // 排序（使用白名单验证防止 SQL 注入）
+  const { orderBy, order } = validateOrderBy(
+    params.sort,
+    params.order,
+    { allowedFields: SORT_FIELDS.leaves, defaultField: DEFAULT_SORT_FIELDS.leaves }
+  );
   const orderClause = `ORDER BY ${orderBy} ${order}`;
 
   // 获取总数

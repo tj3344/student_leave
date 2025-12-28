@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { validateOrderBy, SORT_FIELDS } from "@/lib/utils/sql-security";
 import type {
   ClassInput,
   ClassWithDetails,
@@ -116,9 +117,12 @@ export function getClasses(
     .get(...queryParams) as { total: number };
   const total = countResult.total;
 
-  // 获取数据
-  const order = params?.order || "asc";
-  const sort = params?.sort || "g.sort_order";
+  // 获取数据（使用白名单验证防止 SQL 注入）
+  const { orderBy, order } = validateOrderBy(
+    params?.sort,
+    params?.order,
+    { allowedFields: SORT_FIELDS.classes, defaultField: "c.created_at" }
+  );
   const data = db
     .prepare(`
       SELECT c.*,
@@ -128,7 +132,7 @@ export function getClasses(
       LEFT JOIN grades g ON c.grade_id = g.id AND c.semester_id = g.semester_id
       LEFT JOIN users u ON c.class_teacher_id = u.id
       ${whereClause}
-      ORDER BY ${sort} ${order}
+      ORDER BY ${orderBy} ${order}
       LIMIT ? OFFSET ?
     `)
     .all(...queryParams, limit, offset) as ClassWithDetails[];

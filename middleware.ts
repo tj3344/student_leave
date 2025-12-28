@@ -3,6 +3,16 @@ import type { NextRequest } from "next/server";
 
 const SESSION_COOKIE_NAME = "student_leave_session";
 
+// CSP 头部配置
+const CSP_HEADER = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: https:",
+  "font-src 'self' data:",
+  "connect-src 'self'",
+].join("; ");
+
 // 不需要认证的路径
 const publicPaths = ["/", "/login", "/api/auth/login", "/api/init"];
 
@@ -11,6 +21,16 @@ const apiPaths = ["/api"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // 创建响应对象并添加安全头部
+  const response = NextResponse.next();
+
+  // 添加 CSP 和其他安全头部
+  response.headers.set("Content-Security-Policy", CSP_HEADER);
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("X-XSS-Protection", "1; mode=block");
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
 
   // 如果是公共路径，直接放行
   if (publicPaths.some((path) => pathname.startsWith(path))) {
@@ -22,12 +42,12 @@ export async function middleware(request: NextRequest) {
         return NextResponse.redirect(new URL("/home", request.url));
       }
     }
-    return NextResponse.next();
+    return response;
   }
 
   // API 路由由各自的处理器处理认证和授权
   if (apiPaths.some((path) => pathname.startsWith(path))) {
-    return NextResponse.next();
+    return response;
   }
 
   // 页面路由：检查是否有会话 cookie
@@ -40,7 +60,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  return NextResponse.next();
+  return response;
 }
 
 export const config = {

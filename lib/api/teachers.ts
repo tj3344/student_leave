@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { hashPassword } from "@/lib/utils/crypto";
+import { validateOrderBy, SORT_FIELDS, DEFAULT_SORT_FIELDS } from "@/lib/utils/sql-security";
 import type { User, UserInput, UserUpdate, PaginationParams, PaginatedResponse } from "@/types";
 
 /**
@@ -60,9 +61,12 @@ export function getTeachers(
     }
   }
 
-  // 排序
-  const orderBy = params.sort || "u.created_at";
-  const order = params.order || "desc";
+  // 排序（使用白名单验证防止 SQL 注入）
+  const { orderBy, order } = validateOrderBy(
+    params.sort,
+    params.order,
+    { allowedFields: SORT_FIELDS.teachers, defaultField: DEFAULT_SORT_FIELDS.teachers }
+  );
   const orderClause = `ORDER BY ${orderBy} ${order}`;
 
   // 获取总数

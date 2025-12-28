@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { validateOrderBy, SORT_FIELDS } from "@/lib/utils/sql-security";
 import type { Grade, GradeInput, PaginationParams, PaginatedResponse } from "@/types";
 
 /**
@@ -54,12 +55,15 @@ export function getGrades(params?: PaginationParams & { semester_id?: number }):
     .get(...queryParams) as { total: number };
   const total = countResult.total;
 
-  // 获取数据
-  const order = params?.order || "asc";
-  const sort = params?.sort || "sort_order";
+  // 获取数据（使用白名单验证防止 SQL 注入）
+  const { orderBy, order } = validateOrderBy(
+    params?.sort,
+    params?.order,
+    { allowedFields: SORT_FIELDS.grades, defaultField: "g.created_at" }
+  );
   const data = db
     .prepare(
-      `SELECT * FROM grades ${whereClause} ORDER BY ${sort} ${order} LIMIT ? OFFSET ?`
+      `SELECT * FROM grades ${whereClause} ORDER BY ${orderBy} ${order} LIMIT ? OFFSET ?`
     )
     .all(...queryParams, limit, offset) as Grade[];
 

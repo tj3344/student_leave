@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { validateOrderBy, SORT_FIELDS, DEFAULT_SORT_FIELDS } from "@/lib/utils/sql-security";
 import type { Student, StudentInput, PaginationParams, PaginatedResponse, StudentWithDetails } from "@/types";
 
 /**
@@ -42,9 +43,12 @@ export function getStudents(
     queryParams.push(params.is_active);
   }
 
-  // 排序
-  const orderBy = params.sort || "s.created_at";
-  const order = params.order || "desc";
+  // 排序（使用白名单验证防止 SQL 注入）
+  const { orderBy, order } = validateOrderBy(
+    params.sort,
+    params.order,
+    { allowedFields: SORT_FIELDS.students, defaultField: DEFAULT_SORT_FIELDS.students }
+  );
   const orderClause = `ORDER BY ${orderBy} ${order}`;
 
   // 获取总数
