@@ -257,9 +257,9 @@ export function upgradeSemester(
               student.is_active
             );
             studentsCreated++;
-          } catch (error: any) {
+          } catch (error: unknown) {
             // 如果学号重复，记录警告但继续处理其他学生
-            if (error.message?.includes("UNIQUE")) {
+            if (error instanceof Error && error.message?.includes("UNIQUE")) {
               warnings.push(`学号 ${student.student_no} 已存在，跳过该学生`);
             } else {
               throw error;

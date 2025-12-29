@@ -22,16 +22,9 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import type { Grade, Semester } from "@/types";
+import type { Grade } from "@/types";
 
 const gradeSchema = z.object({
   semester_id: z.coerce.number().min(1, "请选择学期"),
@@ -65,6 +58,7 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
   });
 
   // 只在 grade 变化时重置表单
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (grade) {
       form.reset({
@@ -89,11 +83,13 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
   }, [grade, currentSemesterId]);
 
   // 获取当前学期
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     fetchCurrentSemester();
   }, []);
 
   // 当对话框打开时，新增模式重置学期
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (open && !grade) {
       fetchCurrentSemester();

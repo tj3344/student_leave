@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { GraduationCap, Loader2, CheckCircle, AlertCircle, ArrowRight, ChevronRight } from "lucide-react";
+import { GraduationCap, Loader2, CheckCircle, AlertCircle, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -179,7 +179,7 @@ export function SemesterUpgradeDialog({
     if (!sourceSemesterId || !targetSemesterId) return;
 
     const selectedGradeIds = Object.entries(selectedGrades)
-      .filter(([_, selected]) => selected)
+      .filter(([, selected]) => selected)
       .map(([id]) => parseInt(id, 10));
 
     if (selectedGradeIds.length === 0) {

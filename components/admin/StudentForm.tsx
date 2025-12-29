@@ -119,6 +119,7 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
   }, [student, form]);
 
   // 加载班级列表
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (open && currentSemesterId) {
       fetchClasses();

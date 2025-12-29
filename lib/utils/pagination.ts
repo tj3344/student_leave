@@ -21,7 +21,7 @@ export interface CursorPaginationResult<T> {
  * 游标数据结构
  */
 interface CursorData {
-  value: any // 通常是 ID 或时间戳
+  value: string | number // 通常是 ID 或时间戳
   sortField?: string
 }
 
@@ -31,7 +31,7 @@ interface CursorData {
  * @param sortField 排序字段（可选）
  * @returns Base64URL 编码的游标字符串
  */
-export function createCursor(value: any, sortField?: string): string {
+export function createCursor(value: string | number, sortField?: string): string {
   const data: CursorData = { value, sortField }
   return Buffer.from(JSON.stringify(data))
     .toString('base64')
@@ -61,14 +61,14 @@ export function parseCursor(cursor: string): CursorData | null {
  * 构建游标分页查询的 WHERE 子句和参数
  * @param params 分页参数
  * @param orderBy 排序字段
- * @returns { sql: string, params: any[] }
+ * @returns { sql: string, params: unknown[] }
  */
 export function buildCursorPaginationQuery(
   params: CursorPaginationParams,
   orderBy: string = 'created_at'
-): { sql: string; params: any[] } {
+): { sql: string; params: unknown[] } {
   const limit = Math.min(params.limit || 20, 100) // 最大限制 100
-  const queryParams: any[] = []
+  const queryParams: unknown[] = []
 
   let whereClause = ''
   if (params.cursor) {
@@ -98,7 +98,7 @@ export function buildCursorPaginationQuery(
  * @param orderBy 排序字段
  * @returns CursorPaginationResult
  */
-export function processCursorPaginationResult<T extends Record<string, any>>(
+export function processCursorPaginationResult<T extends Record<string, unknown>>(
   results: T[],
   limit: number,
   orderBy: string = 'created_at'
@@ -138,9 +138,9 @@ export interface LeaveCursorPaginationParams extends CursorPaginationParams {
  */
 export function buildLeaveCursorPaginationQuery(
   params: LeaveCursorPaginationParams
-): { sql: string; queryParams: any[] } {
+): { sql: string; queryParams: unknown[] } {
   const limit = Math.min(params.limit || 20, 100)
-  const queryParams: any[] = []
+  const queryParams: unknown[] = []
 
   // 基础过滤条件
   const conditions: string[] = []

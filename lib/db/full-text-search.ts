@@ -72,7 +72,7 @@ export function searchStudents(
   query: string,
   limit: number = 20,
   offset: number = 0
-): any[] {
+): Record<string, unknown>[] {
   const db = getDb();
 
   // 使用 FTS5 搜索

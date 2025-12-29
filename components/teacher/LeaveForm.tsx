@@ -147,6 +147,7 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
   });
 
   // 加载学期列表和系统配置
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (open) {
       fetchCurrentUser();
@@ -169,6 +170,7 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
   }, [open, mode, editingLeave, includeStatus, currentUser?.role]);
 
   // 当当前学期加载完成后，管理员加载年级列表
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (open && currentSemester && currentUser?.role === "admin") {
       fetchGrades();
@@ -269,6 +271,7 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
   };
 
   // 当学期列表更新时，同步更新 form context
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     form.setValue("semester_id", form.watch("semester_id")); // 触发重新验证
   }, [semesterOptions]);

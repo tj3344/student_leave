@@ -1,12 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { z } from 'zod'
 import {
   loginSchema,
   userCreateSchema,
-  userUpdateSchema,
   changePasswordSchema,
   studentCreateSchema,
-  studentUpdateSchema,
   leaveCreateSchema,
   leaveReviewSchema,
   semesterCreateSchema,
