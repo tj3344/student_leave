@@ -286,6 +286,19 @@ export function initDatabase(): void {
 
     -- 学期表搜索索引
     CREATE INDEX IF NOT EXISTS idx_semesters_name ON semesters(name COLLATE NOCASE);
+
+    -- 性能优化：复合索引
+    -- 班级查询优化：按学期、年级、班主任查询
+    CREATE INDEX IF NOT EXISTS idx_classes_semester_grade_teacher
+      ON classes(semester_id, grade_id, class_teacher_id);
+
+    -- 请假记录复合索引：按学期、状态、开始日期查询（优化待审核列表）
+    CREATE INDEX IF NOT EXISTS idx_leave_records_semester_status_date
+      ON leave_records(semester_id, status, start_date);
+
+    -- 请假记录复合索引：按学生、状态、开始日期查询（优化学生请假历史）
+    CREATE INDEX IF NOT EXISTS idx_leave_records_student_status_date
+      ON leave_records(student_id, status, start_date);
   `);
 
   console.log("Database initialized successfully");
