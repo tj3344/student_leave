@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   // 允许服务器组件使用外部包
   serverExternalPackages: ["better-sqlite3", "node-cron"],
 
+  // 输出模式：standalone 用于 Docker 部署
+  output: "standalone",
+
   // React 严格模式（开发环境）
   reactStrictMode: true,
 

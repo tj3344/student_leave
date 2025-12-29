@@ -1,0 +1,22 @@
+[Unit]
+Description=Student Leave Management System
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/home/admin/code_data/student_leave
+Environment="NODE_ENV=production"
+Environment="PORT=3000"
+ExecStart=/usr/bin/node node_modules/next/dist/bin/next start -p 3000
+Restart=on-failure
+RestartSec=10
+StandardOutput=append:/home/admin/code_data/student_leave/logs/systemd-out.log
+StandardError=append:/home/admin/code_data/student_leave/logs/systemd-error.log
+
+# 资源限制
+MemoryMax=1G
+CPUQuota=100%
+
+[Install]
+WantedBy=multi-user.target
