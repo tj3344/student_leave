@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Download, RefreshCw } from "lucide-react";
+import { Download, RefreshCw, AlertCircle } from "lucide-react";
 import type { ClassRefundSummaryFull, Semester } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,20 +11,24 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RefundSummaryTable } from "@/components/admin/RefundSummaryTable";
 
 export default function RefundSummaryPage() {
   const [summaryData, setSummaryData] = useState<ClassRefundSummaryFull[]>([]);
-  const [semesters, setSemesters] = useState<Semester[]>([]);
   const [loading, setLoading] = useState(true);
-  const [semesterFilter, setSemesterFilter] = useState<number>(0);
+  const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
+  const [currentSemesterName, setCurrentSemesterName] = useState<string>("");
+  const [semesterLoading, setSemesterLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
 
   const fetchSummaryData = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (semesterFilter) params.append("semester_id", semesterFilter.toString());
+      if (currentSemesterId) {
+        params.append("semester_id", currentSemesterId.toString());
+      }
 
       const response = await fetch(`/api/fees/summary?${params.toString()}`);
       const data = await response.json();
@@ -36,21 +40,29 @@ export default function RefundSummaryPage() {
     }
   };
 
-  const fetchSemesters = async () => {
+  const fetchCurrentSemester = async () => {
     try {
       const response = await fetch("/api/semesters");
       const data = await response.json();
-      setSemesters(data.data || []);
+      const currentSemester = data.data?.find((s: { is_current: number }) => s.is_current === 1);
+      if (currentSemester) {
+        setCurrentSemesterId(currentSemester.id);
+        setCurrentSemesterName(currentSemester.name);
+      }
     } catch (error) {
-      console.error("Fetch semesters error:", error);
+      console.error("获取当前学期失败:", error);
+    } finally {
+      setSemesterLoading(false);
     }
   };
 
   const handleExport = async () => {
+    if (!currentSemesterId) return;
+
     setExporting(true);
     try {
       const params = new URLSearchParams();
-      if (semesterFilter) params.append("semester_id", semesterFilter.toString());
+      params.append("semester_id", currentSemesterId.toString());
 
       const response = await fetch(`/api/fees/summary/export?${params.toString()}`);
 
@@ -78,12 +90,14 @@ export default function RefundSummaryPage() {
   };
 
   useEffect(() => {
-    fetchSemesters();
+    fetchCurrentSemester();
   }, []);
 
   useEffect(() => {
-    fetchSummaryData();
-  }, [semesterFilter]);
+    if (currentSemesterId) {
+      fetchSummaryData();
+    }
+  }, [currentSemesterId]);
 
   return (
     <div className="space-y-6">
@@ -93,7 +107,7 @@ export default function RefundSummaryPage() {
           <p className="text-muted-foreground">按班级汇总退费总金额</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExport} disabled={exporting || summaryData.length === 0}>
+          <Button variant="outline" onClick={handleExport} disabled={exporting || summaryData.length === 0 || !currentSemesterId}>
             {exporting ? (
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
             ) : (
@@ -101,27 +115,30 @@ export default function RefundSummaryPage() {
             )}
             导出
           </Button>
-          <Button variant="outline" size="icon" onClick={fetchSummaryData} disabled={loading}>
+          <Button variant="outline" size="icon" onClick={fetchSummaryData} disabled={loading || !currentSemesterId}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
         </div>
       </div>
 
-      <div className="flex gap-4">
-        <Select value={semesterFilter.toString()} onValueChange={(v) => setSemesterFilter(v === "0" ? 0 : parseInt(v, 10))}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="请选择学期" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="0">全部学期</SelectItem>
-            {semesters.map((semester) => (
-              <SelectItem key={semester.id} value={semester.id.toString()}>
-                {semester.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {/* 无当前学期提示 */}
+      {!currentSemesterId && !semesterLoading && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>未设置当前学期</AlertTitle>
+          <AlertDescription>
+            请先在学期管理中设置一个当前学期。
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* 当前学期显示 */}
+      {currentSemesterId && (
+        <div className="rounded-md bg-muted p-3">
+          <div className="text-sm font-medium">当前学期</div>
+          <div className="text-sm text-muted-foreground">{currentSemesterName}</div>
+        </div>
+      )}
 
       <RefundSummaryTable data={summaryData} />
     </div>

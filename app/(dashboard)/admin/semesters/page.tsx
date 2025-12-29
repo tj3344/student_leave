@@ -1,17 +1,19 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, GraduationCap } from "lucide-react";
 import type { Semester } from "@/types";
 import { Button } from "@/components/ui/button";
 import { SemesterForm } from "@/components/admin/SemesterForm";
 import { SemesterTable } from "@/components/admin/SemesterTable";
+import { SemesterUpgradeDialog } from "@/components/admin/SemesterUpgradeDialog";
 
 export default function SemestersPage() {
   const [semesters, setSemesters] = useState<Semester[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editingSemester, setEditingSemester] = useState<Semester | undefined>();
+  const [upgradeDialogOpen, setUpgradeDialogOpen] = useState(false);
 
   const fetchSemesters = async () => {
     setLoading(true);
@@ -49,6 +51,18 @@ export default function SemestersPage() {
     fetchSemesters();
   };
 
+  const handleUpgrade = () => {
+    setUpgradeDialogOpen(true);
+  };
+
+  const handleUpgradeClose = () => {
+    setUpgradeDialogOpen(false);
+  };
+
+  const handleUpgradeSuccess = () => {
+    fetchSemesters();
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -59,6 +73,10 @@ export default function SemestersPage() {
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={fetchSemesters} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+          </Button>
+          <Button variant="outline" onClick={handleUpgrade}>
+            <GraduationCap className="mr-2 h-4 w-4" />
+            学生升级
           </Button>
           <Button onClick={handleAdd}>
             <Plus className="mr-2 h-4 w-4" />
@@ -79,6 +97,13 @@ export default function SemestersPage() {
         onClose={handleFormClose}
         onSuccess={handleFormSuccess}
         semester={editingSemester}
+      />
+
+      <SemesterUpgradeDialog
+        open={upgradeDialogOpen}
+        onClose={handleUpgradeClose}
+        onSuccess={handleUpgradeSuccess}
+        allSemesters={semesters}
       />
     </div>
   );

@@ -10,7 +10,7 @@ import type { Student, StudentInput, PaginationParams, PaginatedResponse, Studen
  * 获取学生列表（分页）
  */
 export function getStudents(
-  params: PaginationParams & { class_id?: number; grade_id?: number; is_active?: number }
+  params: PaginationParams & { class_id?: number; grade_id?: number; is_active?: number; semester_id?: number }
 ): PaginatedResponse<StudentWithDetails> {
   const db = getDb();
   const page = params.page || 1;
@@ -41,6 +41,11 @@ export function getStudents(
   if (params.is_active !== undefined) {
     whereClause += " AND s.is_active = ?";
     queryParams.push(params.is_active);
+  }
+
+  if (params.semester_id) {
+    whereClause += " AND c.semester_id = ?";
+    queryParams.push(params.semester_id);
   }
 
   // 排序（使用白名单验证防止 SQL 注入）

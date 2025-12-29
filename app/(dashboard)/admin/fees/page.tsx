@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, RefreshCw, Download, Upload } from "lucide-react";
+import { Plus, RefreshCw, Download, Upload, AlertCircle } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { FeeConfigWithDetails, Semester } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 // 懒加载组件
 const FeeConfigForm = dynamic(() => import("@/components/admin/FeeConfigForm").then(m => ({ default: m.FeeConfigForm })), {
@@ -32,13 +33,14 @@ export default function FeesPage() {
   const [importDialogOpen, setImportDialogOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [editingFeeConfig, setEditingFeeConfig] = useState<FeeConfigWithDetails | undefined>();
-  const [semesterFilter, setSemesterFilter] = useState<number>(0);
+  const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
+  const [semesterLoading, setSemesterLoading] = useState(true);
 
   const fetchFeeConfigs = async () => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (semesterFilter) params.append("semester_id", semesterFilter.toString());
+      if (currentSemesterId) params.append("semester_id", currentSemesterId.toString());
 
       const response = await fetch(`/api/fee-configs?${params.toString()}`);
       const data = await response.json();
@@ -50,23 +52,31 @@ export default function FeesPage() {
     }
   };
 
-  const fetchSemesters = async () => {
+  const fetchCurrentSemester = async () => {
     try {
       const response = await fetch("/api/semesters");
       const data = await response.json();
       setSemesters(data.data || []);
+      const currentSemester = data.data?.find((s: { is_current: number }) => s.is_current === 1);
+      if (currentSemester) {
+        setCurrentSemesterId(currentSemester.id);
+      }
     } catch (error) {
-      console.error("Fetch semesters error:", error);
+      console.error("获取当前学期失败:", error);
+    } finally {
+      setSemesterLoading(false);
     }
   };
 
   useEffect(() => {
-    fetchSemesters();
+    fetchCurrentSemester();
   }, []);
 
   useEffect(() => {
-    fetchFeeConfigs();
-  }, [semesterFilter]);
+    if (currentSemesterId) {
+      fetchFeeConfigs();
+    }
+  }, [currentSemesterId]);
 
   const handleEdit = (feeConfig: FeeConfigWithDetails) => {
     setEditingFeeConfig(feeConfig);
@@ -89,10 +99,12 @@ export default function FeesPage() {
 
   // 处理导出
   const handleExport = async () => {
+    if (!currentSemesterId) return;
+
     setExporting(true);
     try {
       const params = new URLSearchParams();
-      if (semesterFilter) params.append("semester_id", semesterFilter.toString());
+      params.append("semester_id", currentSemesterId.toString());
 
       const response = await fetch(`/api/fee-configs/export?${params.toString()}`);
 
@@ -128,10 +140,10 @@ export default function FeesPage() {
           <p className="text-muted-foreground">设置每个班级的餐费标准和相关天数</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={fetchFeeConfigs} disabled={loading}>
+          <Button variant="outline" size="icon" onClick={() => currentSemesterId && fetchFeeConfigs()} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
-          <Button variant="outline" onClick={handleExport} disabled={exporting || feeConfigs.length === 0}>
+          <Button variant="outline" onClick={handleExport} disabled={exporting || feeConfigs.length === 0 || !currentSemesterId}>
             {exporting ? (
               <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
             ) : (
@@ -139,47 +151,47 @@ export default function FeesPage() {
             )}
             导出
           </Button>
-          <Button variant="outline" onClick={() => setImportDialogOpen(true)}>
+          <Button variant="outline" onClick={() => setImportDialogOpen(true)} disabled={!currentSemesterId}>
             <Upload className="mr-2 h-4 w-4" />
             导入
           </Button>
-          <Button onClick={handleAdd}>
+          <Button onClick={handleAdd} disabled={!currentSemesterId}>
             <Plus className="mr-2 h-4 w-4" />
             新增配置
           </Button>
         </div>
       </div>
 
-      <div className="flex gap-4">
-        <Select value={semesterFilter.toString()} onValueChange={(v) => setSemesterFilter(v === "0" ? 0 : parseInt(v, 10))}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="全部学期" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="0">全部学期</SelectItem>
-            {semesters.map((semester) => (
-              <SelectItem key={semester.id} value={semester.id.toString()}>
-                {semester.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {/* 无当前学期提示 */}
+      {!currentSemesterId && !semesterLoading ? (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>未设置当前学期</AlertTitle>
+          <AlertDescription>
+            请先在学期管理中设置一个当前学期。
+            <Button variant="outline" size="sm" className="ml-4" onClick={() => window.location.href = "/admin/semesters"}>
+              前往学期管理
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <>
+          <FeeConfigTable data={feeConfigs} onEdit={handleEdit} onRefresh={fetchFeeConfigs} />
 
-      <FeeConfigTable data={feeConfigs} onEdit={handleEdit} onRefresh={fetchFeeConfigs} />
+          <FeeConfigForm
+            open={formOpen}
+            onClose={handleFormClose}
+            onSuccess={handleFormSuccess}
+            feeConfig={editingFeeConfig}
+          />
 
-      <FeeConfigForm
-        open={formOpen}
-        onClose={handleFormClose}
-        onSuccess={handleFormSuccess}
-        feeConfig={editingFeeConfig}
-      />
-
-      <FeeConfigImportDialog
-        open={importDialogOpen}
-        onClose={() => setImportDialogOpen(false)}
-        onSuccess={fetchFeeConfigs}
-      />
+          <FeeConfigImportDialog
+            open={importDialogOpen}
+            onClose={() => setImportDialogOpen(false)}
+            onSuccess={fetchFeeConfigs}
+          />
+        </>
+      )}
     </div>
   );
 }

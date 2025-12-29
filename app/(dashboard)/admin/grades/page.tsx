@@ -1,22 +1,30 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, RefreshCw } from "lucide-react";
+import { Plus, RefreshCw, AlertCircle } from "lucide-react";
 import type { Grade } from "@/types";
 import { Button } from "@/components/ui/button";
 import { GradeForm } from "@/components/admin/GradeForm";
 import { GradeTable } from "@/components/admin/GradeTable";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function GradesPage() {
   const [grades, setGrades] = useState<Grade[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [editingGrade, setEditingGrade] = useState<Grade | undefined>();
+  const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
+  const [currentSemesterName, setCurrentSemesterName] = useState<string>("");
+  const [semesterLoading, setSemesterLoading] = useState(true);
 
   const fetchGrades = async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/grades");
+      const params = new URLSearchParams();
+      if (currentSemesterId) {
+        params.append("semester_id", currentSemesterId.toString());
+      }
+      const response = await fetch(`/api/grades?${params.toString()}`);
       const data = await response.json();
       setGrades(data.data || []);
     } catch (error) {
@@ -26,9 +34,31 @@ export default function GradesPage() {
     }
   };
 
+  const fetchCurrentSemester = async () => {
+    try {
+      const response = await fetch("/api/semesters");
+      const data = await response.json();
+      const currentSemester = data.data?.find((s: { is_current: number }) => s.is_current === 1);
+      if (currentSemester) {
+        setCurrentSemesterId(currentSemester.id);
+        setCurrentSemesterName(currentSemester.name);
+      }
+    } catch (error) {
+      console.error("获取当前学期失败:", error);
+    } finally {
+      setSemesterLoading(false);
+    }
+  };
+
   useEffect(() => {
-    fetchGrades();
+    fetchCurrentSemester();
   }, []);
+
+  useEffect(() => {
+    if (currentSemesterId) {
+      fetchGrades();
+    }
+  }, [currentSemesterId]);
 
   const handleEdit = (grade: Grade) => {
     setEditingGrade(grade);
@@ -57,15 +87,34 @@ export default function GradesPage() {
           <p className="text-muted-foreground">管理系统年级信息</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={fetchGrades} disabled={loading}>
+          <Button variant="outline" size="icon" onClick={fetchGrades} disabled={loading || !currentSemesterId}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
-          <Button onClick={handleAdd}>
+          <Button onClick={handleAdd} disabled={!currentSemesterId}>
             <Plus className="mr-2 h-4 w-4" />
             新增年级
           </Button>
         </div>
       </div>
+
+      {/* 无当前学期提示 */}
+      {!currentSemesterId && !semesterLoading && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>未设置当前学期</AlertTitle>
+          <AlertDescription>
+            请先在学期管理中设置一个当前学期。
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* 当前学期显示 */}
+      {currentSemesterId && (
+        <div className="rounded-md bg-muted p-3">
+          <div className="text-sm font-medium">当前学期</div>
+          <div className="text-sm text-muted-foreground">{currentSemesterName}</div>
+        </div>
+      )}
 
       <GradeTable data={grades} onEdit={handleEdit} onDelete={fetchGrades} />
 

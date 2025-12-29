@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, RefreshCw, Search, Download } from "lucide-react";
+import { Plus, RefreshCw, Search, Download, AlertCircle } from "lucide-react";
 import type { LeaveWithDetails, User } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -26,6 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { LEAVE_STATUS_NAMES } from "@/lib/constants";
 
 export default function ClassTeacherLeavesPage() {
@@ -35,8 +36,8 @@ export default function ClassTeacherLeavesPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [semesterFilter, setSemesterFilter] = useState("");
-  const [semesterList, setSemesterList] = useState<Array<{ id: number; name: string }>>([]);
+  const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
+  const [semesterLoading, setSemesterLoading] = useState(true);
   const [classInfo, setClassInfo] = useState<{ id: number; name: string; grade_name: string } | null>(null);
   const [canEditLeave, setCanEditLeave] = useState(true); // 编辑权限开关
 
@@ -105,14 +106,14 @@ export default function ClassTeacherLeavesPage() {
   };
 
   const fetchLeaves = async () => {
-    if (!classInfo) return;
+    if (!classInfo || !currentSemesterId) return;
 
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (searchQuery) params.append("search", searchQuery);
       if (statusFilter) params.append("status", statusFilter);
-      if (semesterFilter) params.append("semester_id", semesterFilter);
+      params.append("semester_id", currentSemesterId.toString());
       // 强制只获取本班学生的请假记录
       params.append("class_id", classInfo.id.toString());
 
@@ -126,28 +127,32 @@ export default function ClassTeacherLeavesPage() {
     }
   };
 
-  const fetchSemesters = async () => {
+  const fetchCurrentSemester = async () => {
     try {
       const response = await fetch("/api/semesters");
       const data = await response.json();
-      setSemesterList(data.data || []);
-
-      // 自动选择当前学期
       const currentSemester = data.data?.find((s: { is_current: number }) => s.is_current === 1);
       if (currentSemester) {
-        setSemesterFilter(currentSemester.id.toString());
+        setCurrentSemesterId(currentSemester.id);
       }
     } catch (error) {
-      console.error("Fetch semesters error:", error);
+      console.error("获取当前学期失败:", error);
+    } finally {
+      setSemesterLoading(false);
     }
   };
 
   useEffect(() => {
     if (classInfo) {
-      fetchLeaves();
-      fetchSemesters();
+      fetchCurrentSemester();
     }
-  }, [classInfo, searchQuery, statusFilter, semesterFilter]);
+  }, [classInfo]);
+
+  useEffect(() => {
+    if (classInfo && currentSemesterId) {
+      fetchLeaves();
+    }
+  }, [classInfo, searchQuery, statusFilter, currentSemesterId]);
 
   const handleViewDetail = (leave: LeaveWithDetails) => {
     setReviewLeave(leave);
@@ -189,13 +194,13 @@ export default function ClassTeacherLeavesPage() {
 
   // 导出请假列表
   const handleExport = async () => {
-    if (!classInfo) return;
+    if (!classInfo || !currentSemesterId) return;
 
     try {
       const params = new URLSearchParams();
       if (searchQuery) params.append("search", searchQuery);
       if (statusFilter) params.append("status", statusFilter);
-      if (semesterFilter) params.append("semester_id", semesterFilter);
+      params.append("semester_id", currentSemesterId.toString());
       params.append("class_id", classInfo.id.toString());
 
       const response = await fetch(`/api/leaves/export?${params.toString()}`);
@@ -244,68 +249,68 @@ export default function ClassTeacherLeavesPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={fetchLeaves} disabled={loading}>
+          <Button variant="outline" size="icon" onClick={() => currentSemesterId && fetchLeaves()} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
-          <Button variant="outline" onClick={handleExport}>
+          <Button variant="outline" onClick={handleExport} disabled={!currentSemesterId}>
             <Download className="mr-2 h-4 w-4" />
             导出
           </Button>
-          <Button onClick={() => setFormOpen(true)}>
+          <Button onClick={() => setFormOpen(true)} disabled={!currentSemesterId}>
             <Plus className="mr-2 h-4 w-4" />
             新增请假
           </Button>
         </div>
       </div>
 
-      {/* 筛选栏 */}
-      <div className="flex gap-4 flex-wrap">
-        <div className="relative flex-1 min-w-[200px] max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="搜索学生姓名、学号..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-9"
-          />
-        </div>
-        <Select
-          value={semesterFilter || "all"}
-          onValueChange={(v) => setSemesterFilter(v === "all" ? "" : v)}
-        >
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="选择学期" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部学期</SelectItem>
-            {semesterList.map((semester) => (
-              <SelectItem key={semester.id} value={semester.id.toString()}>
-                {semester.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
-          <SelectTrigger className="w-[150px]">
-            <SelectValue placeholder="选择状态" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部状态</SelectItem>
-            <SelectItem value="pending">{LEAVE_STATUS_NAMES.pending}</SelectItem>
-            <SelectItem value="approved">{LEAVE_STATUS_NAMES.approved}</SelectItem>
-            <SelectItem value="rejected">{LEAVE_STATUS_NAMES.rejected}</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+      {/* 无当前学期提示 */}
+      {!currentSemesterId && !semesterLoading ? (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>未设置当前学期</AlertTitle>
+          <AlertDescription>
+            请先在学期管理中设置一个当前学期。
+            <Button variant="outline" size="sm" className="ml-4" onClick={() => window.location.href = "/admin/semesters"}>
+              前往学期管理
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <>
+          {/* 筛选栏 */}
+          <div className="flex gap-4 flex-wrap">
+            <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                placeholder="搜索学生姓名、学号..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9"
+              />
+            </div>
+            <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="选择状态" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全部状态</SelectItem>
+                <SelectItem value="pending">{LEAVE_STATUS_NAMES.pending}</SelectItem>
+                <SelectItem value="approved">{LEAVE_STATUS_NAMES.approved}</SelectItem>
+                <SelectItem value="rejected">{LEAVE_STATUS_NAMES.rejected}</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
-      <LeaveTable
-        data={leaves}
-        showReviewActions={false}
-        onViewDetail={handleViewDetail}
-        onDelete={handleDelete}
-        onEdit={canEditLeave ? handleEdit : undefined}
-        canEdit={canEditLeave}
-      />
+          <LeaveTable
+            data={leaves}
+            showReviewActions={false}
+            onViewDetail={handleViewDetail}
+            onDelete={handleDelete}
+            onEdit={canEditLeave ? handleEdit : undefined}
+            canEdit={canEditLeave}
+          />
+        </>
+      )}
 
       {/* 表单对话框 */}
       <LeaveForm

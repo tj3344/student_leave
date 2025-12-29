@@ -30,9 +30,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
 import { GENDERS } from "@/lib/constants";
 import type { StudentWithDetails } from "@/types";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 const studentSchema = z.object({
   student_no: z.string().min(1, "学号不能为空").max(30, "学号不能超过30个字符"),
@@ -66,6 +67,9 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(false);
+  const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
+  const [currentSemesterName, setCurrentSemesterName] = useState<string>("");
+  const [semesterLoading, setSemesterLoading] = useState(true);
   const isEdit = !!student;
 
   const form = useForm<StudentFormValues>({
@@ -116,15 +120,40 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
 
   // 加载班级列表
   useEffect(() => {
-    if (open) {
+    if (open && currentSemesterId) {
       fetchClasses();
     }
-  }, [open]);
+  }, [open, currentSemesterId]);
+
+  // 获取当前学期
+  useEffect(() => {
+    fetchCurrentSemester();
+  }, []);
+
+  const fetchCurrentSemester = async () => {
+    try {
+      const response = await fetch("/api/semesters");
+      const data = await response.json();
+      const currentSemester = data.data?.find((s: { is_current: number }) => s.is_current === 1);
+      if (currentSemester) {
+        setCurrentSemesterId(currentSemester.id);
+        setCurrentSemesterName(currentSemester.name);
+      }
+    } catch (error) {
+      console.error("获取当前学期失败:", error);
+    } finally {
+      setSemesterLoading(false);
+    }
+  };
 
   const fetchClasses = async () => {
     setLoadingClasses(true);
     try {
-      const response = await fetch("/api/classes");
+      const params = new URLSearchParams();
+      if (currentSemesterId) {
+        params.append("semester_id", currentSemesterId.toString());
+      }
+      const response = await fetch(`/api/classes?${params.toString()}`);
       const data = await response.json();
       setClassOptions(data.data || []);
     } catch (error) {
@@ -188,11 +217,30 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
           </DialogDescription>
         </DialogHeader>
 
+        {/* 无当前学期提示 */}
+        {!currentSemesterId && !semesterLoading && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertTitle>未设置当前学期</AlertTitle>
+            <AlertDescription>
+              请先在学期管理中设置一个当前学期，然后重新打开此表单。
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Form {...form}>
           <form id="student-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             {form.formState.errors.root && (
               <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">
                 {form.formState.errors.root.message}
+              </div>
+            )}
+
+            {/* 当前学期显示 */}
+            {currentSemesterId && (
+              <div className="rounded-md bg-muted p-3">
+                <div className="text-sm font-medium">当前学期</div>
+                <div className="text-sm text-muted-foreground">{currentSemesterName}</div>
               </div>
             )}
 
@@ -261,7 +309,7 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
                     <FormLabel>班级 *</FormLabel>
                     <Select onValueChange={(value) => field.onChange(parseInt(value, 10))} value={field.value?.toString() || "0"}>
                       <FormControl>
-                        <SelectTrigger disabled={loadingClasses}>
+                        <SelectTrigger disabled={loadingClasses || !currentSemesterId}>
                           <SelectValue placeholder="请选择班级" />
                         </SelectTrigger>
                       </FormControl>
@@ -380,7 +428,7 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
           <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
             取消
           </Button>
-          <Button type="submit" form="student-form" disabled={isSubmitting}>
+          <Button type="submit" form="student-form" disabled={isSubmitting || !currentSemesterId}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isEdit ? "保存" : "创建"}
           </Button>

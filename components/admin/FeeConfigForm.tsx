@@ -29,7 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { FeeConfig, Semester, ClassWithDetails } from "@/types";
 
 const feeConfigSchema = z.object({
@@ -55,10 +56,11 @@ interface FeeConfigFormProps {
 
 export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfigFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [semesters, setSemesters] = useState<Semester[]>([]);
   const [classes, setClasses] = useState<ClassWithDetails[]>([]);
   const [loading, setLoading] = useState(false);
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
+  const [currentSemesterName, setCurrentSemesterName] = useState<string>("");
+  const [semesterLoading, setSemesterLoading] = useState(true);
   const isEdit = !!feeConfig;
 
   const form = useForm<FeeConfigFormValues>({
@@ -115,62 +117,35 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
     }
   }, [feeConfig, currentSemesterId]);
 
-  const fetchOptions = async (semesterId?: number) => {
-    setLoading(true);
-    try {
-      const [semestersRes, currentRes] = await Promise.all([
-        fetch("/api/semesters"),
-        fetch("/api/semesters/current"),
-      ]);
-
-      const semestersData = await semestersRes.json();
-      setSemesters(semestersData.data || []);
-
-      // 获取当前学期ID
-      if (currentRes.ok && !feeConfig) {
-        const currentSemester = await currentRes.json();
-        setCurrentSemesterId(currentSemester.id);
-      }
-
-      // 如果有学期ID（编辑模式），获取该学期下的班级
-      if (semesterId) {
-        const classesRes = await fetch(`/api/classes?semester_id=${semesterId}`);
-        const classesData = await classesRes.json();
-        setClasses(classesData.data || []);
-      }
-    } catch (error) {
-      console.error("Fetch options error:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // 获取当前学期
   useEffect(() => {
-    if (open) {
-      // 新增时，重置当前学期ID，触发重新获取
-      if (!feeConfig) {
-        setCurrentSemesterId(null);
-        setClasses([]);
-      }
-      fetchOptions(feeConfig?.semester_id);
+    fetchCurrentSemester();
+  }, []);
+
+  // 当对话框打开时，新增模式重置学期
+  useEffect(() => {
+    if (open && !feeConfig) {
+      fetchCurrentSemester();
     }
   }, [open]);
 
-  // 当学期改变时，重新获取班级列表
-  const handleSemesterChange = (semesterId: number) => {
-    form.setValue("semester_id", semesterId);
-    form.setValue("class_id", 0); // 重置班级选择
-    setClasses([]);
-
-    if (semesterId) {
-      fetch(`/api/classes?semester_id=${semesterId}`)
-        .then((res) => res.json())
-        .then((data) => {
-          setClasses(data.data || []);
-        })
-        .catch((error) => {
-          console.error("Fetch classes error:", error);
-        });
+  const fetchCurrentSemester = async () => {
+    try {
+      const response = await fetch("/api/semesters");
+      const data = await response.json();
+      const currentSemester = data.data?.find((s: { is_current: number }) => s.is_current === 1);
+      if (currentSemester) {
+        setCurrentSemesterId(currentSemester.id);
+        setCurrentSemesterName(currentSemester.name);
+        // 新增时自动设置当前学期
+        if (!feeConfig) {
+          form.setValue("semester_id", currentSemester.id);
+        }
+      }
+    } catch (error) {
+      console.error("获取当前学期失败:", error);
+    } finally {
+      setSemesterLoading(false);
     }
   };
 
@@ -228,34 +203,32 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
               </div>
             )}
 
-            <FormField
-              control={form.control}
-              name="semester_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>所属学期 *</FormLabel>
-                  <Select
-                    onValueChange={(v) => handleSemesterChange(parseInt(v, 10))}
-                    value={field.value === 0 ? "" : field.value.toString()}
-                    disabled={loading || isEdit}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="请选择学期" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {semesters.map((semester) => (
-                        <SelectItem key={semester.id} value={semester.id.toString()}>
-                          {semester.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* 无当前学期提示（仅新增模式） */}
+            {!currentSemesterId && !semesterLoading && !isEdit && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>未设置当前学期</AlertTitle>
+                <AlertDescription>
+                  请先在学期管理中设置一个当前学期，然后重新打开此表单。
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* 当前学期显示 */}
+            {currentSemesterId && !isEdit && (
+              <div className="rounded-md bg-muted p-3">
+                <div className="text-sm font-medium">当前学期</div>
+                <div className="text-sm text-muted-foreground">{currentSemesterName}</div>
+              </div>
+            )}
+
+            {/* 编辑模式显示所属学期 */}
+            {isEdit && (
+              <div className="rounded-md bg-muted p-3">
+                <div className="text-sm font-medium">所属学期</div>
+                <div className="text-sm text-muted-foreground">已设置（ID: {feeConfig?.semester_id})</div>
+              </div>
+            )}
 
             <FormField
               control={form.control}
@@ -270,7 +243,7 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
                   >
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="请先选择学期，再选择班级" />
+                        <SelectValue placeholder="请选择班级" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -354,7 +327,7 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
           <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
             取消
           </Button>
-          <Button type="submit" form="fee-config-form" disabled={isSubmitting}>
+          <Button type="submit" form="fee-config-form" disabled={isSubmitting || (!currentSemesterId && !isEdit)}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isEdit ? "保存" : "创建"}
           </Button>

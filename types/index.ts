@@ -555,3 +555,44 @@ export interface ClassTeacherDashboardStats {
     refund_students_count: number;
   };
 }
+
+// ============================================
+// 学期升级相关类型
+// ============================================
+
+export interface SemesterUpgradeRequest {
+  source_semester_id: number;
+  target_semester_id: number;
+  grade_ids: number[];
+}
+
+export interface SemesterUpgradeResult {
+  success: boolean;
+  message?: string;
+  data?: {
+    grades_created: number;
+    classes_created: number;
+    students_created: number;
+    warnings?: string[];
+  };
+}
+
+export interface UpgradePreview {
+  source_semester: Semester;
+  target_semester: Semester;
+  available_grades: Array<{
+    id: number;
+    name: string;
+    class_count: number;
+    student_count: number;
+  }>;
+  selected_grades?: number[];
+  preview_data?: Array<{
+    old_grade: string;
+    new_grade: string;
+    class_count: number;
+    student_count: number;
+  }>;
+  total_classes: number;
+  total_students: number;
+}

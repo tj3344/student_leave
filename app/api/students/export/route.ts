@@ -25,12 +25,14 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const class_id = searchParams.get("class_id");
     const grade_id = searchParams.get("grade_id");
+    const semester_id = searchParams.get("semester_id");
     const is_active = searchParams.get("is_active");
 
     // 构建查询参数（不分页，获取所有）
     const params: {
       class_id?: number;
       grade_id?: number;
+      semester_id?: number;
       is_active?: number;
       limit: number;
     } = {
@@ -42,6 +44,9 @@ export async function GET(request: NextRequest) {
     }
     if (grade_id) {
       params.grade_id = parseInt(grade_id, 10);
+    }
+    if (semester_id) {
+      params.semester_id = parseInt(semester_id, 10);
     }
     if (is_active) {
       params.is_active = parseInt(is_active, 10);

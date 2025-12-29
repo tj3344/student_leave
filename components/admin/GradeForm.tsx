@@ -29,7 +29,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertCircle } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { Grade, Semester } from "@/types";
 
 const gradeSchema = z.object({
@@ -49,9 +50,9 @@ interface GradeFormProps {
 
 export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [semesters, setSemesters] = useState<Semester[]>([]);
-  const [loading, setLoading] = useState(false);
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
+  const [currentSemesterName, setCurrentSemesterName] = useState<string>("");
+  const [semesterLoading, setSemesterLoading] = useState(true);
   const isEdit = !!grade;
 
   const form = useForm<GradeFormValues>({
@@ -87,38 +88,37 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
     }
   }, [grade, currentSemesterId]);
 
-  const fetchSemesters = async () => {
-    setLoading(true);
-    try {
-      const [semestersRes, currentRes] = await Promise.all([
-        fetch("/api/semesters"),
-        fetch("/api/semesters/current"),
-      ]);
-
-      const semestersData = await semestersRes.json();
-      setSemesters(semestersData.data || []);
-
-      // 获取当前学期ID
-      if (currentRes.ok) {
-        const currentSemester = await currentRes.json();
-        setCurrentSemesterId(currentSemester.id);
-      }
-    } catch (error) {
-      console.error("Fetch semesters error:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  // 获取当前学期
   useEffect(() => {
-    if (open) {
-      // 新增时，重置当前学期ID，触发重新获取
-      if (!grade) {
-        setCurrentSemesterId(null);
-      }
-      fetchSemesters();
+    fetchCurrentSemester();
+  }, []);
+
+  // 当对话框打开时，新增模式重置学期
+  useEffect(() => {
+    if (open && !grade) {
+      fetchCurrentSemester();
     }
   }, [open]);
+
+  const fetchCurrentSemester = async () => {
+    try {
+      const response = await fetch("/api/semesters");
+      const data = await response.json();
+      const currentSemester = data.data?.find((s: { is_current: number }) => s.is_current === 1);
+      if (currentSemester) {
+        setCurrentSemesterId(currentSemester.id);
+        setCurrentSemesterName(currentSemester.name);
+        // 新增时自动设置当前学期
+        if (!grade) {
+          form.setValue("semester_id", currentSemester.id);
+        }
+      }
+    } catch (error) {
+      console.error("获取当前学期失败:", error);
+    } finally {
+      setSemesterLoading(false);
+    }
+  };
 
   const onSubmit = async (values: GradeFormValues) => {
     setIsSubmitting(true);
@@ -174,34 +174,32 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
               </div>
             )}
 
-            <FormField
-              control={form.control}
-              name="semester_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>所属学期 *</FormLabel>
-                  <Select
-                    onValueChange={(v) => field.onChange(parseInt(v, 10))}
-                    value={field.value === 0 ? "" : field.value.toString()}
-                    disabled={loading || isEdit}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="请选择学期" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {semesters.map((semester) => (
-                        <SelectItem key={semester.id} value={semester.id.toString()}>
-                          {semester.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* 无当前学期提示（仅新增模式） */}
+            {!currentSemesterId && !semesterLoading && !isEdit && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>未设置当前学期</AlertTitle>
+                <AlertDescription>
+                  请先在学期管理中设置一个当前学期，然后重新打开此表单。
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* 当前学期显示 */}
+            {currentSemesterId && !isEdit && (
+              <div className="rounded-md bg-muted p-3">
+                <div className="text-sm font-medium">当前学期</div>
+                <div className="text-sm text-muted-foreground">{currentSemesterName}</div>
+              </div>
+            )}
+
+            {/* 编辑模式显示所属学期 */}
+            {isEdit && (
+              <div className="rounded-md bg-muted p-3">
+                <div className="text-sm font-medium">所属学期</div>
+                <div className="text-sm text-muted-foreground">已设置（ID: {grade?.semester_id})</div>
+              </div>
+            )}
 
             <FormField
               control={form.control}
@@ -237,7 +235,7 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
           <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
             取消
           </Button>
-          <Button type="submit" form="grade-form" disabled={isSubmitting}>
+          <Button type="submit" form="grade-form" disabled={isSubmitting || (!currentSemesterId && !isEdit)}>
             {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             {isEdit ? "保存" : "创建"}
           </Button>

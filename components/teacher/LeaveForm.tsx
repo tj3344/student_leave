@@ -32,10 +32,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Loader2, CalendarIcon } from "lucide-react";
+import { Loader2, CalendarIcon, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { StudentSelector } from "@/components/shared/StudentSelector";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import type { User, LeaveWithDetails } from "@/types";
 
 interface SemesterOption {
@@ -118,6 +119,8 @@ interface LeaveFormProps {
 export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLeave, mode = "create", currentUser }: LeaveFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [semesterOptions, setSemesterOptions] = useState<SemesterOption[]>([]);
+  const [currentSemester, setCurrentSemester] = useState<SemesterOption | null>(null);
+  const [semesterLoading, setSemesterLoading] = useState(true);
   const [minLeaveDays, setMinLeaveDays] = useState(3); // 默认值
   const [teacherClassId, setTeacherClassId] = useState<number | undefined>(defaultClassId);
 
@@ -150,11 +153,6 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
       fetchSemesters();
       fetchSystemConfig();
 
-      // 管理员加载年级列表
-      if (currentUser?.role === "admin") {
-        fetchGrades();
-      }
-
       // 编辑模式下设置初始值
       if (mode === "edit" && editingLeave) {
         form.reset({
@@ -169,6 +167,13 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
       }
     }
   }, [open, mode, editingLeave, includeStatus, currentUser?.role]);
+
+  // 当当前学期加载完成后，管理员加载年级列表
+  useEffect(() => {
+    if (open && currentSemester && currentUser?.role === "admin") {
+      fetchGrades();
+    }
+  }, [open, currentSemester, currentUser?.role]);
 
   // 获取当前用户信息
   const fetchCurrentUser = async () => {
@@ -204,7 +209,11 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
   // 获取年级列表（管理员）
   const fetchGrades = async () => {
     try {
-      const response = await fetch("/api/grades");
+      const params = new URLSearchParams();
+      if (currentSemester?.id) {
+        params.append("semester_id", String(currentSemester.id));
+      }
+      const response = await fetch(`/api/grades?${params.toString()}`);
       const data = await response.json();
       setGradeList(data.data || []);
     } catch (error) {
@@ -217,6 +226,9 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
     try {
       const params = new URLSearchParams();
       if (gradeId) params.append("grade_id", String(gradeId));
+      if (currentSemester?.id) {
+        params.append("semester_id", String(currentSemester.id));
+      }
       const response = await fetch(`/api/classes?${params.toString()}`);
       const data = await response.json();
       setClassList(data.data || []);
@@ -243,13 +255,16 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
       const data = await response.json();
       setSemesterOptions(data.data || []);
 
-      // 自动选择当前学期
-      const currentSemester = data.data?.find((s: SemesterOption) => s.is_current === 1);
-      if (currentSemester) {
-        form.setValue("semester_id", currentSemester.id);
+      // 获取当前学期
+      const current = data.data?.find((s: SemesterOption) => s.is_current === 1);
+      if (current) {
+        setCurrentSemester(current);
+        form.setValue("semester_id", current.id);
       }
     } catch (error) {
       console.error("Fetch semesters error:", error);
+    } finally {
+      setSemesterLoading(false);
     }
   };
 
@@ -305,36 +320,24 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            {/* 学期选择 */}
-            <FormField
-              control={form.control}
-              name="semester_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>学期 *</FormLabel>
-                  <Select onValueChange={(v) => field.onChange(parseInt(v, 10))} value={field.value ? String(field.value) : ""}>
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="请选择学期" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {semesterOptions.map((semester) => (
-                        <SelectItem key={semester.id} value={String(semester.id)}>
-                          {semester.name}
-                          {semester.is_current === 1 && (
-                            <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">
-                              当前
-                            </span>
-                          )}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* 无当前学期提示 */}
+            {!currentSemester && !semesterLoading && (
+              <Alert variant="destructive">
+                <AlertCircle className="h-4 w-4" />
+                <AlertTitle>未设置当前学期</AlertTitle>
+                <AlertDescription>
+                  请先在学期管理中设置一个当前学期，然后重新打开此表单。
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* 当前学期显示 */}
+            {currentSemester && (
+              <div className="rounded-md bg-muted p-3">
+                <div className="text-sm font-medium">当前学期</div>
+                <div className="text-sm text-muted-foreground">{currentSemester.name}</div>
+              </div>
+            )}
 
             {/* 管理员：年级和班级筛选 */}
             {currentUser?.role === "admin" && (
@@ -572,7 +575,7 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
               <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
                 取消
               </Button>
-              <Button type="submit" disabled={isSubmitting}>
+              <Button type="submit" disabled={isSubmitting || !currentSemester}>
                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 {mode === "edit" ? "保存修改" : "提交申请"}
               </Button>

@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
     const page = searchParams.get("page");
     const limit = searchParams.get("limit");
     const search = searchParams.get("search");
+    const semester_id = searchParams.get("semester_id");
     const sort = searchParams.get("sort") || undefined;
     const order = (searchParams.get("order") as "asc" | "desc") || undefined;
 
@@ -30,6 +31,7 @@ export async function GET(request: NextRequest) {
       page: page ? parseInt(page, 10) : undefined,
       limit: limit ? parseInt(limit, 10) : undefined,
       search: search || undefined,
+      semester_id: semester_id ? parseInt(semester_id, 10) : undefined,
       sort,
       order,
     };

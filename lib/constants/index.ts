@@ -142,6 +142,7 @@ export const PERMISSIONS = {
   SYSTEM_BACKUP: "system:backup",
   SYSTEM_RESTORE: "system:restore",
   SYSTEM_LOGS: "system:logs",
+  SYSTEM_UPGRADE: "system:upgrade",
 } as const;
 
 // 角色权限映射

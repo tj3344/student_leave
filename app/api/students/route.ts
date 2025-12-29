@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search") || "";
     const class_id = searchParams.get("class_id");
     const grade_id = searchParams.get("grade_id");
+    const semester_id = searchParams.get("semester_id");
     const is_active = searchParams.get("is_active");
     const sort = searchParams.get("sort") || "created_at";
     const order = (searchParams.get("order") || "desc") as "asc" | "desc";
@@ -62,6 +63,7 @@ export async function GET(request: NextRequest) {
       search: search || undefined,
       class_id: filterClassId,
       grade_id: grade_id ? parseInt(grade_id, 10) : undefined,
+      semester_id: semester_id ? parseInt(semester_id, 10) : undefined,
       is_active: is_active ? parseInt(is_active, 10) : undefined,
       sort,
       order,
