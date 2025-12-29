@@ -6,60 +6,77 @@ FROM node:18-alpine AS builder
 # 设置工作目录
 WORKDIR /app
 
-# 安装编译依赖（better-sqlite3 需要）
-RUN apk add --no-cache python3 make g++
+# 设置环境变量（不常变动，前置）
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    NODE_ENV=production \
+    npm_config_production=false
 
-# 复制 package 文件
-COPY package*.json ./
+# 安装编译依赖（better-sqlite3 需要）并清理缓存
+RUN apk add --no-cache --virtual .gyp \
+        python3 \
+        make \
+        g++ \
+    && rm -rf /var/cache/apk/*
 
-# 安装依赖
-RUN npm ci
+# 只复制依赖文件（优先复制，利用缓存）
+COPY package.json package-lock.json ./
 
-# 复制源代码
-COPY . .
+# 安装所有依赖（包括 devDependencies，用于构建）
+RUN npm ci --prefer-offline --no-audit && \
+    npm cache clean --force
 
-# 设置环境变量
-ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
+# 只复制必要的源代码文件（避免复制整个项目）
+COPY next.config.ts ./
+COPY tsconfig.json ./
+COPY components.json ./
+COPY public ./public
+COPY app ./app
+COPY lib ./lib
+COPY components ./components
+COPY types ./types
+COPY hooks ./hooks
 
 # 构建应用
-RUN npm run build
+RUN npm run build && \
+    rm -rf .next/cache
 
 # ===================================
 # 生产运行阶段
 # ===================================
 FROM node:18-alpine AS runner
 
-# 安装运行时依赖
-RUN apk add --no-cache tzdata
+# 合并 RUN 指令：安装运行时依赖 + 创建用户 + 设置时区
+RUN apk add --no-cache tzdata \
+    # 创建非 root 用户
+    && addgroup -g 1001 -S nodejs \
+    && adduser -S nextjs -u 1001 \
+    # 设置时区为上海
+    && cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime \
+    && echo "Asia/Shanghai" > /etc/timezone \
+    && rm -rf /var/cache/apk/*
 
-# 设置时区为上海
-ENV TZ=Asia/Shanghai
-
-# 创建非 root 用户
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nextjs -u 1001
+# 设置环境变量
+ENV NODE_ENV=production \
+    TZ=Asia/Shanghai \
+    PORT=3000
 
 # 设置工作目录
 WORKDIR /app
 
-# 复制必要文件
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/package*.json ./
+# 复制必要文件（按顺序，利用缓存）
+COPY --from=builder /app/package.json ./
 COPY --from=builder /app/next.config.ts ./
-COPY --from=builder /app/tsconfig.json ./
-COPY --from=builder /app/components.json ./
 
-# 复制构建产物
+# 复制构建产物（只复制 standalone 输出）
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# 复制数据库迁移脚本
+# 复制数据库层（运行时需要）
 COPY --chown=nextjs:nodejs lib/db ./lib/db
 
-# 创建数据目录
-RUN mkdir -p /app/data/backups && \
-    chown -R nextjs:nodejs /app/data
+# 创建必要的目录并设置权限
+RUN mkdir -p /app/data/backups /app/logs && \
+    chown -R nextjs:nodejs /app/data /app/logs
 
 # 切换到非 root 用户
 USER nextjs

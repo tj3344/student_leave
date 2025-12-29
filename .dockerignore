@@ -1,55 +1,108 @@
-# 依赖
+# ===================================
+# 依赖目录（最重要，体积大）
+# ===================================
 node_modules
 npm-debug.log
 yarn-error.log
-# package-lock.json 保留此文件供 npm ci 使用
 yarn.lock
 pnpm-lock.yaml
 
-# 构建产物
+# ===================================
+# 构建产物（会重新构建）
+# ===================================
 .next
 out
 dist
 build
 
-# 开发文件
+# ===================================
+# 开发环境文件
+# ===================================
 .env.local
 .env.*.local
+.env.development
+.env.test
+
+# ===================================
+# IDE 配置
+# ===================================
 .vscode
 .idea
 *.swp
 *.swo
-.DS_Store
+*.sublime-*
 
-# Git
+# ===================================
+# 版本控制
+# ===================================
 .git
 .gitignore
+.gitattributes
 .github
 
-# 数据（运行时生成）
+# ===================================
+# 数据库文件（运行时生成）
+# ===================================
 data/*.db
 data/*.db-shm
 data/*.db-wal
 data/backups/*
 !data/backups/.gitkeep
 
-# 日志
+# ===================================
+# 日志文件
+# ===================================
 logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# 文档
+# ===================================
+# 测试与覆盖率（生产不需要）
+# ===================================
+coverage
+.nyc_output
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+__tests__
+vitest.config.ts
+vitest.setup.ts
+jest.config.js
+
+# ===================================
+# 文档（生产不需要）
+# ===================================
 docs
 *.md
 !README.md
 
-# 测试
-coverage
-.nyc_output
-vitest.config.ts
-vitest.setup.ts
+# ===================================
+# 部署与配置（本地使用）
+# ===================================
+scripts
+nginx
+pm2
+*.service
+ecosystem.config.cjs
+docker-compose*.yml
+Dockerfile*
 
-# 其他
+# ===================================
+# 其他临时文件
+# ===================================
+.DS_Store
+Thumbs.db
 *.bak
+*.tmp
 tmp
 temp
+.claude
+*.tsbuildinfo
+
+# ===================================
+# Claude 相关
+# ===================================
 .claude
