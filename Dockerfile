@@ -29,12 +29,14 @@ RUN npm ci --prefer-offline --no-audit && \
 COPY next.config.ts ./
 COPY tsconfig.json ./
 COPY components.json ./
-COPY public ./public
 COPY app ./app
 COPY lib ./lib
 COPY components ./components
 COPY types ./types
 COPY hooks ./hooks
+
+# 复制 public 目录（使用 .gitkeep 确保目录非空）
+COPY public ./public
 
 # 构建应用
 RUN npm run build && \
