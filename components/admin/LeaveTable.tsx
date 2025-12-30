@@ -189,7 +189,7 @@ const LeaveRow = memo(function LeaveRow({
               <Eye className="h-4 w-4" />
             </Button>
           )}
-          {onEdit && canEdit && (
+          {onEdit && canEdit && (leave.status === "pending" || leave.status === "rejected") && (
             <Button
               variant="ghost"
               size="icon"
