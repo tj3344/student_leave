@@ -5,7 +5,6 @@ import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { exportStudentsToExcel, workbookToBlob } from "@/lib/utils/excel";
 import { logExport } from "@/lib/utils/logger";
 import { checkExportLimit } from "@/lib/utils/export";
-import type { StudentWithDetails } from "@/types";
 
 /**
  * GET /api/students/export - 导出学生列表
@@ -54,7 +53,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取学生数据（不分页，获取所有）
-    const result = getStudents(params) as { data: StudentWithDetails[] };
+    const result = await getStudents(params);
 
     // 检查导出行数是否超过系统限制
     const limitCheck = await checkExportLimit(result.data.length);

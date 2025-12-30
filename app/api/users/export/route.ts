@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取用户数据（不分页，获取所有）
-    const result = getUsers(params);
+    const result = await getUsers(params);
 
     // 检查导出行数是否超过系统限制
     const limitCheck = await checkExportLimit(result.data.length);

@@ -168,7 +168,7 @@ export async function createLeave(
   const pgClient = getRawPostgres();
 
   // 从系统配置获取最小请假天数
-  const minLeaveDays = getNumberConfig("leave.min_days", 3);
+  const minLeaveDays = await getNumberConfig("leave.min_days", 3);
 
   // 验证请假天数必须大于最小天数
   if (input.leave_days <= minLeaveDays) {
@@ -540,7 +540,7 @@ export async function updateLeave(
   const pgClient = getRawPostgres();
 
   // 从系统配置获取最小请假天数
-  const minLeaveDays = getNumberConfig("leave.min_days", 3);
+  const minLeaveDays = await getNumberConfig("leave.min_days", 3);
 
   // 验证请假天数必须大于最小天数
   if (input.leave_days <= minLeaveDays) {

@@ -5,7 +5,6 @@ import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { exportClassesToExcel, workbookToBlob } from "@/lib/utils/excel";
 import { getRawPostgres } from "@/lib/db";
 import { checkExportLimit } from "@/lib/utils/export";
-import type { ClassWithDetails } from "@/types";
 
 /**
  * GET /api/classes/export - 导出班级列表
@@ -41,7 +40,8 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取班级数据（不分页，获取所有）
-    const classes = getClasses(params) as ClassWithDetails[];
+    const result = await getClasses(params);
+    const classes = Array.isArray(result) ? result : result.data || [];
 
     // 获取学期名称
     const pgClient = getRawPostgres();

@@ -4,7 +4,6 @@ import { getFeeConfigs } from "@/lib/api/fees";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { exportFeeConfigsToExcel, workbookToBlob } from "@/lib/utils/excel";
 import { checkExportLimit } from "@/lib/utils/export";
-import type { FeeConfigWithDetails } from "@/types";
 
 /**
  * GET /api/fee-configs/export - 导出费用配置列表
@@ -35,7 +34,8 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取费用配置数据（不分页，获取所有）
-    const feeConfigs = getFeeConfigs(params) as FeeConfigWithDetails[];
+    const result = await getFeeConfigs(params);
+    const feeConfigs = Array.isArray(result) ? result : result.data || [];
 
     // 生成 Excel 文件（将可选字段转换为字符串）
     const exportData = feeConfigs.map((f) => ({

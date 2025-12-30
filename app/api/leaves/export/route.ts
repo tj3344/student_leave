@@ -5,7 +5,6 @@ import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { exportLeavesToExcel, workbookToBlob } from "@/lib/utils/excel";
 import { logExport } from "@/lib/utils/logger";
 import { checkExportLimit } from "@/lib/utils/export";
-import type { LeaveWithDetails } from "@/types";
 
 /**
  * GET /api/leaves/export - 导出请假列表
@@ -93,7 +92,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取请假数据（不分页，获取所有）
-    const result = getLeaves(params) as { data: LeaveWithDetails[] };
+    const result = await getLeaves(params);
 
     // 过滤掉 student_no 为空的记录，并确保类型匹配
     const validData = result.data
