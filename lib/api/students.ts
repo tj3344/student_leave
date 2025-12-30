@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { getRawPostgres } from "@/lib/db";
 import { validateOrderBy, SORT_FIELDS, DEFAULT_SORT_FIELDS } from "@/lib/utils/sql-security";
 import type { Student, StudentInput, PaginationParams, PaginatedResponse, StudentWithDetails } from "@/types";
 
@@ -9,10 +9,10 @@ import type { Student, StudentInput, PaginationParams, PaginatedResponse, Studen
 /**
  * 获取学生列表（分页）
  */
-export function getStudents(
+export async function getStudents(
   params: PaginationParams & { class_id?: number; grade_id?: number; is_active?: number; semester_id?: number }
-): PaginatedResponse<StudentWithDetails> {
-  const db = getDb();
+): Promise<PaginatedResponse<StudentWithDetails>> {
+  const pgClient = getRawPostgres();
   const page = params.page || 1;
   const limit = params.limit || 20;
   const offset = (page - 1) * limit;
@@ -20,31 +20,31 @@ export function getStudents(
   // 构建查询条件
   let whereClause = "WHERE 1=1";
   const queryParams: (string | number)[] = [];
+  let paramIndex = 1;
 
   if (params.search) {
-    // 使用 COLLATE NOCASE 索引优化搜索（虽然前导通配符无法完全利用索引）
-    whereClause += " AND (s.student_no LIKE ? COLLATE NOCASE OR s.name LIKE ? COLLATE NOCASE OR s.parent_phone LIKE ? COLLATE NOCASE)";
+    whereClause += " AND (s.student_no ILIKE $" + (paramIndex++) + " OR s.name ILIKE $" + (paramIndex++) + " OR s.parent_phone ILIKE $" + (paramIndex++) + ")";
     const searchTerm = `%${params.search}%`;
     queryParams.push(searchTerm, searchTerm, searchTerm);
   }
 
   if (params.class_id) {
-    whereClause += " AND s.class_id = ?";
+    whereClause += " AND s.class_id = $" + (paramIndex++);
     queryParams.push(params.class_id);
   }
 
   if (params.grade_id) {
-    whereClause += " AND c.grade_id = ?";
+    whereClause += " AND c.grade_id = $" + (paramIndex++);
     queryParams.push(params.grade_id);
   }
 
   if (params.is_active !== undefined) {
-    whereClause += " AND s.is_active = ?";
-    queryParams.push(params.is_active);
+    whereClause += " AND s.is_active = $" + (paramIndex++);
+    queryParams.push(params.is_active === 1);
   }
 
   if (params.semester_id) {
-    whereClause += " AND c.semester_id = ?";
+    whereClause += " AND c.semester_id = $" + (paramIndex++);
     queryParams.push(params.semester_id);
   }
 
@@ -63,8 +63,8 @@ export function getStudents(
     LEFT JOIN classes c ON s.class_id = c.id
     ${whereClause}
   `;
-  const countResult = db.prepare(countQuery).get(...queryParams) as { count: number };
-  const total = countResult.count;
+  const countResult = await pgClient.unsafe(countQuery, queryParams) as { count: number }[];
+  const total = countResult[0]?.count || 0;
 
   // 获取数据
   const dataQuery = `
@@ -72,15 +72,16 @@ export function getStudents(
       s.*,
       c.name as class_name,
       g.name as grade_name,
-      CASE WHEN s.is_nutrition_meal = 1 THEN '是' ELSE '否' END as nutrition_meal_name
+      CASE WHEN s.is_nutrition_meal = true THEN '是' ELSE '否' END as nutrition_meal_name
     FROM students s
     LEFT JOIN classes c ON s.class_id = c.id
     LEFT JOIN grades g ON c.grade_id = g.id
     ${whereClause}
     ${orderClause}
-    LIMIT ? OFFSET ?
+    LIMIT $${paramIndex++} OFFSET $${paramIndex++}
   `;
-  const data = db.prepare(dataQuery).all(...queryParams, limit, offset) as StudentWithDetails[];
+  queryParams.push(limit, offset);
+  const data = await pgClient.unsafe(dataQuery, queryParams) as StudentWithDetails[];
 
   return {
     data,
@@ -94,10 +95,9 @@ export function getStudents(
 /**
  * 根据ID获取学生
  */
-export function getStudentById(id: number): StudentWithDetails | null {
-  const db = getDb();
-  const student = db
-    .prepare(`
+export async function getStudentById(id: number): Promise<StudentWithDetails | null> {
+  const pgClient = getRawPostgres();
+  const result = await pgClient.unsafe(`
       SELECT
         s.*,
         c.name as class_name,
@@ -105,64 +105,57 @@ export function getStudentById(id: number): StudentWithDetails | null {
         g.id as grade_id,
         ct.real_name as class_teacher_name,
         ct.phone as class_teacher_phone,
-        CASE WHEN s.is_nutrition_meal = 1 THEN '是' ELSE '否' END as nutrition_meal_name
+        CASE WHEN s.is_nutrition_meal = true THEN '是' ELSE '否' END as nutrition_meal_name
       FROM students s
       LEFT JOIN classes c ON s.class_id = c.id
       LEFT JOIN grades g ON c.grade_id = g.id
       LEFT JOIN users ct ON c.class_teacher_id = ct.id
-      WHERE s.id = ?
-    `)
-    .get(id) as StudentWithDetails | undefined;
+      WHERE s.id = $1
+    `, [id]) as StudentWithDetails[];
 
-  return student || null;
+  return result[0] || null;
 }
 
 /**
  * 根据学号获取学生
  */
-export function getStudentByNo(studentNo: string): Student | null {
-  const db = getDb();
-  const student = db
-    .prepare("SELECT * FROM students WHERE student_no = ?")
-    .get(studentNo) as Student | undefined;
-
-  return student || null;
+export async function getStudentByNo(studentNo: string): Promise<Student | null> {
+  const pgClient = getRawPostgres();
+  const result = await pgClient.unsafe("SELECT * FROM students WHERE student_no = $1", [studentNo]) as Student[];
+  return result[0] || null;
 }
 
 /**
  * 创建学生
  */
-export function createStudent(input: StudentInput): {
+export async function createStudent(input: StudentInput): Promise<{
   success: boolean;
   message?: string;
   studentId?: number;
-} {
-  const db = getDb();
+}> {
+  const pgClient = getRawPostgres();
 
   // 检查学号是否已存在
-  const existingStudent = db
-    .prepare("SELECT id FROM students WHERE student_no = ?")
-    .get(input.student_no);
-  if (existingStudent) {
+  const existingStudent = await pgClient.unsafe("SELECT id FROM students WHERE student_no = $1", [input.student_no]);
+  if (existingStudent.length > 0) {
     return { success: false, message: "学号已存在" };
   }
 
   // 检查班级是否存在
-  const classExists = db.prepare("SELECT id FROM classes WHERE id = ?").get(input.class_id);
-  if (!classExists) {
+  const classExists = await pgClient.unsafe("SELECT id FROM classes WHERE id = $1", [input.class_id]);
+  if (classExists.length === 0) {
     return { success: false, message: "班级不存在" };
   }
 
   // 插入学生
-  const result = db
-    .prepare(
-      `INSERT INTO students (
-        student_no, name, gender, class_id, birth_date,
-        parent_name, parent_phone, address, is_nutrition_meal,
-        enrollment_date, is_active
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
+  const result = await pgClient.unsafe(
+    `INSERT INTO students (
+      student_no, name, gender, class_id, birth_date,
+      parent_name, parent_phone, address, is_nutrition_meal,
+      enrollment_date, is_active
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    RETURNING id`,
+    [
       input.student_no,
       input.name,
       input.gender || null,
@@ -171,100 +164,99 @@ export function createStudent(input: StudentInput): {
       input.parent_name || null,
       input.parent_phone || null,
       input.address || null,
-      input.is_nutrition_meal || 0,
+      input.is_nutrition_meal || false,
       input.enrollment_date || null,
-      1
-    );
+      true
+    ]
+  );
 
   // 学生数量通过数据库触发器自动维护，无需手动更新
 
-  return { success: true, studentId: result.lastInsertRowid as number };
+  return { success: true, studentId: result[0]?.id };
 }
 
 /**
  * 更新学生
  */
-export function updateStudent(
+export async function updateStudent(
   id: number,
   input: Partial<StudentInput> & { is_active?: number }
-): { success: boolean; message?: string } {
-  const db = getDb();
+): Promise<{ success: boolean; message?: string }> {
+  const pgClient = getRawPostgres();
 
   // 检查学生是否存在
-  const existingStudent = db.prepare("SELECT id, class_id FROM students WHERE id = ?").get(id) as
-    | { id: number; class_id: number }
-    | undefined;
-  if (!existingStudent) {
+  const existingStudentResult = await pgClient.unsafe("SELECT id, class_id FROM students WHERE id = $1", [id]) as
+    { id: number; class_id: number }[];
+  if (existingStudentResult.length === 0) {
     return { success: false, message: "学生不存在" };
   }
 
   // 如果修改学号，检查是否与其他学生冲突
   if (input.student_no) {
-    const duplicateCheck = db
-      .prepare("SELECT id FROM students WHERE student_no = ? AND id != ?")
-      .get(input.student_no, id);
-    if (duplicateCheck) {
+    const duplicateCheck = await pgClient.unsafe("SELECT id FROM students WHERE student_no = $1 AND id != $2", [input.student_no, id]);
+    if (duplicateCheck.length > 0) {
       return { success: false, message: "学号已存在" };
     }
   }
 
   // 构建更新语句
   const updates: string[] = [];
-  const params: (string | number)[] = [];
+  const params: (string | number | boolean)[] = [];
+  let paramIndex = 1;
 
   if (input.student_no !== undefined) {
-    updates.push("student_no = ?");
+    updates.push(`student_no = $${paramIndex++}`);
     params.push(input.student_no);
   }
   if (input.name !== undefined) {
-    updates.push("name = ?");
+    updates.push(`name = $${paramIndex++}`);
     params.push(input.name);
   }
   if (input.gender !== undefined) {
-    updates.push("gender = ?");
+    updates.push(`gender = $${paramIndex++}`);
     params.push(input.gender);
   }
   if (input.class_id !== undefined) {
-    updates.push("class_id = ?");
+    updates.push(`class_id = $${paramIndex++}`);
     params.push(input.class_id);
   }
   if (input.birth_date !== undefined) {
-    updates.push("birth_date = ?");
+    updates.push(`birth_date = $${paramIndex++}`);
     params.push(input.birth_date);
   }
   if (input.parent_name !== undefined) {
-    updates.push("parent_name = ?");
+    updates.push(`parent_name = $${paramIndex++}`);
     params.push(input.parent_name);
   }
   if (input.parent_phone !== undefined) {
-    updates.push("parent_phone = ?");
+    updates.push(`parent_phone = $${paramIndex++}`);
     params.push(input.parent_phone);
   }
   if (input.address !== undefined) {
-    updates.push("address = ?");
+    updates.push(`address = $${paramIndex++}`);
     params.push(input.address);
   }
   if (input.is_nutrition_meal !== undefined) {
-    updates.push("is_nutrition_meal = ?");
+    updates.push(`is_nutrition_meal = $${paramIndex++}`);
     params.push(input.is_nutrition_meal);
   }
   if (input.enrollment_date !== undefined) {
-    updates.push("enrollment_date = ?");
+    updates.push(`enrollment_date = $${paramIndex++}`);
     params.push(input.enrollment_date);
   }
   if (input.is_active !== undefined) {
-    updates.push("is_active = ?");
-    params.push(input.is_active);
+    updates.push(`is_active = $${paramIndex++}`);
+    params.push(input.is_active === 1);
   }
 
   if (updates.length === 0) {
     return { success: false, message: "没有要更新的字段" };
   }
 
-  updates.push("updated_at = CURRENT_TIMESTAMP");
+  updates.push(`updated_at = CURRENT_TIMESTAMP`);
   params.push(id);
 
-  db.prepare(`UPDATE students SET ${updates.join(", ")} WHERE id = ?`).run(...params);
+  await pgClient.unsafe(`UPDATE students SET ${updates.join(", ")} WHERE id = $${paramIndex}`, params);
 
   // 学生数量通过数据库触发器自动维护，无需手动更新
 
@@ -274,27 +266,24 @@ export function updateStudent(
 /**
  * 删除学生
  */
-export function deleteStudent(id: number): { success: boolean; message?: string } {
-  const db = getDb();
+export async function deleteStudent(id: number): Promise<{ success: boolean; message?: string }> {
+  const pgClient = getRawPostgres();
 
   // 检查学生是否存在
-  const existingStudent = db
-    .prepare("SELECT id, class_id FROM students WHERE id = ?")
-    .get(id) as { id: number; class_id: number } | undefined;
-  if (!existingStudent) {
+  const existingStudentResult = await pgClient.unsafe("SELECT id, class_id FROM students WHERE id = $1", [id]) as
+    { id: number; class_id: number }[];
+  if (existingStudentResult.length === 0) {
     return { success: false, message: "学生不存在" };
   }
 
   // 检查是否有请假记录
-  const leaveCheck = db
-    .prepare("SELECT id FROM leave_records WHERE student_id = ?")
-    .get(id);
-  if (leaveCheck) {
+  const leaveCheck = await pgClient.unsafe("SELECT id FROM leave_records WHERE student_id = $1", [id]);
+  if (leaveCheck.length > 0) {
     return { success: false, message: "该学生有请假记录，无法删除" };
   }
 
   // 删除学生
-  db.prepare("DELETE FROM students WHERE id = ?").run(id);
+  await pgClient.unsafe("DELETE FROM students WHERE id = $1", [id]);
 
   // 学生数量通过数据库触发器自动维护，无需手动更新
 
@@ -304,83 +293,77 @@ export function deleteStudent(id: number): { success: boolean; message?: string 
 /**
  * 获取班级学生列表
  */
-export function getStudentsByClass(classId: number): Student[] {
-  const db = getDb();
-  const students = db
-    .prepare(
-      `SELECT * FROM students WHERE class_id = ? AND is_active = 1 ORDER BY student_no`
-    )
-    .all(classId) as Student[];
+export async function getStudentsByClass(classId: number): Promise<Student[]> {
+  const pgClient = getRawPostgres();
+  const result = await pgClient.unsafe(
+    `SELECT * FROM students WHERE class_id = $1 AND is_active = true ORDER BY student_no`,
+    [classId]
+  ) as Student[];
 
-  return students;
+  return result;
 }
 
 /**
  * 切换学生状态（启用/禁用）
  */
-export function toggleStudentStatus(id: number): { success: boolean; message?: string; isActive?: number } {
-  const db = getDb();
+export async function toggleStudentStatus(id: number): Promise<{ success: boolean; message?: string; isActive?: number }> {
+  const pgClient = getRawPostgres();
 
   // 检查学生是否存在
-  const student = db
-    .prepare("SELECT id, is_active, class_id FROM students WHERE id = ?")
-    .get(id) as { id: number; is_active: number; class_id: number } | undefined;
+  const studentResult = await pgClient.unsafe("SELECT id, is_active, class_id FROM students WHERE id = $1", [id]) as
+    { id: number; is_active: boolean; class_id: number }[];
 
-  if (!student) {
+  if (studentResult.length === 0) {
     return { success: false, message: "学生不存在" };
   }
 
-  const newStatus = student.is_active ? 0 : 1;
-  db.prepare("UPDATE students SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
+  const newStatus = !studentResult[0].is_active;
+  await pgClient.unsafe("UPDATE students SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2", [
     newStatus,
     id
-  );
+  ]);
 
   // 学生数量通过数据库触发器自动维护，无需手动更新
 
-  return { success: true, isActive: newStatus };
+  return { success: true, isActive: newStatus ? 1 : 0 };
 }
 
 /**
  * 批量创建学生
  */
-export function batchCreateStudents(
+export async function batchCreateStudents(
   students: StudentInput[]
-): { success: boolean; message?: string; createdCount?: number; errors?: string[] } {
-  const db = getDb();
+): Promise<{ success: boolean; message?: string; createdCount?: number; errors?: string[] }> {
+  const pgClient = getRawPostgres();
   const errors: string[] = [];
   let createdCount = 0;
 
-  // 使用事务确保数据一致性
-  const transaction = db.transaction(() => {
-    for (let i = 0; i < students.length; i++) {
-      const student = students[i];
+  for (let i = 0; i < students.length; i++) {
+    const student = students[i];
 
-      // 检查学号是否已存在
-      const existingStudent = db
-        .prepare("SELECT id FROM students WHERE student_no = ?")
-        .get(student.student_no);
-      if (existingStudent) {
-        errors.push(`第${i + 1}行：学号 ${student.student_no} 已存在`);
-        continue;
-      }
+    // 检查学号是否已存在
+    const existingStudent = await pgClient.unsafe("SELECT id FROM students WHERE student_no = $1", [student.student_no]);
+    if (existingStudent.length > 0) {
+      errors.push(`第${i + 1}行：学号 ${student.student_no} 已存在`);
+      continue;
+    }
 
-      // 检查班级是否存在
-      const classExists = db.prepare("SELECT id FROM classes WHERE id = ?").get(student.class_id);
-      if (!classExists) {
-        errors.push(`第${i + 1}行：班级不存在`);
-        continue;
-      }
+    // 检查班级是否存在
+    const classExists = await pgClient.unsafe("SELECT id FROM classes WHERE id = $1", [student.class_id]);
+    if (classExists.length === 0) {
+      errors.push(`第${i + 1}行：班级不存在`);
+      continue;
+    }
 
-      // 插入学生
-      try {
-        db.prepare(
-          `INSERT INTO students (
-            student_no, name, gender, class_id, birth_date,
-            parent_name, parent_phone, address, is_nutrition_meal,
-            enrollment_date, is_active
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        ).run(
+    // 插入学生
+    try {
+      await pgClient.unsafe(
+        `INSERT INTO students (
+          student_no, name, gender, class_id, birth_date,
+          parent_name, parent_phone, address, is_nutrition_meal,
+          enrollment_date, is_active
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        [
           student.student_no,
           student.name,
           student.gender || null,
@@ -389,51 +372,48 @@ export function batchCreateStudents(
           student.parent_name || null,
           student.parent_phone || null,
           student.address || null,
-          student.is_nutrition_meal || 0,
+          student.is_nutrition_meal || false,
           student.enrollment_date || null,
-          1
-        );
-        createdCount++;
-      } catch (error) {
-        errors.push(`第${i + 1}行：${error instanceof Error ? error.message : "插入失败"}`);
-      }
+          true
+        ]
+      );
+      createdCount++;
+    } catch (error) {
+      errors.push(`第${i + 1}行：${error instanceof Error ? error.message : "插入失败"}`);
     }
-
-    // 学生数量通过数据库触发器自动维护，无需手动更新
-  });
-
-  try {
-    transaction();
-    return {
-      success: true,
-      createdCount,
-      message: `成功创建 ${createdCount} 个学生`,
-      errors: errors.length > 0 ? errors : undefined,
-    };
-  } catch (error) {
-    return {
-      success: false,
-      message: error instanceof Error ? error.message : "批量创建失败",
-    };
   }
+
+  // 学生数量通过数据库触发器自动维护，无需手动更新
+
+  return {
+    success: true,
+    createdCount,
+    message: `成功创建 ${createdCount} 个学生`,
+    errors: errors.length > 0 ? errors : undefined,
+  };
 }
 
 /**
  * 获取学生统计信息
  */
-export function getStudentStats(): {
+export async function getStudentStats(): Promise<{
   total: number;
   active: number;
   inactive: number;
   nutritionMeal: number;
-} {
-  const db = getDb();
+}> {
+  const pgClient = getRawPostgres();
 
-  const total = (db.prepare("SELECT COUNT(*) as count FROM students").get() as { count: number }).count;
-  const active = (db.prepare("SELECT COUNT(*) as count FROM students WHERE is_active = 1").get() as { count: number })
-    .count;
+  const totalResult = await pgClient.unsafe("SELECT COUNT(*) as count FROM students") as { count: number }[];
+  const total = totalResult[0]?.count || 0;
+
+  const activeResult = await pgClient.unsafe("SELECT COUNT(*) as count FROM students WHERE is_active = true") as { count: number }[];
+  const active = activeResult[0]?.count || 0;
+
   const inactive = total - active;
-  const nutritionMeal = (db.prepare("SELECT COUNT(*) as count FROM students WHERE is_nutrition_meal = 1 AND is_active = 1").get() as { count: number }).count;
+
+  const nutritionMealResult = await pgClient.unsafe("SELECT COUNT(*) as count FROM students WHERE is_nutrition_meal = true AND is_active = true") as { count: number }[];
+  const nutritionMeal = nutritionMealResult[0]?.count || 0;
 
   return {
     total,
@@ -446,112 +426,90 @@ export function getStudentStats(): {
 /**
  * 根据学期名称、年级名称、班级名称获取班级ID
  */
-export function getClassIdByNames(
+export async function getClassIdByNames(
   semesterName: string,
   gradeName: string,
   className: string
-): { class_id?: number; error?: string } {
-  const db = getDb();
+): Promise<{ class_id?: number; error?: string }> {
+  const pgClient = getRawPostgres();
 
-  const result = db
-    .prepare(`
+  const result = await pgClient.unsafe(`
       SELECT c.id
       FROM classes c
       INNER JOIN grades g ON c.grade_id = g.id
       INNER JOIN semesters s ON g.semester_id = s.id
-      WHERE s.name = ? AND g.name = ? AND c.name = ?
-    `)
-    .get(semesterName, gradeName, className) as { id: number } | undefined;
+      WHERE s.name = $1 AND g.name = $2 AND c.name = $3
+    `, [semesterName, gradeName, className]) as { id: number }[];
 
-  if (!result) {
+  if (result.length === 0) {
     return { error: `未找到班级：${semesterName}-${gradeName}-${className}` };
   }
 
-  return { class_id: result.id };
+  return { class_id: result[0]?.id };
 }
 
 /**
  * 批量创建/更新学生
  */
-export function batchCreateOrUpdateStudents(
+export async function batchCreateOrUpdateStudents(
   inputs: StudentInput[]
-): {
+): Promise<{
   success: boolean;
   created: number;
   updated: number;
   failed: number;
   errors: Array<{ row: number; input: StudentInput; message: string }>;
-} {
-  const db = getDb();
+}> {
   const errors: Array<{ row: number; input: StudentInput; message: string }> = [];
   let created = 0;
   let updated = 0;
 
-  const transaction = db.transaction(() => {
-    for (let i = 0; i < inputs.length; i++) {
-      const input = inputs[i];
-      const rowNum = i + 1;
+  for (let i = 0; i < inputs.length; i++) {
+    const input = inputs[i];
+    const rowNum = i + 1;
 
-      // 检查班级是否存在
-      const classExists = db.prepare("SELECT id FROM classes WHERE id = ?").get(input.class_id);
-      if (!classExists) {
-        errors.push({ row: rowNum, input, message: "班级不存在" });
-        continue;
+    // 检查班级是否存在
+    const classExists = await getRawPostgres().unsafe("SELECT id FROM classes WHERE id = $1", [input.class_id]);
+    if (classExists.length === 0) {
+      errors.push({ row: rowNum, input, message: "班级不存在" });
+      continue;
+    }
+
+    // 检查学号是否已存在
+    const existingStudent = await getRawPostgres().unsafe("SELECT id FROM students WHERE student_no = $1", [input.student_no]);
+
+    if (existingStudent.length > 0) {
+      // 更新现有学生
+      try {
+        const updateResult = await updateStudent((existingStudent[0] as { id: number }).id, input);
+        if (updateResult.success) {
+          updated++;
+        } else {
+          errors.push({ row: rowNum, input, message: updateResult.message || "更新失败" });
+        }
+      } catch {
+        errors.push({ row: rowNum, input, message: "更新失败" });
       }
-
-      // 检查学号是否已存在
-      const existingStudent = db
-        .prepare("SELECT id FROM students WHERE student_no = ?")
-        .get(input.student_no);
-
-      if (existingStudent) {
-        // 更新现有学生
-        try {
-          const updateResult = updateStudent((existingStudent as { id: number }).id, input);
-          if (updateResult.success) {
-            updated++;
-          } else {
-            errors.push({ row: rowNum, input, message: updateResult.message || "更新失败" });
-          }
-        } catch {
-          errors.push({ row: rowNum, input, message: "更新失败" });
+    } else {
+      // 创建新学生
+      try {
+        const createResult = await createStudent(input);
+        if (createResult.success) {
+          created++;
+        } else {
+          errors.push({ row: rowNum, input, message: createResult.message || "创建失败" });
         }
-      } else {
-        // 创建新学生
-        try {
-          const createResult = createStudent(input);
-          if (createResult.success) {
-            created++;
-          } else {
-            errors.push({ row: rowNum, input, message: createResult.message || "创建失败" });
-          }
-        } catch {
-          errors.push({ row: rowNum, input, message: "创建失败" });
-        }
+      } catch {
+        errors.push({ row: rowNum, input, message: "创建失败" });
       }
     }
-  });
-
-  try {
-    transaction();
-    return {
-      success: true,
-      created,
-      updated,
-      failed: errors.length,
-      errors,
-    };
-  } catch {
-    return {
-      success: false,
-      created: 0,
-      updated: 0,
-      failed: inputs.length,
-      errors: inputs.map((input, i) => ({
-        row: i + 1,
-        input,
-        message: "批量操作失败",
-      })),
-    };
   }
+
+  return {
+    success: true,
+    created,
+    updated,
+    failed: errors.length,
+    errors,
+  };
 }

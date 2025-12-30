@@ -456,7 +456,8 @@ export type BackupModule =
   | "leave_records"
   | "fee_configs"
   | "system_config"
-  | "operation_logs";
+  | "operation_logs"
+  | "backup_records";
 
 export interface BackupRecord {
   id: number;

@@ -23,13 +23,12 @@ export async function POST(
     }
 
     const { id } = await params;
-    const { getDb } = await import("@/lib/db");
-    const db = getDb();
+    const { getRawPostgres } = await import("@/lib/db");
+    const pgClient = getRawPostgres();
 
     // 获取备份记录
-    const record = db
-      .prepare("SELECT * FROM backup_records WHERE id = ?")
-      .get(id) as { file_path: string; name: string } | undefined;
+    const recordResult = await pgClient.unsafe("SELECT * FROM backup_records WHERE id = $1", [id]);
+    const record = recordResult[0] as { file_path: string; name: string } | undefined;
 
     if (!record) {
       return NextResponse.json({ error: "备份不存在" }, { status: 404 });
@@ -44,7 +43,7 @@ export async function POST(
     const sqlContent = fs.readFileSync(record.file_path, "utf-8");
 
     // 执行恢复
-    const result = restoreFromSQL(sqlContent);
+    const result = await restoreFromSQL(sqlContent);
 
     if (result.success) {
       // 记录恢复日志

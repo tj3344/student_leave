@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/api/auth";
 import { getClasses } from "@/lib/api/classes";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { exportClassesToExcel, workbookToBlob } from "@/lib/utils/excel";
-import { getDb } from "@/lib/db";
+import { getRawPostgres } from "@/lib/db";
 import type { ClassWithDetails } from "@/types";
 
 /**
@@ -43,11 +43,12 @@ export async function GET(request: NextRequest) {
     const classes = getClasses(params) as ClassWithDetails[];
 
     // 获取学期名称
-    const db = getDb();
+    const pgClient = getRawPostgres();
     const semesterIds = [...new Set(classes.map((c) => c.semester_id))];
-    const semesters = db
-      .prepare(`SELECT id, name FROM semesters WHERE id IN (${semesterIds.map(() => '?').join(',')})`)
-      .all(...semesterIds) as Array<{ id: number; name: string }>;
+    const semesters = await pgClient.unsafe(
+      `SELECT id, name FROM semesters WHERE id IN (${semesterIds.map((_, i) => `$${i + 1}`).join(',')})`,
+      semesterIds
+    ) as Array<{ id: number; name: string }>;
 
     const semesterMap = new Map(semesterIds.map((id) => [id, semesters.find((s) => s.id === id)?.name || '']));
 

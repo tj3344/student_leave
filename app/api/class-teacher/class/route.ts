@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
-import { getDb } from "@/lib/db";
+import { getRawPostgres } from "@/lib/db";
 import { getCurrentSemester } from "@/lib/api/semesters";
 
 /**
@@ -23,16 +23,17 @@ export async function GET() {
       return NextResponse.json({ error: "未设置当前学期" }, { status: 400 });
     }
 
-    const db = getDb();
+    const pgClient = getRawPostgres();
     const semesterId = currentSemester.id;
 
     // 3. 查询班主任负责的班级
-    const classRow = db.prepare(`
+    const classRowResult = await pgClient.unsafe(`
       SELECT c.id, c.name, c.grade_id, g.name as grade_name
       FROM classes c
       INNER JOIN grades g ON c.grade_id = g.id
-      WHERE c.class_teacher_id = ? AND c.semester_id = ?
-    `).get(currentUser.id, semesterId) as
+      WHERE c.class_teacher_id = $1 AND c.semester_id = $2
+    `, [currentUser.id, semesterId]);
+    const classRow = classRowResult[0] as
       | { id: number; name: string; grade_id: number; grade_name: string }
       | undefined;
 

@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { getRawPostgres } from "@/lib/db";
 import { validateOrderBy, SORT_FIELDS, DEFAULT_SORT_FIELDS } from "@/lib/utils/sql-security";
 import type { Semester, SemesterInput, PaginationParams, PaginatedResponse } from "@/types";
 import { cached, clearSemesterCache } from "@/lib/cache";
@@ -6,14 +6,14 @@ import { cached, clearSemesterCache } from "@/lib/cache";
 /**
  * 获取学期列表
  */
-export function getSemesters(params?: PaginationParams): PaginatedResponse<Semester> | Semester[] {
-  const db = getDb();
+export async function getSemesters(params?: PaginationParams): Promise<PaginatedResponse<Semester> | Semester[]> {
+  const pgClient = getRawPostgres();
 
   // 如果没有分页参数，返回所有数据
   if (!params?.page && !params?.limit) {
-    return db
-      .prepare("SELECT * FROM semesters ORDER BY is_current DESC, start_date DESC")
-      .all() as Semester[];
+    return await pgClient.unsafe(
+      "SELECT * FROM semesters ORDER BY is_current DESC, start_date DESC"
+    ) as Semester[];
   }
 
   const page = params.page || 1;
@@ -23,18 +23,19 @@ export function getSemesters(params?: PaginationParams): PaginatedResponse<Semes
   // 构建查询条件
   let whereClause = "";
   const queryParams: (string | number)[] = [];
+  let paramIndex = 1;
 
   if (params?.search) {
-    // 使用 COLLATE NOCASE 索引优化搜索
-    whereClause = "WHERE name LIKE ? COLLATE NOCASE";
+    whereClause = "WHERE name ILIKE $" + paramIndex++;
     queryParams.push(`%${params.search}%`);
   }
 
   // 获取总数
-  const countResult = db
-    .prepare(`SELECT COUNT(*) as total FROM semesters ${whereClause}`)
-    .get(...queryParams) as { total: number };
-  const total = countResult.total;
+  const countResult = await pgClient.unsafe(
+    `SELECT COUNT(*) as total FROM semesters ${whereClause}`,
+    queryParams
+  );
+  const total = countResult[0]?.total || 0;
 
   // 获取数据（使用白名单验证防止 SQL 注入）
   const { orderBy, order } = validateOrderBy(
@@ -42,11 +43,12 @@ export function getSemesters(params?: PaginationParams): PaginatedResponse<Semes
     params?.order,
     { allowedFields: SORT_FIELDS.semesters, defaultField: DEFAULT_SORT_FIELDS.semesters }
   );
-  const data = db
-    .prepare(
-      `SELECT * FROM semesters ${whereClause} ORDER BY ${orderBy} ${order} LIMIT ? OFFSET ?`
-    )
-    .all(...queryParams, limit, offset) as Semester[];
+
+  queryParams.push(limit, offset);
+  const data = await pgClient.unsafe(
+    `SELECT * FROM semesters ${whereClause} ORDER BY ${orderBy} ${order} LIMIT $${paramIndex++} OFFSET $${paramIndex}`,
+    queryParams
+  ) as Semester[];
 
   return {
     data,
@@ -60,22 +62,24 @@ export function getSemesters(params?: PaginationParams): PaginatedResponse<Semes
 /**
  * 获取学期详情
  */
-export function getSemesterById(id: number): Semester | null {
-  const db = getDb();
-  return db.prepare("SELECT * FROM semesters WHERE id = ?").get(id) as Semester | null;
+export async function getSemesterById(id: number): Promise<Semester | null> {
+  const pgClient = getRawPostgres();
+  const result = await pgClient.unsafe("SELECT * FROM semesters WHERE id = $1", [id]) as Semester[];
+  return result[0] || null;
 }
 
 /**
  * 获取当前学期（带10分钟缓存）
  */
-export function getCurrentSemester(): Semester | null {
+export async function getCurrentSemester(): Promise<Semester | null> {
   return cached(
     "semester:current",
-    () => {
-      const db = getDb();
-      return db
-        .prepare("SELECT * FROM semesters WHERE is_current = 1")
-        .get() as Semester | null;
+    async () => {
+      const pgClient = getRawPostgres();
+      const result = await pgClient.unsafe(
+        "SELECT * FROM semesters WHERE is_current = true"
+      ) as Semester[];
+      return result[0] || null;
     },
     10 * 60 * 1000 // 10分钟缓存
   );
@@ -84,10 +88,10 @@ export function getCurrentSemester(): Semester | null {
 /**
  * 创建学期
  */
-export function createSemester(
+export async function createSemester(
   input: SemesterInput & { is_current?: boolean }
-): { success: boolean; message?: string; semesterId?: number } {
-  const db = getDb();
+): Promise<{ success: boolean; message?: string; semesterId?: number }> {
+  const pgClient = getRawPostgres();
 
   // 验证日期
   if (new Date(input.end_date) <= new Date(input.start_date)) {
@@ -101,39 +105,39 @@ export function createSemester(
 
   // 如果设置为当前学期，取消其他学期的当前状态
   if (input.is_current) {
-    db.prepare("UPDATE semesters SET is_current = 0").run();
+    await pgClient.unsafe("UPDATE semesters SET is_current = false");
     // 清除缓存
     clearSemesterCache();
   }
 
   // 插入学期
-  const result = db
-    .prepare(
-      `INSERT INTO semesters (name, start_date, end_date, school_days, is_current)
-       VALUES (?, ?, ?, ?, ?)`
-    )
-    .run(
+  const result = await pgClient.unsafe(
+    `INSERT INTO semesters (name, start_date, end_date, school_days, is_current, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+     RETURNING id`,
+    [
       input.name,
       input.start_date,
       input.end_date,
       input.school_days,
-      input.is_current ? 1 : 0
-    );
+      input.is_current ? true : false
+    ]
+  );
 
-  return { success: true, semesterId: result.lastInsertRowid as number };
+  return { success: true, semesterId: result[0]?.id };
 }
 
 /**
  * 更新学期
  */
-export function updateSemester(
+export async function updateSemester(
   id: number,
   input: Partial<SemesterInput> & { is_current?: boolean }
-): { success: boolean; message?: string } {
-  const db = getDb();
+): Promise<{ success: boolean; message?: string }> {
+  const pgClient = getRawPostgres();
 
   // 检查学期是否存在
-  const existing = getSemesterById(id);
+  const existing = await getSemesterById(id);
   if (!existing) {
     return { success: false, message: "学期不存在" };
   }
@@ -152,44 +156,48 @@ export function updateSemester(
 
   // 如果设置为当前学期，取消其他学期的当前状态
   if (input.is_current) {
-    db.prepare("UPDATE semesters SET is_current = 0").run();
+    await pgClient.unsafe("UPDATE semesters SET is_current = false");
     // 清除缓存
     clearSemesterCache();
   }
 
   // 构建更新语句
   const updates: string[] = [];
-  const values: (string | number)[] = [];
+  const values: (string | number | boolean)[] = [];
+  let paramIndex = 1;
 
   if (input.name !== undefined) {
-    updates.push("name = ?");
+    updates.push(`name = $${paramIndex++}`);
     values.push(input.name);
   }
   if (input.start_date !== undefined) {
-    updates.push("start_date = ?");
+    updates.push(`start_date = $${paramIndex++}`);
     values.push(input.start_date);
   }
   if (input.end_date !== undefined) {
-    updates.push("end_date = ?");
+    updates.push(`end_date = $${paramIndex++}`);
     values.push(input.end_date);
   }
   if (input.school_days !== undefined) {
-    updates.push("school_days = ?");
+    updates.push(`school_days = $${paramIndex++}`);
     values.push(input.school_days);
   }
   if (input.is_current !== undefined) {
-    updates.push("is_current = ?");
-    values.push(input.is_current ? 1 : 0);
+    updates.push(`is_current = $${paramIndex++}`);
+    values.push(input.is_current);
   }
 
   if (updates.length === 0) {
     return { success: true };
   }
 
-  updates.push("updated_at = CURRENT_TIMESTAMP");
+  updates.push(`updated_at = CURRENT_TIMESTAMP`);
   values.push(id);
 
-  db.prepare(`UPDATE semesters SET ${updates.join(", ")} WHERE id = ?`).run(...values);
+  await pgClient.unsafe(
+    `UPDATE semesters SET ${updates.join(", ")} WHERE id = $${paramIndex}`,
+    values
+  );
 
   return { success: true };
 }
@@ -197,26 +205,27 @@ export function updateSemester(
 /**
  * 删除学期
  */
-export function deleteSemester(id: number): { success: boolean; message?: string } {
-  const db = getDb();
+export async function deleteSemester(id: number): Promise<{ success: boolean; message?: string }> {
+  const pgClient = getRawPostgres();
 
   // 检查学期是否存在
-  const existing = getSemesterById(id);
+  const existing = await getSemesterById(id);
   if (!existing) {
     return { success: false, message: "学期不存在" };
   }
 
   // 检查是否有关联的请假记录
-  const hasLeaveRecords = db
-    .prepare("SELECT COUNT(*) as count FROM leave_records WHERE semester_id = ?")
-    .get(id) as { count: number };
+  const hasLeaveRecords = await pgClient.unsafe(
+    "SELECT COUNT(*) as count FROM leave_records WHERE semester_id = $1",
+    [id]
+  );
 
-  if (hasLeaveRecords.count > 0) {
+  if (hasLeaveRecords[0]?.count > 0) {
     return { success: false, message: "该学期存在请假记录，无法删除" };
   }
 
   // 删除学期
-  db.prepare("DELETE FROM semesters WHERE id = ?").run(id);
+  await pgClient.unsafe("DELETE FROM semesters WHERE id = $1", [id]);
 
   // 清除缓存
   clearSemesterCache();
@@ -227,20 +236,20 @@ export function deleteSemester(id: number): { success: boolean; message?: string
 /**
  * 设置当前学期
  */
-export function setCurrentSemester(id: number): { success: boolean; message?: string } {
-  const db = getDb();
+export async function setCurrentSemester(id: number): Promise<{ success: boolean; message?: string }> {
+  const pgClient = getRawPostgres();
 
   // 检查学期是否存在
-  const existing = getSemesterById(id);
+  const existing = await getSemesterById(id);
   if (!existing) {
     return { success: false, message: "学期不存在" };
   }
 
   // 取消所有学期的当前状态
-  db.prepare("UPDATE semesters SET is_current = 0").run();
+  await pgClient.unsafe("UPDATE semesters SET is_current = false");
 
   // 设置当前学期
-  db.prepare("UPDATE semesters SET is_current = 1 WHERE id = ?").run(id);
+  await pgClient.unsafe("UPDATE semesters SET is_current = true WHERE id = $1", [id]);
 
   // 清除缓存
   clearSemesterCache();

@@ -86,7 +86,6 @@ scripts
 nginx
 pm2
 *.service
-ecosystem.config.cjs
 docker-compose*.yml
 Dockerfile*
 

@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { getRawPostgres } from "@/lib/db";
 
 export async function GET() {
   try {
     // 检查数据库连接
-    const db = getDb();
-    db.prepare("SELECT 1").get();
+    const pgClient = getRawPostgres();
+    await pgClient.unsafe("SELECT 1");
 
     // 返回健康状态
     return NextResponse.json({

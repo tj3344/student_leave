@@ -21,12 +21,11 @@ export async function GET(
     }
 
     const { id } = await params;
-    const { getDb } = await import("@/lib/db");
-    const db = getDb();
+    const { getRawPostgres } = await import("@/lib/db");
+    const pgClient = getRawPostgres();
 
-    const record = db
-      .prepare("SELECT * FROM backup_records WHERE id = ?")
-      .get(id) as { file_path: string; name: string } | undefined;
+    const recordResult = await pgClient.unsafe("SELECT * FROM backup_records WHERE id = $1", [id]);
+    const record = recordResult[0] as { file_path: string; name: string } | undefined;
 
     if (!record) {
       return NextResponse.json({ error: "备份不存在" }, { status: 404 });

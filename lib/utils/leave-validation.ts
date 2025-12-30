@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { getRawPostgres } from "@/lib/db";
 import { getNumberConfig } from "@/lib/api/system-config";
 
 /**
@@ -62,47 +62,45 @@ export function validateRetroactiveDays(startDate: string): ValidationResult {
  * @param excludeId 排除的记录ID（用于编辑时排除自身）
  * @returns 验证结果
  */
-export function validateDateOverlap(
+export async function validateDateOverlap(
   studentId: number,
   semesterId: number,
   startDate: string,
   endDate: string,
   excludeId?: number
-): ValidationResult {
-  const db = getDb();
+): Promise<ValidationResult> {
+  const pgClient = getRawPostgres();
 
   // 构建查询条件 - 严格边界检查：使用 < 而不是 <=
   // 当新记录开始日期 < 已有记录结束日期 OR 新记录结束日期 > 已有记录开始日期 时，视为重叠
-  let whereClause = "WHERE student_id = ? AND semester_id = ? AND status IN ('pending', 'approved') AND ((? < end_date) OR (? > start_date))";
   const params: (number | string)[] = [studentId, semesterId, startDate, endDate];
+  let whereClause = "WHERE student_id = $1 AND semester_id = $2 AND status IN ('pending', 'approved') AND (($3 < end_date) OR ($4 > start_date))";
 
   // 如果是编辑，排除自身记录
   if (excludeId) {
-    whereClause += " AND id != ?";
+    whereClause += " AND id != $" + (params.length + 1);
     params.push(excludeId);
   }
 
   const query = `SELECT COUNT(*) as count FROM leave_records ${whereClause}`;
-  const result = db.prepare(query).get(...params) as { count: number };
+  const result = await pgClient.unsafe(query, params);
+  const count = result[0]?.count || 0;
 
-  if (result.count > 0) {
+  if (count > 0) {
     // 获取重叠记录的详细信息用于友好提示
+    const detailParams = [...params];
     const detailQuery = `
       SELECT start_date, end_date, status
       FROM leave_records
-      WHERE student_id = ? AND semester_id = ? AND status IN ('pending', 'approved')
-        AND ((? < end_date) OR (? > start_date))
-        ${excludeId ? "AND id != ?" : ""}
+      WHERE student_id = $1 AND semester_id = $2 AND status IN ('pending', 'approved')
+        AND (($3 < end_date) OR ($4 > start_date))
+        ${excludeId ? `AND id != $${detailParams.length + 1}` : ""}
       LIMIT 3
     `;
-    const overlappingRecords = db.prepare(detailQuery).all(...params) as {
-      start_date: string;
-      end_date: string;
-      status: string;
-    }[];
+    const overlappingRecords = await pgClient.unsafe(detailQuery, detailParams);
 
     const details = overlappingRecords
-      .map(r => `${r.start_date}至${r.end_date}(${r.status === 'pending' ? '待审核' : '已批准'})`)
+      .map((r: any) => `${r.start_date}至${r.end_date}(${r.status === 'pending' ? '待审核' : '已批准'})`)
       .join("; ");
 
     return {
@@ -123,13 +121,13 @@ export function validateDateOverlap(
  * @param excludeId 排除的记录ID（用于编辑时）
  * @returns 验证结果
  */
-export function validateLeaveRequest(
+export async function validateLeaveRequest(
   studentId: number,
   semesterId: number,
   startDate: string,
   endDate: string,
   excludeId?: number
-): ValidationResult {
+): Promise<ValidationResult> {
   // 先验证补请假天数
   const retroactiveResult = validateRetroactiveDays(startDate);
   if (!retroactiveResult.success) {
@@ -137,7 +135,7 @@ export function validateLeaveRequest(
   }
 
   // 再验证日期重叠
-  const overlapResult = validateDateOverlap(
+  const overlapResult = await validateDateOverlap(
     studentId,
     semesterId,
     startDate,

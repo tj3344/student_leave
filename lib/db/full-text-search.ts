@@ -1,64 +1,69 @@
-import { getDb } from './index';
+import { getRawPostgres } from "./index";
 
 /**
- * 初始化全文搜索表
- * 使用 SQLite FTS5 扩展实现高效的文本搜索
+ * 初始化全文搜索
  */
-export function initFullTextSearch(): void {
-  const db = getDb();
+export async function initFullTextSearch(): Promise<void> {
+  await initPostgresFullTextSearch();
+}
 
-  // 创建学生全文搜索虚拟表
-  db.exec(`
-    CREATE VIRTUAL TABLE IF NOT EXISTS students_fts
-    USING fts5(
-      student_no,
-      name,
-      parent_phone,
-      content='students',
-      content_rowid='id'
-    );
+/**
+ * 初始化 PostgreSQL tsvector 全文搜索
+ */
+async function initPostgresFullTextSearch(): Promise<void> {
+  const pgClient = getRawPostgres();
+
+  // 添加 tsvector 列
+  await pgClient.unsafe(`
+    ALTER TABLE students
+    ADD COLUMN IF NOT EXISTS search_vector tsvector
   `);
 
-  // 创建触发器保持同步
-  db.exec(`
-    -- 插入触发器：当插入学生记录时，同步到 FTS 表
-    CREATE TRIGGER IF NOT EXISTS students_fts_insert
-    AFTER INSERT ON students BEGIN
-      INSERT INTO students_fts(rowid, student_no, name, parent_phone)
-      VALUES (NEW.id, NEW.student_no, NEW.name, NEW.parent_phone);
-    END;
-
-    -- 更新触发器：当更新学生记录时，同步到 FTS 表
-    CREATE TRIGGER IF NOT EXISTS students_fts_update
-    AFTER UPDATE ON students BEGIN
-      UPDATE students_fts
-      SET student_no = NEW.student_no, name = NEW.name, parent_phone = NEW.parent_phone
-      WHERE rowid = NEW.id;
-    END;
-
-    -- 删除触发器：当删除学生记录时，从 FTS 表删除
-    CREATE TRIGGER IF NOT EXISTS students_fts_delete
-    AFTER DELETE ON students BEGIN
-      DELETE FROM students_fts WHERE rowid = OLD.id;
-    END;
+  // 创建 GIN 索引
+  await pgClient.unsafe(`
+    CREATE INDEX IF NOT EXISTS idx_students_search
+    ON students
+    USING GIN (search_vector)
   `);
 
-  // 为现有数据填充 FTS 表
-  const existingCount = db.prepare('SELECT COUNT(*) as count FROM students_fts').get() as { count: number };
-  const studentCount = db.prepare('SELECT COUNT(*) as count FROM students').get() as { count: number };
+  // 创建触发器函数
+  await pgClient.unsafe(`
+    CREATE OR REPLACE FUNCTION students_search_vector_update()
+    RETURNS TRIGGER AS $$
+    BEGIN
+      NEW.search_vector :=
+        setweight(to_tsvector('chinese', COALESCE(NEW.student_no, '')), 'A') ||
+        setweight(to_tsvector('chinese', COALESCE(NEW.name, '')), 'B') ||
+        setweight(to_tsvector('chinese', COALESCE(NEW.parent_phone, '')), 'C');
+      RETURN NEW;
+    END;
+    $$ LANGUAGE plpgsql
+  `);
 
-  if (existingCount.count < studentCount.count) {
-    // 清空 FTS 表
-    db.exec('DELETE FROM students_fts');
+  // 删除旧触发器
+  await pgClient.unsafe(`
+    DROP TRIGGER IF EXISTS trigger_students_search_vector_update ON students
+  `);
 
-    // 重新填充 FTS 表
-    db.exec(`
-      INSERT INTO students_fts(rowid, student_no, name, parent_phone)
-      SELECT id, student_no, name, parent_phone FROM students
-    `);
-  }
+  // 创建触发器
+  await pgClient.unsafe(`
+    CREATE TRIGGER trigger_students_search_vector_update
+    BEFORE INSERT OR UPDATE ON students
+    FOR EACH ROW
+    EXECUTE FUNCTION students_search_vector_update()
+  `);
 
-  console.log('Full-text search initialized successfully');
+  // 为现有数据生成 search_vector
+  await pgClient.unsafe(`
+    UPDATE students
+    SET search_vector =
+      setweight(to_tsvector('chinese', COALESCE(student_no, '')), 'A') ||
+      setweight(to_tsvector('chinese', COALESCE(name, '')), 'B') ||
+      setweight(to_tsvector('chinese', COALESCE(parent_phone, '')), 'C')
+    WHERE search_vector IS NULL
+  `);
+
+  console.log('✅ PostgreSQL 全文搜索初始化成功');
 }
 
 /**
@@ -68,26 +73,22 @@ export function initFullTextSearch(): void {
  * @param offset 偏移量
  * @returns 学生列表
  */
-export function searchStudents(
+export async function searchStudents(
   query: string,
   limit: number = 20,
   offset: number = 0
-): Record<string, unknown>[] {
-  const db = getDb();
+): Promise<Record<string, unknown>[]> {
+  const pgClient = getRawPostgres();
 
-  // 使用 FTS5 搜索
-  return db.prepare(`
+  return await pgClient.unsafe(`
     SELECT s.*, c.name as class_name, g.name as grade_name
     FROM students s
     LEFT JOIN classes c ON s.class_id = c.id
     LEFT JOIN grades g ON c.grade_id = g.id
-    WHERE s.id IN (
-      SELECT rowid FROM students_fts
-      WHERE students_fts MATCH ?
-      ORDER BY rank
-      LIMIT ? OFFSET ?
-    )
-  `).all(query, limit, offset);
+    WHERE s.search_vector @@ plainto_tsquery('chinese', $1)
+    ORDER BY ts_rank(s.search_vector, plainto_tsquery('chinese', $1)) DESC
+    LIMIT $2 OFFSET $3
+  `, [query, limit, offset]);
 }
 
 /**
@@ -95,49 +96,45 @@ export function searchStudents(
  * @param query 搜索关键词
  * @returns 结果数量
  */
-export function getSearchStudentsCount(query: string): number {
-  const db = getDb();
+export async function getSearchStudentsCount(query: string): Promise<number> {
+  const pgClient = getRawPostgres();
 
-  const result = db.prepare(`
+  const result = await pgClient.unsafe(`
     SELECT COUNT(*) as count
-    FROM students_fts
-    WHERE students_fts MATCH ?
-  `).get(query) as { count: number };
+    FROM students
+    WHERE search_vector @@ plainto_tsquery('chinese', $1)
+  `, [query]);
 
-  return result.count;
+  return result[0]?.count || 0;
 }
 
 /**
  * 重建全文搜索索引
  * 当数据不一致时调用
  */
-export function rebuildFullTextSearchIndex(): void {
-  const db = getDb();
-
-  db.exec(`
-    DELETE FROM students_fts;
-    INSERT INTO students_fts(rowid, student_no, name, parent_phone)
-    SELECT id, student_no, name, parent_phone FROM students;
+export async function rebuildFullTextSearchIndex(): Promise<void> {
+  const pgClient = getRawPostgres();
+  await pgClient.unsafe(`
+    UPDATE students
+    SET search_vector =
+      setweight(to_tsvector('chinese', COALESCE(student_no, '')), 'A') ||
+      setweight(to_tsvector('chinese', COALESCE(name, '')), 'B') ||
+      setweight(to_tsvector('chinese', COALESCE(parent_phone, '')), 'C')
   `);
 
-  console.log('Full-text search index rebuilt successfully');
+  console.log('✅ 全文搜索索引重建成功');
 }
 
 /**
- * 清理全文搜索表
+ * 清理全文搜索
  */
-export function dropFullTextSearch(): void {
-  const db = getDb();
-
-  // 删除触发器
-  db.exec(`
-    DROP TRIGGER IF EXISTS students_fts_insert;
-    DROP TRIGGER IF EXISTS students_fts_update;
-    DROP TRIGGER IF EXISTS students_fts_delete;
+export async function dropFullTextSearch(): Promise<void> {
+  const pgClient = getRawPostgres();
+  await pgClient.unsafe(`
+    DROP TRIGGER IF EXISTS trigger_students_search_vector_update ON students;
+    DROP INDEX IF EXISTS idx_students_search;
+    ALTER TABLE students DROP COLUMN IF EXISTS search_vector;
   `);
 
-  // 删除 FTS 表
-  db.exec('DROP TABLE IF EXISTS students_fts');
-
-  console.log('Full-text search dropped successfully');
+  console.log('✅ 全文搜索已清理');
 }

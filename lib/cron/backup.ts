@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { getRawPostgres } from "@/lib/db";
 import { generateBackupSQL, getBackupDir, generateBackupFileName } from "@/lib/utils/backup";
 import fs from "fs";
 import type { BackupModule } from "@/types";
@@ -15,23 +15,18 @@ let schedulerInitialized = false;
  */
 export async function executeAutoBackup(): Promise<boolean> {
   try {
-    const db = getDb();
+    const pgClient = getRawPostgres();
 
     // 获取自动备份配置
-    const config = db.prepare("SELECT * FROM backup_config WHERE enabled = 1").get() as {
-      schedule_type: string;
-      schedule_time: string;
-      backup_type: string;
-      modules: string;
-      retention_days: number;
-    } | undefined;
+    const config = await pgClient.unsafe("SELECT * FROM backup_config WHERE enabled = true");
+    const configRow = config[0];
 
-    if (!config) {
+    if (!configRow) {
       return false;
     }
 
     // 检查是否符合备份时间
-    const [hour, minute] = config.schedule_time.split(":").map(Number);
+    const [hour, minute] = configRow.schedule_time.split(":").map(Number);
     const now = new Date();
 
     // 简单的时间匹配检查（实际使用时由 cron 调度，这里仅作为保险）
@@ -40,10 +35,10 @@ export async function executeAutoBackup(): Promise<boolean> {
     }
 
     // 解析备份模块
-    const modules = JSON.parse(config.modules) as BackupModule[];
+    const modules = JSON.parse(configRow.modules) as BackupModule[];
 
     // 生成备份
-    const sqlContent = generateBackupSQL(modules);
+    const sqlContent = await generateBackupSQL(modules);
 
     const backupDir = getBackupDir();
     const fileName = generateBackupFileName("自动备份");
@@ -52,42 +47,43 @@ export async function executeAutoBackup(): Promise<boolean> {
     fs.writeFileSync(filePath, sqlContent, "utf-8");
 
     // 记录到数据库
-    db.prepare(
+    await pgClient.unsafe(
       `
-      INSERT INTO backup_records (name, type, modules, file_path, file_size, created_by, description)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `
-    ).run(
-      "自动备份",
-      config.backup_type,
-      config.modules,
-      filePath,
-      Buffer.byteLength(sqlContent, "utf-8"),
-      1, // 系统用户 (admin)
-      `自动备份 - ${new Date().toLocaleString("zh-CN")}`
+      INSERT INTO backup_records (name, type, modules, file_path, file_size, created_by, description, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+    `,
+      [
+        "自动备份",
+        configRow.backup_type,
+        configRow.modules,
+        filePath,
+        Buffer.byteLength(sqlContent, "utf-8"),
+        1, // 系统用户 (admin)
+        `自动备份 - ${new Date().toLocaleString("zh-CN")}`
+      ]
     );
 
     // 清理过期备份
-    const retentionDays = config.retention_days || 30;
+    const retentionDays = configRow.retention_days || 30;
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
-    db.prepare(
+    await pgClient.unsafe(
       `
       DELETE FROM backup_records
-      WHERE created_at < ? AND name LIKE '自动备份%'
-    `
-    ).run(cutoffDate.toISOString());
+      WHERE created_at < $1 AND name LIKE '自动备份%'
+    `,
+      [cutoffDate.toISOString()]
+    );
 
     // 同时删除对应的文件
-    const expiredBackups = db
-      .prepare(
-        `
-        SELECT file_path FROM backup_records
-        WHERE created_at < ? AND name LIKE '自动备份%'
+    const expiredBackups = await pgClient.unsafe(
       `
-      )
-      .all(cutoffDate.toISOString()) as { file_path: string }[];
+      SELECT file_path FROM backup_records
+      WHERE created_at < $1 AND name LIKE '自动备份%'
+    `,
+      [cutoffDate.toISOString()]
+    );
 
     for (const backup of expiredBackups) {
       try {

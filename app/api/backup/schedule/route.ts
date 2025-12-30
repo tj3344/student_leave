@@ -17,21 +17,24 @@ export async function GET() {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
-    const { getDb } = await import("@/lib/db");
-    const db = getDb();
+    const { getRawPostgres } = await import("@/lib/db");
+    const pgClient = getRawPostgres();
 
-    let config = db.prepare("SELECT * FROM backup_config WHERE id = 1").get() as BackupConfig | undefined;
+    let configResult = await pgClient.unsafe("SELECT * FROM backup_config WHERE id = 1");
+    let config = configResult[0] as BackupConfig | undefined;
 
     // 如果没有配置，创建默认配置
     if (!config) {
-      db.prepare(
+      await pgClient.unsafe(
         `
         INSERT INTO backup_config (id, enabled, schedule_type, schedule_time, backup_type, modules, retention_days)
-        VALUES (1, 0, 'daily', '02:00', 'full', ?, 30)
-      `
-      ).run(JSON.stringify(["users", "semesters", "grades", "classes", "students", "leave_records", "fee_configs"]));
+        VALUES (1, false, 'daily', '02:00', 'full', $1, 30)
+      `,
+        [JSON.stringify(["users", "semesters", "grades", "classes", "students", "leave_records", "fee_configs"])]
+      );
 
-      config = db.prepare("SELECT * FROM backup_config WHERE id = 1").get() as BackupConfig;
+      const newConfigResult = await pgClient.unsafe("SELECT * FROM backup_config WHERE id = 1");
+      config = newConfigResult[0] as BackupConfig;
     }
 
     return NextResponse.json({ data: config });
@@ -66,42 +69,45 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "缺少必填字段" }, { status: 400 });
     }
 
-    const { getDb } = await import("@/lib/db");
-    const db = getDb();
+    const { getRawPostgres } = await import("@/lib/db");
+    const pgClient = getRawPostgres();
 
     // 检查配置是否存在
-    const existing = db.prepare("SELECT id FROM backup_config WHERE id = 1").get() as { id: number } | undefined;
+    const existingResult = await pgClient.unsafe("SELECT id FROM backup_config WHERE id = 1");
+    const existing = existingResult[0] as { id: number } | undefined;
 
     if (existing) {
       // 更新配置
-      db.prepare(
+      await pgClient.unsafe(
         `
         UPDATE backup_config
-        SET enabled = ?, schedule_type = ?, schedule_time = ?, backup_type = ?, modules = ?, retention_days = ?, updated_at = CURRENT_TIMESTAMP
+        SET enabled = $1, schedule_type = $2, schedule_time = $3, backup_type = $4, modules = $5, retention_days = $6, updated_at = CURRENT_TIMESTAMP
         WHERE id = 1
-      `
-      ).run(
-        enabled ? 1 : 0,
-        schedule_type,
-        schedule_time,
-        backup_type,
-        JSON.stringify(modules),
-        retention_days || 30
+      `,
+        [
+          enabled ? true : false,
+          schedule_type,
+          schedule_time,
+          backup_type,
+          JSON.stringify(modules),
+          retention_days || 30,
+        ]
       );
     } else {
       // 创建配置
-      db.prepare(
+      await pgClient.unsafe(
         `
         INSERT INTO backup_config (id, enabled, schedule_type, schedule_time, backup_type, modules, retention_days)
-        VALUES (1, ?, ?, ?, ?, ?, ?)
-      `
-      ).run(
-        enabled ? 1 : 0,
-        schedule_type,
-        schedule_time,
-        backup_type,
-        JSON.stringify(modules),
-        retention_days || 30
+        VALUES (1, $1, $2, $3, $4, $5, $6)
+      `,
+        [
+          enabled ? true : false,
+          schedule_type,
+          schedule_time,
+          backup_type,
+          JSON.stringify(modules),
+          retention_days || 30,
+        ]
       );
     }
 

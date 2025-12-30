@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
-import { getDb } from "@/lib/db";
+import { getRawPostgres } from "@/lib/db";
 import { ROLE_PERMISSIONS, PERMISSIONS } from "@/lib/constants";
 
 /**
@@ -30,45 +30,53 @@ export async function GET(request: NextRequest) {
     const order = searchParams.get("order") || "desc";
     const offset = (page - 1) * limit;
 
-    const db = getDb();
+    const pgClient = getRawPostgres();
 
     // 3. 构建查询条件
     const whereConditions: string[] = ["1=1"];
     const queryParams: (string | number)[] = [];
+    let paramIndex = 1;
 
     if (search) {
-      whereConditions.push("(u.username LIKE ? OR u.real_name LIKE ?)");
+      whereConditions.push(`(u.username LIKE $${paramIndex} OR u.real_name LIKE $${paramIndex + 1})`);
       queryParams.push(`%${search}%`, `%${search}%`);
+      paramIndex += 2;
     }
     if (moduleFilter) {
-      whereConditions.push("ol.module = ?");
+      whereConditions.push(`ol.module = $${paramIndex}`);
       queryParams.push(moduleFilter);
+      paramIndex++;
     }
     if (actionFilter) {
-      whereConditions.push("ol.action = ?");
+      whereConditions.push(`ol.action = $${paramIndex}`);
       queryParams.push(actionFilter);
+      paramIndex++;
     }
     if (startDate) {
-      whereConditions.push("DATE(ol.created_at) >= ?");
+      whereConditions.push(`DATE(ol.created_at) >= $${paramIndex}`);
       queryParams.push(startDate);
+      paramIndex++;
     }
     if (endDate) {
-      whereConditions.push("DATE(ol.created_at) <= ?");
+      whereConditions.push(`DATE(ol.created_at) <= $${paramIndex}`);
       queryParams.push(endDate);
+      paramIndex++;
     }
 
     const whereClause = whereConditions.join(" AND ");
 
     // 4. 查询总数
-    const countResult = db.prepare(`
+    const countResult = await pgClient.unsafe(`
       SELECT COUNT(*) as total
       FROM operation_logs ol
       LEFT JOIN users u ON ol.user_id = u.id
       WHERE ${whereClause}
-    `).get(...queryParams) as { total: number };
+    `, queryParams);
+    const totalCount = countResult[0]?.total || 0;
 
     // 5. 查询数据
-    const logs = db.prepare(`
+    queryParams.push(limit, offset);
+    const logs = await pgClient.unsafe(`
       SELECT
         ol.id,
         ol.user_id,
@@ -84,8 +92,8 @@ export async function GET(request: NextRequest) {
       LEFT JOIN users u ON ol.user_id = u.id
       WHERE ${whereClause}
       ORDER BY ol.${sort} ${order.toUpperCase()}
-      LIMIT ? OFFSET ?
-    `).all(...queryParams, limit, offset) as Array<{
+      LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}
+    `, queryParams) as Array<{
       id: number;
       user_id: number | null;
       action: string;
@@ -106,7 +114,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       data: formattedLogs,
-      total: countResult.total,
+      total: totalCount,
       page,
       limit,
     });

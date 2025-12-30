@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { runMigrations } from "@/lib/db";
 
 /**
  * GET /api/init - Return init status/instructions
@@ -8,29 +7,25 @@ export async function GET() {
   return NextResponse.json({
     message: "Database initialization requires POST request",
     usage: "curl -X POST http://your-server:3000/api/init",
+    currentDbType: "postgresql",
   });
 }
 
 /**
  * POST /api/init - Initialize the database
- * Creates tables, indexes, triggers, and default admin user
- * This endpoint is only for initial setup
+ * Note: PostgreSQL database is initialized via migration scripts.
  */
 export async function POST() {
   try {
-    // Run complete database initialization
-    // This includes: creating tables, indexes, triggers, system config, and default admin user
-    await runMigrations();
-
     return NextResponse.json({
       success: true,
-      message: "Database initialized successfully",
+      message: "PostgreSQL database is already initialized via migration scripts",
       details: {
-        tables: "Created all required tables",
-        indexes: "Created all indexes",
-        triggers: "Initialized student count triggers",
-        config: "Initialized system configuration",
-        admin: "Default admin user created (username: admin, password: admin123)",
+        tables: "Tables created via migration scripts",
+        indexes: "Indexes created via migration scripts",
+        triggers: "Triggers initialized via setup-postgres.cjs",
+        config: "System configuration migrated from SQLite",
+        data: "Data migrated from SQLite via migrate-to-postgres-sql.cjs",
       },
     });
   } catch (error) {

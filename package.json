@@ -13,7 +13,11 @@
     "test:coverage": "vitest --coverage",
     "test:run": "vitest run",
     "db:migrate": "node lib/db/migrate.js",
-    "db:seed": "node lib/db/seed.js"
+    "db:seed": "node lib/db/seed.js",
+    "db:push": "drizzle-kit push",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate-to-pg": "node scripts/migrate-to-postgres-sql.cjs",
+    "db:setup-pg": "ts-node scripts/setup-postgres.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -37,9 +41,13 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "dotenv": "^17.2.3",
+    "drizzle-orm": "^0.45.1",
     "lucide-react": "^0.462.0",
     "next": "^15.1.0",
     "node-cron": "^4.2.1",
+    "pg": "^8.16.3",
+    "postgres": "^3.4.7",
     "react": "^19.0.0",
     "react-day-picker": "^9.13.0",
     "react-dom": "^19.0.0",
@@ -58,11 +66,13 @@
     "@types/bcrypt": "^5.0.2",
     "@types/better-sqlite3": "^7.6.12",
     "@types/node": "^22",
+    "@types/pg": "^8.16.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5.1.2",
     "@vitest/coverage-v8": "^4.0.16",
     "@vitest/ui": "^4.0.16",
+    "drizzle-kit": "^0.31.8",
     "eslint": "^9",
     "eslint-config-next": "^15.5.9",
     "jsdom": "^27.4.0",
@@ -70,9 +80,15 @@
     "prettier": "^3.4.0",
     "prettier-plugin-tailwindcss": "^0.6.9",
     "tailwindcss": "^4.0.0",
+    "ts-node": "^10.9.2",
     "typescript": "^5",
     "typescript-eslint": "^8.50.1",
     "vite": "^7.3.0",
     "vitest": "^4.0.16"
+  },
+  "ts-node": {
+    "compilerOptions": {
+      "module": "commonjs"
+    }
   }
 }

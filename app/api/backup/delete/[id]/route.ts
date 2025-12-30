@@ -22,13 +22,12 @@ export async function DELETE(
     }
 
     const { id } = await params;
-    const { getDb } = await import("@/lib/db");
-    const db = getDb();
+    const { getRawPostgres } = await import("@/lib/db");
+    const pgClient = getRawPostgres();
 
     // 获取备份记录
-    const record = db
-      .prepare("SELECT * FROM backup_records WHERE id = ?")
-      .get(id) as { file_path: string; name: string } | undefined;
+    const recordResult = await pgClient.unsafe("SELECT * FROM backup_records WHERE id = $1", [id]);
+    const record = recordResult[0] as { file_path: string; name: string } | undefined;
 
     if (!record) {
       return NextResponse.json({ error: "备份不存在" }, { status: 404 });
@@ -38,7 +37,7 @@ export async function DELETE(
     deleteBackupFile(record.file_path);
 
     // 删除数据库记录
-    db.prepare("DELETE FROM backup_records WHERE id = ?").run(id);
+    await pgClient.unsafe("DELETE FROM backup_records WHERE id = $1", [id]);
 
     // 记录删除日志
     await logDelete(currentUser.id, "backup", `删除备份：${record.name}`);

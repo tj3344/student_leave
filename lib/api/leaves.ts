@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { getRawPostgres } from "@/lib/db";
 import { getNumberConfig } from "./system-config";
 import { validateOrderBy, SORT_FIELDS, DEFAULT_SORT_FIELDS } from "@/lib/utils/sql-security";
 import { validateLeaveRequest } from "@/lib/utils/leave-validation";
@@ -17,7 +17,7 @@ import type {
 /**
  * 获取请假记录列表（分页）
  */
-export function getLeaves(
+export async function getLeaves(
   params: PaginationParams & {
     student_id?: number;
     class_id?: number;
@@ -25,8 +25,8 @@ export function getLeaves(
     status?: string;
     applicant_id?: number;
   }
-): PaginatedResponse<LeaveWithDetails> {
-  const db = getDb();
+): Promise<PaginatedResponse<LeaveWithDetails>> {
+  const pgClient = getRawPostgres();
   const page = params.page || 1;
   const limit = params.limit || 20;
   const offset = (page - 1) * limit;
@@ -34,37 +34,37 @@ export function getLeaves(
   // 构建查询条件
   let whereClause = "WHERE 1=1";
   const queryParams: (string | number)[] = [];
+  let paramIndex = 1;
 
   if (params.search) {
-    // 使用 COLLATE NOCASE 索引优化搜索（reason 字段不包含敏感信息，直接搜索）
-    whereClause +=
-      " AND (s.student_no LIKE ? COLLATE NOCASE OR s.name LIKE ? COLLATE NOCASE OR u.real_name LIKE ? COLLATE NOCASE OR lr.reason LIKE ?)";
+    // 使用 ILIKE 进行不区分大小写的搜索
+    whereClause += " AND (s.student_no ILIKE $" + (paramIndex++) + " OR s.name ILIKE $" + (paramIndex++) + " OR u.real_name ILIKE $" + (paramIndex++) + " OR lr.reason ILIKE $" + (paramIndex++) + ")";
     const searchTerm = `%${params.search}%`;
     queryParams.push(searchTerm, searchTerm, searchTerm, searchTerm);
   }
 
   if (params.student_id) {
-    whereClause += " AND lr.student_id = ?";
+    whereClause += " AND lr.student_id = $" + (paramIndex++);
     queryParams.push(params.student_id);
   }
 
   if (params.class_id) {
-    whereClause += " AND s.class_id = ?";
+    whereClause += " AND s.class_id = $" + (paramIndex++);
     queryParams.push(params.class_id);
   }
 
   if (params.semester_id) {
-    whereClause += " AND lr.semester_id = ?";
+    whereClause += " AND lr.semester_id = $" + (paramIndex++);
     queryParams.push(params.semester_id);
   }
 
   if (params.status) {
-    whereClause += " AND lr.status = ?";
+    whereClause += " AND lr.status = $" + (paramIndex++);
     queryParams.push(params.status);
   }
 
   if (params.applicant_id) {
-    whereClause += " AND lr.applicant_id = ?";
+    whereClause += " AND lr.applicant_id = $" + (paramIndex++);
     queryParams.push(params.applicant_id);
   }
 
@@ -85,8 +85,8 @@ export function getLeaves(
     LEFT JOIN users u ON lr.applicant_id = u.id
     ${whereClause}
   `;
-  const countResult = db.prepare(countQuery).get(...queryParams) as { count: number };
-  const total = countResult.count;
+  const countResult = await pgClient.unsafe(countQuery, queryParams) as { count: number }[];
+  const total = countResult[0]?.count || 0;
 
   // 获取数据
   const dataQuery = `
@@ -109,9 +109,10 @@ export function getLeaves(
     LEFT JOIN semesters sem ON lr.semester_id = sem.id
     ${whereClause}
     ${orderClause}
-    LIMIT ? OFFSET ?
+    LIMIT $${paramIndex++} OFFSET $${paramIndex++}
   `;
-  const data = db.prepare(dataQuery).all(...queryParams, limit, offset) as LeaveWithDetails[];
+  queryParams.push(limit, offset);
+  const data = await pgClient.unsafe(dataQuery, queryParams) as LeaveWithDetails[];
 
   return {
     data,
@@ -125,10 +126,9 @@ export function getLeaves(
 /**
  * 根据ID获取请假记录
  */
-export function getLeaveById(id: number): LeaveWithDetails | null {
-  const db = getDb();
-  const leave = db
-    .prepare(`
+export async function getLeaveById(id: number): Promise<LeaveWithDetails | null> {
+  const pgClient = getRawPostgres();
+  const result = await pgClient.unsafe(`
       SELECT
         lr.*,
         s.name as student_name,
@@ -152,21 +152,20 @@ export function getLeaveById(id: number): LeaveWithDetails | null {
       LEFT JOIN users u ON lr.applicant_id = u.id
       LEFT JOIN users reviewer ON lr.reviewer_id = reviewer.id
       LEFT JOIN semesters sem ON lr.semester_id = sem.id
-      WHERE lr.id = ?
-    `)
-    .get(id) as LeaveWithDetails | undefined;
+      WHERE lr.id = $1
+    `, [id]) as LeaveWithDetails[];
 
-  return leave || null;
+  return result[0] || null;
 }
 
 /**
  * 创建请假申请
  */
-export function createLeave(
+export async function createLeave(
   input: LeaveInput,
   applicantId: number
-): { success: boolean; message?: string; leaveId?: number } {
-  const db = getDb();
+): Promise<{ success: boolean; message?: string; leaveId?: number }> {
+  const pgClient = getRawPostgres();
 
   // 从系统配置获取最小请假天数
   const minLeaveDays = getNumberConfig("leave.min_days", 3);
@@ -188,35 +187,34 @@ export function createLeave(
   }
 
   // 检查学生是否存在，并获取费用配置
-  const student = db
-    .prepare(
-      `SELECT s.id, s.is_nutrition_meal, s.class_id,
-              c.id as class_id_check, c.semester_id as class_semester_id,
-              fc.meal_fee_standard
-       FROM students s
-       LEFT JOIN classes c ON s.class_id = c.id
-       LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = ?
-       WHERE s.id = ?`
-    )
-    .get(input.semester_id, input.student_id) as
-    | {
-        id: number;
-        is_nutrition_meal: number;
-        class_id: number;
-        class_id_check: number | null;
-        class_semester_id: number | null;
-        meal_fee_standard: number | null;
-      }
-    | undefined;
+  const studentResult = await pgClient.unsafe(
+    `SELECT s.id, s.is_nutrition_meal, s.class_id,
+            c.id as class_id_check, c.semester_id as class_semester_id,
+            fc.meal_fee_standard
+     FROM students s
+     LEFT JOIN classes c ON s.class_id = c.id
+     LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = $1
+     WHERE s.id = $2`,
+    [input.semester_id, input.student_id]
+  ) as {
+      id: number;
+      is_nutrition_meal: boolean;
+      class_id: number;
+      class_id_check: number | null;
+      class_semester_id: number | null;
+      meal_fee_standard: number | null;
+    }[];
+
+  const student = studentResult[0];
 
   if (!student) {
     return { success: false, message: "学生不存在" };
   }
 
   // 获取学期信息验证学期总天数
-  const semester = db
-    .prepare("SELECT school_days FROM semesters WHERE id = ?")
-    .get(input.semester_id) as { school_days: number } | undefined;
+  const semesterResult = await pgClient.unsafe("SELECT school_days FROM semesters WHERE id = $1", [input.semester_id]) as { school_days: number }[];
+
+  const semester = semesterResult[0];
 
   if (!semester) {
     return { success: false, message: "学期不存在" };
@@ -238,19 +236,18 @@ export function createLeave(
   const leaveDays = input.leave_days;
 
   // 计算退费金额：退费金额 = 请假天数 × 餐费标准
-  const isNutritionMeal = student.is_nutrition_meal === 1;
+  const isNutritionMeal = student.is_nutrition_meal;
   const mealFeeStandard = student.meal_fee_standard ?? 0;
   const refundAmount = isNutritionMeal ? 0 : leaveDays * mealFeeStandard;
 
   // 插入请假记录
-  const result = db
-    .prepare(
-      `INSERT INTO leave_records (
-        student_id, semester_id, applicant_id, start_date, end_date,
-        leave_days, reason, status, is_refund, refund_amount
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    )
-    .run(
+  const result = await pgClient.unsafe(
+    `INSERT INTO leave_records (
+      student_id, semester_id, applicant_id, start_date, end_date,
+      leave_days, reason, status, is_refund, refund_amount
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    RETURNING id`,
+    [
       input.student_id,
       input.semester_id,
       applicantId,
@@ -259,43 +256,43 @@ export function createLeave(
       leaveDays,
       input.reason,
       "pending",
-      isNutritionMeal ? 0 : 1,
+      isNutritionMeal ? false : true,
       isNutritionMeal ? null : refundAmount
-    );
+    ]
+  );
 
-  return { success: true, leaveId: result.lastInsertRowid as number };
+  return { success: true, leaveId: result[0]?.id };
 }
 
 /**
  * 审核请假
  */
-export function reviewLeave(
+export async function reviewLeave(
   id: number,
   review: LeaveReview,
   reviewerId: number
-): { success: boolean; message?: string } {
-  const db = getDb();
+): Promise<{ success: boolean; message?: string }> {
+  const pgClient = getRawPostgres();
 
   // 检查请假记录是否存在且状态为待审核
-  const leave = db
-    .prepare(
-      `SELECT lr.*, s.is_nutrition_meal, c.meal_fee, sem.school_days
-       FROM leave_records lr
-       LEFT JOIN students s ON lr.student_id = s.id
-       LEFT JOIN classes c ON s.class_id = c.id
-       LEFT JOIN semesters sem ON lr.semester_id = sem.id
-       WHERE lr.id = ?`
-    )
-    .get(id) as
-    | {
-        id: number;
-        status: string;
-        is_nutrition_meal: number;
-        meal_fee: number;
-        school_days: number;
-        leave_days: number;
-      }
-    | undefined;
+  const leaveResult = await pgClient.unsafe(
+    `SELECT lr.*, s.is_nutrition_meal, c.meal_fee, sem.school_days
+     FROM leave_records lr
+     LEFT JOIN students s ON lr.student_id = s.id
+     LEFT JOIN classes c ON s.class_id = c.id
+     LEFT JOIN semesters sem ON lr.semester_id = sem.id
+     WHERE lr.id = $1`,
+    [id]
+  ) as {
+      id: number;
+      status: string;
+      is_nutrition_meal: boolean;
+      meal_fee: number;
+      school_days: number;
+      leave_days: number;
+    }[];
+
+  const leave = leaveResult[0];
 
   if (!leave) {
     return { success: false, message: "请假记录不存在" };
@@ -306,11 +303,12 @@ export function reviewLeave(
   }
 
   // 更新审核状态
-  db.prepare(
+  await pgClient.unsafe(
     `UPDATE leave_records
-     SET status = ?, reviewer_id = ?, review_time = CURRENT_TIMESTAMP, review_remark = ?, updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`
-  ).run(review.status, reviewerId, review.review_remark || null, id);
+     SET status = $1, reviewer_id = $2, review_time = CURRENT_TIMESTAMP, review_remark = $3, updated_at = CURRENT_TIMESTAMP
+     WHERE id = $4`,
+    [review.status, reviewerId, review.review_remark || null, id]
+  );
 
   return { success: true };
 }
@@ -318,13 +316,14 @@ export function reviewLeave(
 /**
  * 删除请假记录
  */
-export function deleteLeave(id: number): { success: boolean; message?: string } {
-  const db = getDb();
+export async function deleteLeave(id: number): Promise<{ success: boolean; message?: string }> {
+  const pgClient = getRawPostgres();
 
   // 检查请假记录是否存在
-  const leave = db.prepare("SELECT id, status FROM leave_records WHERE id = ?").get(id) as
-    | { id: number; status: string }
-    | undefined;
+  const leaveResult = await pgClient.unsafe("SELECT id, status FROM leave_records WHERE id = $1", [id]) as
+    { id: number; status: string }[];
+
+  const leave = leaveResult[0];
 
   if (!leave) {
     return { success: false, message: "请假记录不存在" };
@@ -335,7 +334,7 @@ export function deleteLeave(id: number): { success: boolean; message?: string } 
     return { success: false, message: "已批准的请假记录不能删除" };
   }
 
-  db.prepare("DELETE FROM leave_records WHERE id = ?").run(id);
+  await pgClient.unsafe("DELETE FROM leave_records WHERE id = $1", [id]);
 
   return { success: true };
 }
@@ -343,101 +342,99 @@ export function deleteLeave(id: number): { success: boolean; message?: string } 
 /**
  * 获取待审核的请假记录数量
  */
-export function getPendingLeaveCount(): number {
-  const db = getDb();
-  const result = db
-    .prepare("SELECT COUNT(*) as count FROM leave_records WHERE status = 'pending'")
-    .get() as { count: number };
-  return result.count;
+export async function getPendingLeaveCount(): Promise<number> {
+  const pgClient = getRawPostgres();
+  const result = await pgClient.unsafe("SELECT COUNT(*) as count FROM leave_records WHERE status = 'pending'") as { count: number }[];
+  return result[0]?.count || 0;
 }
 
 /**
  * 获取请假统计
  * 优化：使用单条查询获取所有统计数据，避免多次查询
  */
-export function getLeaveStats(semesterId?: number): {
+export async function getLeaveStats(semesterId?: number): Promise<{
   total: number;
   pending: number;
   approved: number;
   rejected: number;
   totalRefundAmount: number;
-} {
-  const db = getDb();
+}> {
+  const pgClient = getRawPostgres();
 
   let whereClause = "WHERE 1=1";
   const params: (string | number)[] = [];
+  let paramIndex = 1;
 
   if (semesterId) {
-    whereClause += " AND semester_id = ?";
+    whereClause += " AND semester_id = $" + (paramIndex++);
     params.push(semesterId);
   }
 
   // 使用单条查询获取所有统计数据，将 5 次查询优化为 1 次
-  const result = db
-    .prepare(`
-      SELECT
-        COUNT(*) as total,
-        SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
-        SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
-        SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected,
-        COALESCE(SUM(CASE WHEN status = 'approved' THEN refund_amount ELSE 0 END), 0) as totalRefundAmount
-      FROM leave_records
-      ${whereClause}
-    `)
-    .get(...params) as {
-      total: number;
-      pending: number;
-      approved: number;
-      rejected: number;
-      totalRefundAmount: number;
-    };
+  const result = await pgClient.unsafe(`
+    SELECT
+      COUNT(*) as total,
+      SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+      SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved,
+      SUM(CASE WHEN status = 'rejected' THEN 1 ELSE 0 END) as rejected,
+      COALESCE(SUM(CASE WHEN status = 'approved' THEN refund_amount ELSE 0 END), 0) as totalRefundAmount
+    FROM leave_records
+    ${whereClause}
+  `, params) as {
+    total: number;
+    pending: number;
+    approved: number;
+    rejected: number;
+    totalRefundAmount: number;
+  }[];
+
+  const r = result[0];
 
   return {
-    total: result.total,
-    pending: result.pending || 0,
-    approved: result.approved || 0,
-    rejected: result.rejected || 0,
-    totalRefundAmount: result.totalRefundAmount,
+    total: r?.total || 0,
+    pending: r?.pending || 0,
+    approved: r?.approved || 0,
+    rejected: r?.rejected || 0,
+    totalRefundAmount: r?.totalRefundAmount || 0,
   };
 }
 
 /**
  * 获取班级的请假记录
  */
-export function getLeavesByClass(classId: number, semesterId?: number): LeaveWithDetails[] {
-  const db = getDb();
+export async function getLeavesByClass(classId: number, semesterId?: number): Promise<LeaveWithDetails[]> {
+  const pgClient = getRawPostgres();
 
-  let whereClause = "WHERE s.class_id = ?";
+  let whereClause = "WHERE s.class_id = $1";
   const params: (string | number)[] = [classId];
+  let paramIndex = 2;
 
   if (semesterId) {
-    whereClause += " AND lr.semester_id = ?";
+    whereClause += " AND lr.semester_id = $" + (paramIndex++);
     params.push(semesterId);
   }
 
-  const leaves = db
-    .prepare(`
-      SELECT
-        lr.*,
-        s.name as student_name,
-        s.student_no,
-        s.is_nutrition_meal,
-        c.name as class_name,
-        g.name as grade_name,
-        u.real_name as applicant_name,
-        reviewer.real_name as reviewer_name,
-        sem.name as semester_name
-      FROM leave_records lr
-      LEFT JOIN students s ON lr.student_id = s.id
-      LEFT JOIN classes c ON s.class_id = c.id
-      LEFT JOIN grades g ON c.grade_id = g.id
-      LEFT JOIN users u ON lr.applicant_id = u.id
-      LEFT JOIN users reviewer ON lr.reviewer_id = reviewer.id
-      LEFT JOIN semesters sem ON lr.semester_id = sem.id
-      ${whereClause}
-      ORDER BY lr.created_at DESC
-    `)
-    .all(...params) as LeaveWithDetails[];
+  const leaves = await pgClient.unsafe(`
+    SELECT
+      lr.*,
+      s.name as student_name,
+      s.student_no,
+      s.is_nutrition_meal,
+      c.name as class_name,
+      g.name as grade_name,
+      u.real_name as applicant_name,
+      reviewer.real_name as reviewer_name,
+      sem.name as semester_name
+    FROM leave_records lr
+    LEFT JOIN students s ON lr.student_id = s.id
+    LEFT JOIN classes c ON s.class_id = c.id
+    LEFT JOIN grades g ON c.grade_id = g.id
+    LEFT JOIN users u ON lr.applicant_id = u.id
+    LEFT JOIN users reviewer ON lr.reviewer_id = reviewer.id
+    LEFT JOIN semesters sem ON lr.semester_id = sem.id
+    ${whereClause}
+    ORDER BY lr.created_at DESC
+  `, params) as LeaveWithDetails[];
 
   return leaves;
 }
@@ -445,40 +442,39 @@ export function getLeavesByClass(classId: number, semesterId?: number): LeaveWit
 /**
  * 获取学生的请假记录
  */
-export function getLeavesByStudent(studentId: number, semesterId?: number): LeaveWithDetails[] {
-  const db = getDb();
+export async function getLeavesByStudent(studentId: number, semesterId?: number): Promise<LeaveWithDetails[]> {
+  const pgClient = getRawPostgres();
 
-  let whereClause = "WHERE lr.student_id = ?";
+  let whereClause = "WHERE lr.student_id = $1";
   const params: (string | number)[] = [studentId];
+  let paramIndex = 2;
 
   if (semesterId) {
-    whereClause += " AND lr.semester_id = ?";
+    whereClause += " AND lr.semester_id = $" + (paramIndex++);
     params.push(semesterId);
   }
 
-  const leaves = db
-    .prepare(`
-      SELECT
-        lr.*,
-        s.name as student_name,
-        s.student_no,
-        s.is_nutrition_meal,
-        c.name as class_name,
-        g.name as grade_name,
-        u.real_name as applicant_name,
-        reviewer.real_name as reviewer_name,
-        sem.name as semester_name
-      FROM leave_records lr
-      LEFT JOIN students s ON lr.student_id = s.id
-      LEFT JOIN classes c ON s.class_id = c.id
-      LEFT JOIN grades g ON c.grade_id = g.id
-      LEFT JOIN users u ON lr.applicant_id = u.id
-      LEFT JOIN users reviewer ON lr.reviewer_id = reviewer.id
-      LEFT JOIN semesters sem ON lr.semester_id = sem.id
-      ${whereClause}
-      ORDER BY lr.created_at DESC
-    `)
-    .all(...params) as LeaveWithDetails[];
+  const leaves = await pgClient.unsafe(`
+    SELECT
+      lr.*,
+      s.name as student_name,
+      s.student_no,
+      s.is_nutrition_meal,
+      c.name as class_name,
+      g.name as grade_name,
+      u.real_name as applicant_name,
+      reviewer.real_name as reviewer_name,
+      sem.name as semester_name
+    FROM leave_records lr
+    LEFT JOIN students s ON lr.student_id = s.id
+    LEFT JOIN classes c ON s.class_id = c.id
+    LEFT JOIN grades g ON c.grade_id = g.id
+    LEFT JOIN users u ON lr.applicant_id = u.id
+    LEFT JOIN users reviewer ON lr.reviewer_id = reviewer.id
+    LEFT JOIN semesters sem ON lr.semester_id = sem.id
+    ${whereClause}
+    ORDER BY lr.created_at DESC
+  `, params) as LeaveWithDetails[];
 
   return leaves;
 }
@@ -488,41 +484,43 @@ export function getLeavesByStudent(studentId: number, semesterId?: number): Leav
  * 使用新的费用配置
  * 优化：使用单条 SQL 批量更新，避免 N+1 查询问题
  */
-export function recalculateAllLeaveRefunds(): { updated: number; message: string } {
-  const db = getDb();
+export async function recalculateAllLeaveRefunds(): Promise<{ updated: number; message: string }> {
+  const pgClient = getRawPostgres();
 
   // 使用单条 SQL 批量更新所有记录，避免 N+1 查询问题
-  const result = db
-    .prepare(`
-      UPDATE leave_records
-      SET refund_amount =
-        CASE
-          WHEN s.is_nutrition_meal = 1 THEN NULL
-          ELSE leave_records.leave_days * COALESCE(fc.meal_fee_standard, 0)
-        END,
-        updated_at = CURRENT_TIMESTAMP
-      FROM leave_records
-      LEFT JOIN students s ON leave_records.student_id = s.id
-      LEFT JOIN classes c ON s.class_id = c.id
-      LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = leave_records.semester_id
-      WHERE leave_records.is_refund = 1
-    `)
-    .run();
+  await pgClient.unsafe(`
+    UPDATE leave_records
+    SET refund_amount =
+      CASE
+        WHEN s.is_nutrition_meal = true THEN NULL
+        ELSE leave_records.leave_days * COALESCE(fc.meal_fee_standard, 0)
+      END,
+      updated_at = CURRENT_TIMESTAMP
+    FROM leave_records
+    LEFT JOIN students s ON leave_records.student_id = s.id
+    LEFT JOIN classes c ON s.class_id = c.id
+    LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = leave_records.semester_id
+    WHERE leave_records.is_refund = true
+  `);
+
+  // PostgreSQL 不提供 changes 信息，需要额外查询
+  const countResult = await pgClient.unsafe("SELECT COUNT(*) as count FROM leave_records WHERE is_refund = true") as { count: number }[];
+  const updated = countResult[0]?.count || 0;
 
   return {
-    updated: result.changes,
-    message: `已更新 ${result.changes} 条请假记录的退费金额`,
+    updated,
+    message: `已更新 ${updated} 条请假记录的退费金额`,
   };
 }
 
 /**
  * 更新请假记录
  */
-export function updateLeave(
+export async function updateLeave(
   id: number,
   input: LeaveInput
-): { success: boolean; message?: string } {
-  const db = getDb();
+): Promise<{ success: boolean; message?: string }> {
+  const pgClient = getRawPostgres();
 
   // 从系统配置获取最小请假天数
   const minLeaveDays = getNumberConfig("leave.min_days", 3);
@@ -533,24 +531,23 @@ export function updateLeave(
   }
 
   // 检查请假记录是否存在
-  const existingLeave = db
-    .prepare(
-      `SELECT lr.*, s.is_nutrition_meal, c.id as class_id
-       FROM leave_records lr
-       LEFT JOIN students s ON lr.student_id = s.id
-       LEFT JOIN classes c ON s.class_id = c.id
-       WHERE lr.id = ?`
-    )
-    .get(id) as
-    | {
-        id: number;
-        status: string;
-        student_id: number;
-        semester_id: number;
-        is_nutrition_meal: number;
-        class_id: number;
-      }
-    | undefined;
+  const existingLeaveResult = await pgClient.unsafe(
+    `SELECT lr.*, s.is_nutrition_meal, c.id as class_id
+     FROM leave_records lr
+     LEFT JOIN students s ON lr.student_id = s.id
+     LEFT JOIN classes c ON s.class_id = c.id
+     WHERE lr.id = $1`,
+    [id]
+  ) as {
+      id: number;
+      status: string;
+      student_id: number;
+      semester_id: number;
+      is_nutrition_meal: boolean;
+      class_id: number;
+    }[];
+
+  const existingLeave = existingLeaveResult[0];
 
   if (!existingLeave) {
     return { success: false, message: "请假记录不存在" };
@@ -575,35 +572,34 @@ export function updateLeave(
   }
 
   // 检查学生是否存在，并获取费用配置
-  const student = db
-    .prepare(
-      `SELECT s.id, s.is_nutrition_meal, s.class_id,
-              c.id as class_id_check, c.semester_id as class_semester_id,
-              fc.meal_fee_standard
-       FROM students s
-       LEFT JOIN classes c ON s.class_id = c.id
-       LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = ?
-       WHERE s.id = ?`
-    )
-    .get(input.semester_id, input.student_id) as
-    | {
-        id: number;
-        is_nutrition_meal: number;
-        class_id: number;
-        class_id_check: number | null;
-        class_semester_id: number | null;
-        meal_fee_standard: number | null;
-      }
-    | undefined;
+  const studentResult = await pgClient.unsafe(
+    `SELECT s.id, s.is_nutrition_meal, s.class_id,
+            c.id as class_id_check, c.semester_id as class_semester_id,
+            fc.meal_fee_standard
+     FROM students s
+     LEFT JOIN classes c ON s.class_id = c.id
+     LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = $1
+     WHERE s.id = $2`,
+    [input.semester_id, input.student_id]
+  ) as {
+      id: number;
+      is_nutrition_meal: boolean;
+      class_id: number;
+      class_id_check: number | null;
+      class_semester_id: number | null;
+      meal_fee_standard: number | null;
+    }[];
+
+  const student = studentResult[0];
 
   if (!student) {
     return { success: false, message: "学生不存在" };
   }
 
   // 获取学期信息验证学期总天数
-  const semester = db
-    .prepare("SELECT school_days FROM semesters WHERE id = ?")
-    .get(input.semester_id) as { school_days: number } | undefined;
+  const semesterResult = await pgClient.unsafe("SELECT school_days FROM semesters WHERE id = $1", [input.semester_id]) as { school_days: number }[];
+
+  const semester = semesterResult[0];
 
   if (!semester) {
     return { success: false, message: "学期不存在" };
@@ -622,48 +618,50 @@ export function updateLeave(
   }
 
   // 计算退费金额
-  const isNutritionMeal = student.is_nutrition_meal === 1;
+  const isNutritionMeal = student.is_nutrition_meal;
   const mealFeeStandard = student.meal_fee_standard ?? 0;
   const refundAmount = isNutritionMeal ? 0 : input.leave_days * mealFeeStandard;
 
   // 构建更新 SQL，根据是否包含状态字段来决定更新哪些列
   if (newStatus) {
     // 包含状态更新 - 需要清除审核信息
-    db.prepare(
+    await pgClient.unsafe(
       `UPDATE leave_records
-       SET student_id = ?, semester_id = ?, start_date = ?, end_date = ?,
-           leave_days = ?, reason = ?, status = ?, is_refund = ?, refund_amount = ?,
+       SET student_id = $1, semester_id = $2, start_date = $3, end_date = $4,
+           leave_days = $5, reason = $6, status = $7, is_refund = $8, refund_amount = $9,
            reviewer_id = NULL, review_time = NULL, review_remark = NULL, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`
-    ).run(
-      input.student_id,
-      input.semester_id,
-      input.start_date,
-      input.end_date,
-      input.leave_days,
-      input.reason,
-      newStatus,
-      isNutritionMeal ? 0 : 1,
-      isNutritionMeal ? null : refundAmount,
-      id
+       WHERE id = $10`,
+      [
+        input.student_id,
+        input.semester_id,
+        input.start_date,
+        input.end_date,
+        input.leave_days,
+        input.reason,
+        newStatus,
+        isNutritionMeal ? false : true,
+        isNutritionMeal ? null : refundAmount,
+        id
+      ]
     );
   } else {
     // 不包含状态更新
-    db.prepare(
+    await pgClient.unsafe(
       `UPDATE leave_records
-       SET student_id = ?, semester_id = ?, start_date = ?, end_date = ?,
-           leave_days = ?, reason = ?, is_refund = ?, refund_amount = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`
-    ).run(
-      input.student_id,
-      input.semester_id,
-      input.start_date,
-      input.end_date,
-      input.leave_days,
-      input.reason,
-      isNutritionMeal ? 0 : 1,
-      isNutritionMeal ? null : refundAmount,
-      id
+       SET student_id = $1, semester_id = $2, start_date = $3, end_date = $4,
+           leave_days = $5, reason = $6, is_refund = $7, refund_amount = $8, updated_at = CURRENT_TIMESTAMP
+       WHERE id = $9`,
+      [
+        input.student_id,
+        input.semester_id,
+        input.start_date,
+        input.end_date,
+        input.leave_days,
+        input.reason,
+        isNutritionMeal ? false : true,
+        isNutritionMeal ? null : refundAmount,
+        id
+      ]
     );
   }
 
@@ -674,44 +672,46 @@ export function updateLeave(
  * 根据学生信息获取学生ID和学期ID
  * 验证学生是否存在以及班级学期关联是否正确
  */
-export function getStudentIdByInfo(
+export async function getStudentIdByInfo(
   studentNo: string,
   studentName: string,
   semesterName: string,
   gradeName: string,
   className: string
-): { student_id?: number; semester_id?: number; error?: string } {
-  const db = getDb();
+): Promise<{ student_id?: number; semester_id?: number; error?: string }> {
+  const pgClient = getRawPostgres();
 
   // 查找学期
-  const semester = db
-    .prepare("SELECT id FROM semesters WHERE name = ?")
-    .get(semesterName) as { id: number } | undefined;
+  const semesterResult = await pgClient.unsafe("SELECT id FROM semesters WHERE name = $1", [semesterName]) as { id: number }[];
 
-  if (!semester) {
+  if (semesterResult.length === 0) {
     return { error: `学期"${semesterName}"不存在` };
   }
 
+  const semester = semesterResult[0];
+
   // 查找班级
-  const classInfo = db
-    .prepare(`
-      SELECT c.id, c.semester_id
-      FROM classes c
-      LEFT JOIN grades g ON c.grade_id = g.id
-      WHERE c.semester_id = ? AND g.name = ? AND c.name = ?
-    `)
-    .get(semester.id, gradeName, className) as
-    | { id: number; semester_id: number }
-    | undefined;
+  const classInfoResult = await pgClient.unsafe(`
+    SELECT c.id, c.semester_id
+    FROM classes c
+    LEFT JOIN grades g ON c.grade_id = g.id
+    WHERE c.semester_id = $1 AND g.name = $2 AND c.name = $3
+  `, [semester.id, gradeName, className]) as
+    { id: number; semester_id: number }[];
+
+  const classInfo = classInfoResult[0];
 
   if (!classInfo) {
     return { error: `在学期"${semesterName}"中未找到"${gradeName}${className}"` };
   }
 
   // 查找学生
-  const student = db
-    .prepare("SELECT id FROM students WHERE student_no = ? AND name = ? AND class_id = ?")
-    .get(studentNo, studentName, classInfo.id) as { id: number } | undefined;
+  const studentResult = await pgClient.unsafe(
+    "SELECT id FROM students WHERE student_no = $1 AND name = $2 AND class_id = $3",
+    [studentNo, studentName, classInfo.id]
+  ) as { id: number }[];
+
+  const student = studentResult[0];
 
   if (!student) {
     return { error: `学号"${studentNo}"的学生"${studentName}"在指定班级中不存在` };
@@ -726,40 +726,33 @@ export function getStudentIdByInfo(
 /**
  * 批量创建请假记录
  */
-export function batchCreateLeaves(
+export async function batchCreateLeaves(
   leaves: LeaveInput[],
   applicantId: number
-): { created: number; failed: number; errors: Array<{ row: number; message: string }> } {
-  const db = getDb();
+): Promise<{ created: number; failed: number; errors: Array<{ row: number; message: string }> }> {
+  const results = {
+    created: 0,
+    failed: 0,
+    errors: [] as Array<{ row: number; message: string }>,
+  };
 
-  // 使用事务确保数据一致性
-  const transaction = db.transaction((leaves: LeaveInput[]) => {
-    const results = {
-      created: 0,
-      failed: 0,
-      errors: [] as Array<{ row: number; message: string }>,
-    };
+  for (let i = 0; i < leaves.length; i++) {
+    const leave = leaves[i];
+    const rowNum = i + 1;
 
-    for (let i = 0; i < leaves.length; i++) {
-      const leave = leaves[i];
-      const rowNum = i + 1;
+    // 调用现有的创建请假函数
+    const result = await createLeave(leave, applicantId);
 
-      // 调用现有的创建请假函数
-      const result = createLeave(leave, applicantId);
-
-      if (result.success) {
-        results.created++;
-      } else {
-        results.failed++;
-        results.errors.push({
-          row: rowNum,
-          message: result.message || "创建失败",
-        });
-      }
+    if (result.success) {
+      results.created++;
+    } else {
+      results.failed++;
+      results.errors.push({
+        row: rowNum,
+        message: result.message || "创建失败",
+      });
     }
+  }
 
-    return results;
-  });
-
-  return transaction(leaves);
+  return results;
 }

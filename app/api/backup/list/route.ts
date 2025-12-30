@@ -17,22 +17,20 @@ export async function GET() {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
-    const { getDb } = await import("@/lib/db");
-    const db = getDb();
+    const { getRawPostgres } = await import("@/lib/db");
+    const pgClient = getRawPostgres();
 
-    const records = db
-      .prepare(
-        `
-        SELECT
-          br.*,
-          u.real_name as created_by_name,
-          JSON_ARRAY_LENGTH(br.modules) as module_count
-        FROM backup_records br
-        LEFT JOIN users u ON br.created_by = u.id
-        ORDER BY br.created_at DESC
+    const records = await pgClient.unsafe(
       `
-      )
-      .all() as BackupRecordWithDetails[];
+      SELECT
+        br.*,
+        u.real_name as created_by_name,
+        jsonb_array_length(br.modules::jsonb) as module_count
+      FROM backup_records br
+      LEFT JOIN users u ON br.created_by = u.id
+      ORDER BY br.created_at DESC
+    `
+    ) as BackupRecordWithDetails[];
 
     return NextResponse.json({ data: records });
   } catch (error) {

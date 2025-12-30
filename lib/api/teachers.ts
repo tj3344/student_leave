@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { getRawPostgres } from "@/lib/db";
 import { hashPassword } from "@/lib/utils/crypto";
 import { validateOrderBy, SORT_FIELDS, DEFAULT_SORT_FIELDS } from "@/lib/utils/sql-security";
 import type { User, UserInput, UserUpdate, PaginationParams, PaginatedResponse } from "@/types";
@@ -21,14 +21,14 @@ export interface TeacherWithClass extends Omit<User, "password_hash"> {
 /**
  * 获取教师列表（分页，支持班级分配状态过滤）
  */
-export function getTeachers(
+export async function getTeachers(
   params: PaginationParams & {
     role?: string;
     is_active?: number;
     has_class?: boolean; // 是否已分配班级
   }
-): PaginatedResponse<TeacherWithClass> {
-  const db = getDb();
+): Promise<PaginatedResponse<TeacherWithClass>> {
+  const pgClient = getRawPostgres();
   const page = params.page || 1;
   const limit = params.limit || 20;
   const offset = (page - 1) * limit;
@@ -36,21 +36,23 @@ export function getTeachers(
   // 构建查询条件
   let whereClause = "WHERE u.role IN ('teacher', 'class_teacher')";
   const queryParams: (string | number)[] = [];
+  let paramIndex = 1;
 
   if (params.search) {
-    whereClause += " AND (u.username LIKE ? OR u.real_name LIKE ? OR u.phone LIKE ?)";
+    // 使用 ILIKE 进行不区分大小写的搜索
+    whereClause += " AND (u.username ILIKE $" + (paramIndex++) + " OR u.real_name ILIKE $" + (paramIndex++) + " OR u.phone ILIKE $" + (paramIndex++) + ")";
     const searchTerm = `%${params.search}%`;
     queryParams.push(searchTerm, searchTerm, searchTerm);
   }
 
   if (params.role) {
-    whereClause += " AND u.role = ?";
+    whereClause += " AND u.role = $" + (paramIndex++);
     queryParams.push(params.role);
   }
 
   if (params.is_active !== undefined) {
-    whereClause += " AND u.is_active = ?";
-    queryParams.push(params.is_active);
+    whereClause += " AND u.is_active = $" + (paramIndex++);
+    queryParams.push(params.is_active === 1);
   }
 
   if (params.has_class !== undefined) {
@@ -76,8 +78,8 @@ export function getTeachers(
     LEFT JOIN classes c ON u.id = c.class_teacher_id
     ${whereClause}
   `;
-  const countResult = db.prepare(countQuery).get(...queryParams) as { count: number };
-  const total = countResult.count;
+  const countResult = await pgClient.unsafe(countQuery, queryParams) as { count: number }[];
+  const total = countResult[0]?.count || 0;
 
   // 获取数据
   const dataQuery = `
@@ -94,11 +96,10 @@ export function getTeachers(
     LEFT JOIN semesters s ON c.semester_id = s.id
     ${whereClause}
     ${orderClause}
-    LIMIT ? OFFSET ?
+    LIMIT $${paramIndex++} OFFSET $${paramIndex++}
   `;
-  const data = db
-    .prepare(dataQuery)
-    .all(...queryParams, limit, offset) as TeacherWithClass[];
+  queryParams.push(limit, offset);
+  const data = await pgClient.unsafe(dataQuery, queryParams) as TeacherWithClass[];
 
   return {
     data,
@@ -112,10 +113,9 @@ export function getTeachers(
 /**
  * 根据ID获取教师详情（包含班级信息）
  */
-export function getTeacherById(id: number): TeacherWithClass | null {
-  const db = getDb();
-  const teacher = db
-    .prepare(`
+export async function getTeacherById(id: number): Promise<TeacherWithClass | null> {
+  const pgClient = getRawPostgres();
+  const result = await pgClient.unsafe(`
       SELECT
         u.id, u.username, u.real_name, u.role, u.phone, u.email,
         u.is_active, u.created_at, u.updated_at,
@@ -127,11 +127,10 @@ export function getTeacherById(id: number): TeacherWithClass | null {
       LEFT JOIN classes c ON u.id = c.class_teacher_id
       LEFT JOIN grades g ON c.grade_id = g.id
       LEFT JOIN semesters s ON c.semester_id = s.id
-      WHERE u.id = ? AND u.role IN ('teacher', 'class_teacher')
-    `)
-    .get(id) as TeacherWithClass | undefined;
+      WHERE u.id = $1 AND u.role IN ('teacher', 'class_teacher')
+    `, [id]) as TeacherWithClass[];
 
-  return teacher || null;
+  return result[0] || null;
 }
 
 /**
@@ -142,7 +141,7 @@ export async function createTeacher(input: UserInput & { password?: string }): P
   message?: string;
   teacherId?: number;
 }> {
-  const db = getDb();
+  const pgClient = getRawPostgres();
 
   // 验证角色只能是教师或班主任
   if (input.role !== "teacher" && input.role !== "class_teacher") {
@@ -150,10 +149,8 @@ export async function createTeacher(input: UserInput & { password?: string }): P
   }
 
   // 检查用户名是否已存在
-  const existingUser = db
-    .prepare("SELECT id FROM users WHERE username = ?")
-    .get(input.username);
-  if (existingUser) {
+  const existingUser = await pgClient.unsafe("SELECT id FROM users WHERE username = $1", [input.username]);
+  if (existingUser.length > 0) {
     return { success: false, message: "用户名已存在" };
   }
 
@@ -162,21 +159,21 @@ export async function createTeacher(input: UserInput & { password?: string }): P
   const password_hash = await hashPassword(password);
 
   // 插入教师
-  const result = db
-    .prepare(
-      `INSERT INTO users (username, password_hash, real_name, role, phone, email)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    )
-    .run(
+  const result = await pgClient.unsafe(
+    `INSERT INTO users (username, password_hash, real_name, role, phone, email)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     RETURNING id`,
+    [
       input.username,
       password_hash,
       input.real_name,
       input.role,
       input.phone || null,
       input.email || null
-    );
+    ]
+  );
 
-  return { success: true, teacherId: result.lastInsertRowid as number };
+  return { success: true, teacherId: result[0]?.id };
 }
 
 /**
@@ -186,11 +183,11 @@ export async function updateTeacher(
   id: number,
   input: Partial<UserUpdate> & { password?: string }
 ): Promise<{ success: boolean; message?: string }> {
-  const db = getDb();
+  const pgClient = getRawPostgres();
 
   // 检查教师是否存在
-  const existingTeacher = db.prepare("SELECT id, role FROM users WHERE id = ?").get(id) as { id: number; role: string } | undefined;
-  if (!existingTeacher) {
+  const existingTeacherResult = await pgClient.unsafe("SELECT id, role FROM users WHERE id = $1", [id]) as { id: number; role: string }[];
+  if (existingTeacherResult.length === 0) {
     return { success: false, message: "教师不存在" };
   }
 
@@ -201,30 +198,31 @@ export async function updateTeacher(
 
   // 构建更新语句
   const updates: string[] = [];
-  const params: (string | number)[] = [];
+  const params: (string | number | boolean)[] = [];
+  let paramIndex = 1;
 
   if (input.real_name !== undefined) {
-    updates.push("real_name = ?");
+    updates.push(`real_name = $${paramIndex++}`);
     params.push(input.real_name);
   }
   if (input.role !== undefined) {
-    updates.push("role = ?");
+    updates.push(`role = $${paramIndex++}`);
     params.push(input.role);
   }
   if (input.phone !== undefined) {
-    updates.push("phone = ?");
+    updates.push(`phone = $${paramIndex++}`);
     params.push(input.phone);
   }
   if (input.email !== undefined) {
-    updates.push("email = ?");
+    updates.push(`email = $${paramIndex++}`);
     params.push(input.email);
   }
   if (input.is_active !== undefined) {
-    updates.push("is_active = ?");
-    params.push(input.is_active);
+    updates.push(`is_active = $${paramIndex++}`);
+    params.push(input.is_active === 1);
   }
   if (input.password) {
-    updates.push("password_hash = ?");
+    updates.push(`password_hash = $${paramIndex++}`);
     params.push(await hashPassword(input.password));
   }
 
@@ -235,7 +233,7 @@ export async function updateTeacher(
   updates.push("updated_at = CURRENT_TIMESTAMP");
   params.push(id);
 
-  db.prepare(`UPDATE users SET ${updates.join(", ")} WHERE id = ?`).run(...params);
+  await pgClient.unsafe(`UPDATE users SET ${updates.join(", ")} WHERE id = $${paramIndex}`, params);
 
   return { success: true };
 }
@@ -243,38 +241,34 @@ export async function updateTeacher(
 /**
  * 删除教师
  */
-export function deleteTeacher(id: number): { success: boolean; message?: string } {
-  const db = getDb();
+export async function deleteTeacher(id: number): Promise<{ success: boolean; message?: string }> {
+  const pgClient = getRawPostgres();
 
   // 检查教师是否存在
-  const existingTeacher = db.prepare("SELECT id, role FROM users WHERE id = ?").get(id) as { id: number; role: string } | undefined;
-  if (!existingTeacher) {
+  const existingTeacherResult = await pgClient.unsafe("SELECT id, role FROM users WHERE id = $1", [id]) as { id: number; role: string }[];
+  if (existingTeacherResult.length === 0) {
     return { success: false, message: "教师不存在" };
   }
 
   // 验证角色
-  if (existingTeacher.role !== "teacher" && existingTeacher.role !== "class_teacher") {
+  if (existingTeacherResult[0].role !== "teacher" && existingTeacherResult[0].role !== "class_teacher") {
     return { success: false, message: "该用户不是教师角色" };
   }
 
   // 检查是否是班主任
-  const classTeacherCheck = db
-    .prepare("SELECT id FROM classes WHERE class_teacher_id = ?")
-    .get(id);
-  if (classTeacherCheck) {
+  const classTeacherCheckResult = await pgClient.unsafe("SELECT id FROM classes WHERE class_teacher_id = $1", [id]);
+  if (classTeacherCheckResult.length > 0) {
     return { success: false, message: "该教师是班主任，请先解除班级分配" };
   }
 
   // 检查是否有请假记录
-  const leaveCheck = db
-    .prepare("SELECT id FROM leave_records WHERE applicant_id = ? OR reviewer_id = ?")
-    .get(id, id);
-  if (leaveCheck) {
+  const leaveCheckResult = await pgClient.unsafe("SELECT id FROM leave_records WHERE applicant_id = $1 OR reviewer_id = $2", [id, id]);
+  if (leaveCheckResult.length > 0) {
     return { success: false, message: "该教师有请假记录，无法删除" };
   }
 
   // 删除教师
-  db.prepare("DELETE FROM users WHERE id = ?").run(id);
+  await pgClient.unsafe("DELETE FROM users WHERE id = $1", [id]);
 
   return { success: true };
 }
@@ -282,16 +276,19 @@ export function deleteTeacher(id: number): { success: boolean; message?: string 
 /**
  * 为教师分配/解除班主任角色（通过更新班级）
  */
-export function assignTeacherToClass(
+export async function assignTeacherToClass(
   teacherId: number,
   classId: number | null
-): { success: boolean; message?: string } {
-  const db = getDb();
+): Promise<{ success: boolean; message?: string }> {
+  const pgClient = getRawPostgres();
 
   // 验证教师是否存在且是教师角色
-  const teacher = db.prepare(
-    "SELECT id, role FROM users WHERE id = ? AND is_active = 1"
-  ).get(teacherId) as { id: number; role: string } | undefined;
+  const teacherResult = await pgClient.unsafe(
+    "SELECT id, role FROM users WHERE id = $1 AND is_active = true",
+    [teacherId]
+  ) as { id: number; role: string }[];
+
+  const teacher = teacherResult[0];
 
   if (!teacher) {
     return { success: false, message: "教师不存在或已被禁用" };
@@ -304,35 +301,39 @@ export function assignTeacherToClass(
   // 如果是分配班级
   if (classId !== null) {
     // 检查班级是否存在
-    const classExists = db.prepare("SELECT id FROM classes WHERE id = ?").get(classId);
-    if (!classExists) {
+    const classExists = await pgClient.unsafe("SELECT id FROM classes WHERE id = $1", [classId]);
+    if (classExists.length === 0) {
       return { success: false, message: "班级不存在" };
     }
 
     // 检查该教师是否已是其他班级的班主任
-    const existingClass = db.prepare(
-      "SELECT id FROM classes WHERE class_teacher_id = ? AND id != ?"
-    ).get(teacherId, classId) as { id: number } | undefined;
+    const existingClass = await pgClient.unsafe(
+      "SELECT id FROM classes WHERE class_teacher_id = $1 AND id != $2",
+      [teacherId, classId]
+    ) as { id: number }[];
 
-    if (existingClass) {
+    if (existingClass.length > 0) {
       return { success: false, message: "该教师已是其他班级的班主任" };
     }
 
     // 更新班级的班主任
-    db.prepare("UPDATE classes SET class_teacher_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-      .run(teacherId, classId);
+    await pgClient.unsafe("UPDATE classes SET class_teacher_id = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+      [teacherId, classId]
+    );
 
     // 将教师角色更新为班主任
-    db.prepare("UPDATE users SET role = 'class_teacher' WHERE id = ?").run(teacherId);
+    await pgClient.unsafe("UPDATE users SET role = 'class_teacher' WHERE id = $1", [teacherId]);
   } else {
     // 解除班主任分配：找到该教师担任班主任的班级并清除
-    const existingClass = db.prepare(
-      "SELECT id FROM classes WHERE class_teacher_id = ?"
-    ).get(teacherId) as { id: number } | undefined;
+    const existingClass = await pgClient.unsafe(
+      "SELECT id FROM classes WHERE class_teacher_id = $1",
+      [teacherId]
+    ) as { id: number }[];
 
-    if (existingClass) {
-      db.prepare("UPDATE classes SET class_teacher_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?")
-        .run(existingClass.id);
+    if (existingClass.length > 0) {
+      await pgClient.unsafe("UPDATE classes SET class_teacher_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
+        [existingClass[0].id]
+      );
     }
   }
 
@@ -342,49 +343,48 @@ export function assignTeacherToClass(
 /**
  * 获取所有教师（用于下拉选择）
  */
-export function getAllTeachers(): Array<{ id: number; real_name: string; username: string }> {
-  const db = getDb();
-  const teachers = db
-    .prepare(
-      `SELECT id, real_name, username
-       FROM users
-       WHERE role IN ('teacher', 'class_teacher') AND is_active = 1
-       ORDER BY real_name`
-    )
-    .all() as Array<{ id: number; real_name: string; username: string }>;
+export async function getAllTeachers(): Promise<Array<{ id: number; real_name: string; username: string }>> {
+  const pgClient = getRawPostgres();
+  const result = await pgClient.unsafe(
+    `SELECT id, real_name, username
+     FROM users
+     WHERE role IN ('teacher', 'class_teacher') AND is_active = true
+     ORDER BY real_name`
+  ) as Array<{ id: number; real_name: string; username: string }>;
 
-  return teachers;
+  return result;
 }
 
 /**
  * 切换教师状态（启用/禁用）
  */
-export function toggleTeacherStatus(id: number): { success: boolean; message?: string; isActive?: number } {
-  const db = getDb();
+export async function toggleTeacherStatus(id: number): Promise<{ success: boolean; message?: string; isActive?: number }> {
+  const pgClient = getRawPostgres();
 
   // 检查教师是否存在
-  const teacher = db
-    .prepare("SELECT id, is_active, role FROM users WHERE id = ? AND role IN ('teacher', 'class_teacher')")
-    .get(id) as { id: number; is_active: number; role: string } | undefined;
+  const teacherResult = await pgClient.unsafe(
+    "SELECT id, is_active, role FROM users WHERE id = $1 AND role IN ('teacher', 'class_teacher')",
+    [id]
+  ) as { id: number; is_active: boolean; role: string }[];
 
-  if (!teacher) {
+  if (teacherResult.length === 0) {
     return { success: false, message: "教师不存在" };
   }
 
-  const newStatus = teacher.is_active ? 0 : 1;
+  const newStatus = !teacherResult[0].is_active;
 
   // 如果要禁用，检查是否是班主任
-  if (newStatus === 0) {
-    const classCheck = db.prepare("SELECT id FROM classes WHERE class_teacher_id = ?").get(id);
-    if (classCheck) {
+  if (!newStatus) {
+    const classCheckResult = await pgClient.unsafe("SELECT id FROM classes WHERE class_teacher_id = $1", [id]);
+    if (classCheckResult.length > 0) {
       return { success: false, message: "该教师是班主任，请先解除班级分配" };
     }
   }
 
-  db.prepare("UPDATE users SET is_active = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
+  await pgClient.unsafe("UPDATE users SET is_active = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2", [
     newStatus,
     id
-  );
+  ]);
 
-  return { success: true, isActive: newStatus };
+  return { success: true, isActive: newStatus ? 1 : 0 };
 }

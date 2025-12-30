@@ -1,12 +1,12 @@
-import { getDb } from "@/lib/db";
+import { getRawPostgres } from "@/lib/db";
 import { validateOrderBy, SORT_FIELDS } from "@/lib/utils/sql-security";
 import type { Grade, GradeInput, PaginationParams, PaginatedResponse } from "@/types";
 
 /**
  * 获取年级列表
  */
-export function getGrades(params?: PaginationParams & { semester_id?: number }): PaginatedResponse<Grade> | Grade[] {
-  const db = getDb();
+export async function getGrades(params?: PaginationParams & { semester_id?: number }): Promise<PaginatedResponse<Grade> | Grade[]> {
+  const pgClient = getRawPostgres();
 
   // 如果没有分页参数，返回所有数据
   if (!params?.page && !params?.limit) {
@@ -14,15 +14,13 @@ export function getGrades(params?: PaginationParams & { semester_id?: number }):
     const queryParams: (string | number)[] = [];
 
     if (params?.semester_id) {
-      query += " WHERE semester_id = ?";
+      query += " WHERE semester_id = $1";
       queryParams.push(params.semester_id);
     }
 
     query += " ORDER BY sort_order ASC, id ASC";
 
-    return db
-      .prepare(query)
-      .all(...queryParams) as Grade[];
+    return await pgClient.unsafe(query, queryParams) as Grade[];
   }
 
   const page = params.page || 1;
@@ -32,28 +30,30 @@ export function getGrades(params?: PaginationParams & { semester_id?: number }):
   // 构建查询条件
   let whereClause = "";
   const queryParams: (string | number)[] = [];
+  let paramIndex = 1;
 
   if (params?.search) {
-    // 使用 COLLATE NOCASE 索引优化搜索
-    whereClause = "WHERE name LIKE ? COLLATE NOCASE";
+    // 使用 ILIKE 进行不区分大小写的搜索
+    whereClause = "WHERE name ILIKE $" + (paramIndex++);
     queryParams.push(`%${params.search}%`);
   }
 
   // 如果指定了学期，添加学期过滤
   if (params?.semester_id) {
     if (whereClause) {
-      whereClause += " AND semester_id = ?";
+      whereClause += " AND semester_id = $" + (paramIndex++);
     } else {
-      whereClause = "WHERE semester_id = ?";
+      whereClause = "WHERE semester_id = $" + (paramIndex++);
     }
     queryParams.push(params.semester_id);
   }
 
   // 获取总数
-  const countResult = db
-    .prepare(`SELECT COUNT(*) as total FROM grades ${whereClause}`)
-    .get(...queryParams) as { total: number };
-  const total = countResult.total;
+  const countResult = await pgClient.unsafe(
+    `SELECT COUNT(*) as total FROM grades ${whereClause}`,
+    queryParams
+  ) as { total: number }[];
+  const total = countResult[0]?.total || 0;
 
   // 获取数据（使用白名单验证防止 SQL 注入）
   const { orderBy, order } = validateOrderBy(
@@ -61,11 +61,11 @@ export function getGrades(params?: PaginationParams & { semester_id?: number }):
     params?.order,
     { allowedFields: SORT_FIELDS.grades, defaultField: "g.created_at" }
   );
-  const data = db
-    .prepare(
-      `SELECT * FROM grades ${whereClause} ORDER BY ${orderBy} ${order} LIMIT ? OFFSET ?`
-    )
-    .all(...queryParams, limit, offset) as Grade[];
+  queryParams.push(limit, offset);
+  const data = await pgClient.unsafe(
+    `SELECT * FROM grades ${whereClause} ORDER BY ${orderBy} ${order} LIMIT $${paramIndex++} OFFSET $${paramIndex}`,
+    queryParams
+  ) as Grade[];
 
   return {
     data,
@@ -79,58 +79,62 @@ export function getGrades(params?: PaginationParams & { semester_id?: number }):
 /**
  * 获取年级详情
  */
-export function getGradeById(id: number): Grade | null {
-  const db = getDb();
-  return db.prepare("SELECT * FROM grades WHERE id = ?").get(id) as Grade | null;
+export async function getGradeById(id: number): Promise<Grade | null> {
+  const pgClient = getRawPostgres();
+  const result = await pgClient.unsafe("SELECT * FROM grades WHERE id = $1", [id]) as Grade[];
+  return result[0] || null;
 }
 
 /**
  * 创建年级
  */
-export function createGrade(
+export async function createGrade(
   input: GradeInput
-): { success: boolean; message?: string; gradeId?: number } {
-  const db = getDb();
+): Promise<{ success: boolean; message?: string; gradeId?: number }> {
+  const pgClient = getRawPostgres();
 
   // 检查年级名称是否已存在（在同一学期内）
-  const existing = db.prepare("SELECT id FROM grades WHERE name = ? AND semester_id = ?").get(input.name, input.semester_id);
-  if (existing) {
+  const existing = await pgClient.unsafe("SELECT id FROM grades WHERE name = $1 AND semester_id = $2", [input.name, input.semester_id]);
+  if (existing.length > 0) {
     return { success: false, message: "该学期下年级名称已存在" };
   }
 
   // 获取最大排序号
-  const maxSortOrder = db
-    .prepare("SELECT COALESCE(MAX(sort_order), 0) as max_sort FROM grades WHERE semester_id = ?")
-    .get(input.semester_id) as { max_sort: number };
-  const sortOrder = input.sort_order ?? maxSortOrder.max_sort + 1;
+  const maxSortOrderResult = await pgClient.unsafe(
+    "SELECT COALESCE(MAX(sort_order), 0) as max_sort FROM grades WHERE semester_id = $1",
+    [input.semester_id]
+  ) as { max_sort: number }[];
+  const maxSortOrder = maxSortOrderResult[0]?.max_sort || 0;
+  const sortOrder = input.sort_order ?? maxSortOrder + 1;
 
   // 插入年级
-  const result = db
-    .prepare("INSERT INTO grades (semester_id, name, sort_order) VALUES (?, ?, ?)")
-    .run(input.semester_id, input.name, sortOrder);
+  const result = await pgClient.unsafe(
+    "INSERT INTO grades (semester_id, name, sort_order) VALUES ($1, $2, $3) RETURNING id",
+    [input.semester_id, input.name, sortOrder]
+  );
 
-  return { success: true, gradeId: result.lastInsertRowid as number };
+  return { success: true, gradeId: result[0]?.id };
 }
 
 /**
  * 更新年级
  */
-export function updateGrade(
+export async function updateGrade(
   id: number,
   input: Partial<GradeInput>
-): { success: boolean; message?: string } {
-  const db = getDb();
+): Promise<{ success: boolean; message?: string }> {
+  const pgClient = getRawPostgres();
 
   // 检查年级是否存在
-  const existing = getGradeById(id);
+  const existing = await getGradeById(id);
   if (!existing) {
     return { success: false, message: "年级不存在" };
   }
 
   // 如果更新名称，检查是否重复
   if (input.name && input.name !== existing.name) {
-    const duplicate = db.prepare("SELECT id FROM grades WHERE name = ? AND id != ?").get(input.name, id);
-    if (duplicate) {
+    const duplicate = await pgClient.unsafe("SELECT id FROM grades WHERE name = $1 AND id != $2", [input.name, id]);
+    if (duplicate.length > 0) {
       return { success: false, message: "年级名称已存在" };
     }
   }
@@ -138,13 +142,14 @@ export function updateGrade(
   // 构建更新语句
   const updates: string[] = [];
   const values: (string | number)[] = [];
+  let paramIndex = 1;
 
   if (input.name !== undefined) {
-    updates.push("name = ?");
+    updates.push(`name = $${paramIndex++}`);
     values.push(input.name);
   }
   if (input.sort_order !== undefined) {
-    updates.push("sort_order = ?");
+    updates.push(`sort_order = $${paramIndex++}`);
     values.push(input.sort_order);
   }
 
@@ -154,7 +159,7 @@ export function updateGrade(
 
   values.push(id);
 
-  db.prepare(`UPDATE grades SET ${updates.join(", ")} WHERE id = ?`).run(...values);
+  await pgClient.unsafe(`UPDATE grades SET ${updates.join(", ")} WHERE id = $${paramIndex}`, values);
 
   return { success: true };
 }
@@ -162,26 +167,27 @@ export function updateGrade(
 /**
  * 删除年级
  */
-export function deleteGrade(id: number): { success: boolean; message?: string } {
-  const db = getDb();
+export async function deleteGrade(id: number): Promise<{ success: boolean; message?: string }> {
+  const pgClient = getRawPostgres();
 
   // 检查年级是否存在
-  const existing = getGradeById(id);
+  const existing = await getGradeById(id);
   if (!existing) {
     return { success: false, message: "年级不存在" };
   }
 
   // 检查是否有关联的班级
-  const hasClasses = db
-    .prepare("SELECT COUNT(*) as count FROM classes WHERE grade_id = ?")
-    .get(id) as { count: number };
+  const hasClasses = await pgClient.unsafe(
+    "SELECT COUNT(*) as count FROM classes WHERE grade_id = $1",
+    [id]
+  ) as { count: number }[];
 
-  if (hasClasses.count > 0) {
+  if (hasClasses[0]?.count > 0) {
     return { success: false, message: "该年级下存在班级，无法删除" };
   }
 
   // 删除年级
-  db.prepare("DELETE FROM grades WHERE id = ?").run(id);
+  await pgClient.unsafe("DELETE FROM grades WHERE id = $1", [id]);
 
   return { success: true };
 }
@@ -189,20 +195,15 @@ export function deleteGrade(id: number): { success: boolean; message?: string } 
 /**
  * 批量更新年级排序
  */
-export function updateGradesOrder(
+export async function updateGradesOrder(
   updates: { id: number; sort_order: number }[]
-): { success: boolean; message?: string } {
-  const db = getDb();
-
-  const updateStmt = db.prepare("UPDATE grades SET sort_order = ? WHERE id = ?");
-  const updateMany = db.transaction((items: { id: number; sort_order: number }[]) => {
-    for (const item of items) {
-      updateStmt.run(item.sort_order, item.id);
-    }
-  });
+): Promise<{ success: boolean; message?: string }> {
+  const pgClient = getRawPostgres();
 
   try {
-    updateMany(updates);
+    for (const item of updates) {
+      await pgClient.unsafe("UPDATE grades SET sort_order = $1 WHERE id = $2", [item.sort_order, item.id]);
+    }
     return { success: true };
   } catch {
     return { success: false, message: "更新排序失败" };

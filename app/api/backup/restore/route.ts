@@ -30,22 +30,23 @@ export async function POST(request: NextRequest) {
     }
 
     const sqlContent = await file.text();
-    const result = restoreFromSQL(sqlContent);
+    const result = await restoreFromSQL(sqlContent);
 
     if (result.success) {
       // 记录操作日志
-      const { getDb } = await import("@/lib/db");
-      const db = getDb();
-      db.prepare(
+      const { getRawPostgres } = await import("@/lib/db");
+      const pgClient = getRawPostgres();
+      await pgClient.unsafe(
         `
         INSERT INTO operation_logs (user_id, action, module, description)
-        VALUES (?, ?, ?, ?)
-      `
-      ).run(
-        currentUser.id,
-        "restore",
-        "backup",
-        `恢复数据备份，备份文件: ${file.name}`
+        VALUES ($1, $2, $3, $4)
+      `,
+        [
+          currentUser.id,
+          "restore",
+          "backup",
+          `恢复数据备份，备份文件: ${file.name}`,
+        ]
       );
     }
 

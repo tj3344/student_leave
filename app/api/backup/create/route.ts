@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 生成 SQL
-    const sqlContent = generateBackupSQL(modules);
+    const sqlContent = await generateBackupSQL(modules);
 
     // 保存文件
     const backupDir = getBackupDir();
@@ -39,32 +39,36 @@ export async function POST(request: NextRequest) {
 
     fs.writeFileSync(filePath, sqlContent, "utf-8");
 
-    // 记录到数据库
-    const { getDb } = await import("@/lib/db");
-    const db = getDb();
-    const result = db
-      .prepare(
-        `
-        INSERT INTO backup_records (name, type, modules, file_path, file_size, created_by, description)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+    // 记录到数据库（使用本地时间）
+    const { getRawPostgres } = await import("@/lib/db");
+    const pgClient = getRawPostgres();
+    const now = new Date();
+    // 格式化为 ISO 格式（不带时区后缀，PostgreSQL 会使用当前时区）
+    const formattedDate = now.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+    const result = await pgClient.unsafe(
       `
-      )
-      .run(
+      INSERT INTO backup_records (name, type, modules, file_path, file_size, created_by, description, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING id
+    `,
+      [
         name,
         type,
         JSON.stringify(modules),
         filePath,
         Buffer.byteLength(sqlContent, "utf-8"),
         currentUser.id,
-        description || null
-      );
+        description || null,
+        formattedDate,
+      ]
+    );
 
     // 记录备份日志
     await logBackup(currentUser.id, `创建备份：${name}（${type}），模块：${modules.join(", ")}`);
 
     return NextResponse.json({
       success: true,
-      id: result.lastInsertRowid,
+      id: result[0]?.id,
       message: "备份创建成功",
     });
   } catch (error) {

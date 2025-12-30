@@ -1,4 +1,4 @@
-import { getDb } from "@/lib/db";
+import { getRawPostgres } from "@/lib/db";
 import type { OperationLogInput } from "@/types";
 import { headers } from "next/headers";
 
@@ -43,27 +43,19 @@ export async function logOperation(
   description?: string
 ): Promise<void> {
   try {
-    const db = getDb();
+    const pgClient = getRawPostgres();
     const ipAddress = await getClientIp();
 
-    const logData: OperationLogInput = {
-      user_id: userId,
+    await pgClient.unsafe(`
+      INSERT INTO operation_logs (user_id, action, module, description, ip_address, created_at)
+      VALUES ($1, $2, $3, $4, $5, CURRENT_TIMESTAMP)
+    `, [
+      userId || null,
       action,
       module,
-      description,
-      ip_address: ipAddress,
-    };
-
-    db.prepare(`
-      INSERT INTO operation_logs (user_id, action, module, description, ip_address)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(
-      logData.user_id,
-      logData.action,
-      logData.module,
-      logData.description || null,
-      logData.ip_address
-    );
+      description || null,
+      ipAddress
+    ]);
   } catch (error) {
     // 日志记录失败不应影响主业务流程，仅打印错误
     console.error("记录操作日志失败:", error);

@@ -53,11 +53,13 @@ export async function GET(request: NextRequest) {
     // 班主任角色：只导出本班学生请假
     let filterClassId = params.class_id;
     if (currentUser.role === "class_teacher") {
-      const { getDb } = await import("@/lib/db");
-      const db = getDb();
-      const managedClass = db.prepare(
-        "SELECT id FROM classes WHERE class_teacher_id = ?"
-      ).get(currentUser.id) as { id: number } | undefined;
+      const { getRawPostgres } = await import("@/lib/db");
+      const pgClient = getRawPostgres();
+      const managedClassResult = await pgClient.unsafe(
+        "SELECT id FROM classes WHERE class_teacher_id = $1",
+        [currentUser.id]
+      );
+      const managedClass = managedClassResult[0] as { id: number } | undefined;
 
       if (managedClass) {
         filterClassId = managedClass.id;

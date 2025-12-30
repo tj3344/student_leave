@@ -36,11 +36,13 @@ export async function GET(request: NextRequest) {
     let filterClassId = class_id ? parseInt(class_id, 10) : undefined;
     if (currentUser.role === "class_teacher") {
       // 获取班主任管理的班级ID
-      const { getDb } = await import("@/lib/db");
-      const db = getDb();
-      const managedClass = db.prepare(
-        "SELECT id FROM classes WHERE class_teacher_id = ?"
-      ).get(currentUser.id) as { id: number } | undefined;
+      const { getRawPostgres } = await import("@/lib/db");
+      const pgClient = getRawPostgres();
+      const managedClassResult = await pgClient.unsafe(
+        "SELECT id FROM classes WHERE class_teacher_id = $1",
+        [currentUser.id]
+      );
+      const managedClass = managedClassResult[0] as { id: number } | undefined;
 
       if (managedClass) {
         filterClassId = managedClass.id;

@@ -1,114 +1,128 @@
-import { getDb } from "./index";
+import { getRawPostgres } from "./index";
 
 /**
  * 初始化学生数量统计触发器
- * 使用触发器自动维护班级学生数量，避免应用层子查询
  */
-export function initStudentCountTriggers(): void {
-  const db = getDb();
+export async function initStudentCountTriggers(): Promise<void> {
+  await initPostgresTriggers();
+}
 
-  // 删除已存在的触发器（如果有的话）
-  db.exec(`
-    DROP TRIGGER IF EXISTS update_student_count_insert;
-    DROP TRIGGER IF EXISTS update_student_count_update_off;
-    DROP TRIGGER IF EXISTS update_student_count_update_on;
-    DROP TRIGGER IF EXISTS update_student_count_update_transfer;
-    DROP TRIGGER IF EXISTS update_student_count_delete;
+/**
+ * 初始化 PostgreSQL 触发器
+ */
+async function initPostgresTriggers(): Promise<void> {
+  const pgClient = getRawPostgres();
+
+  // 创建触发器函数
+  await pgClient.unsafe(`
+    CREATE OR REPLACE FUNCTION update_student_count()
+    RETURNS TRIGGER AS $$
+    BEGIN
+      -- 插入操作
+      IF TG_OP = 'INSERT' THEN
+        IF NEW.is_active = true THEN
+          UPDATE classes
+          SET student_count = student_count + 1,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = NEW.class_id;
+        END IF;
+        RETURN NEW;
+
+      -- 更新操作
+      ELSIF TG_OP = 'UPDATE' THEN
+        -- 处理学生状态变更
+        IF OLD.is_active <> NEW.is_active THEN
+          IF NEW.is_active = false THEN
+            -- 学生离校
+            UPDATE classes
+            SET student_count = student_count - 1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = OLD.class_id;
+          ELSE
+            -- 学生返校
+            UPDATE classes
+            SET student_count = student_count + 1,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = OLD.class_id;
+          END IF;
+        END IF;
+
+        -- 处理转班
+        IF OLD.class_id <> NEW.class_id AND NEW.is_active = true THEN
+          UPDATE classes
+          SET student_count = student_count - 1,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = OLD.class_id;
+
+          UPDATE classes
+          SET student_count = student_count + 1,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = NEW.class_id;
+        END IF;
+        RETURN NEW;
+
+      -- 删除操作
+      ELSIF TG_OP = 'DELETE' THEN
+        IF OLD.is_active = true THEN
+          UPDATE classes
+          SET student_count = student_count - 1,
+              updated_at = CURRENT_TIMESTAMP
+          WHERE id = OLD.class_id;
+        END IF;
+        RETURN OLD;
+      END IF;
+      RETURN NULL;
+    END;
+    $$ LANGUAGE plpgsql
   `);
 
-  // 创建插入触发器：当插入在校学生时，对应班级的学生数量+1
-  db.exec(`
-    CREATE TRIGGER update_student_count_insert
+  // 删除已存在的触发器
+  await pgClient.unsafe(`
+    DROP TRIGGER IF EXISTS trigger_student_count_insert ON students;
+    DROP TRIGGER IF EXISTS trigger_student_count_update ON students;
+    DROP TRIGGER IF EXISTS trigger_student_count_delete ON students;
+  `);
+
+  // 创建触发器
+  await pgClient.unsafe(`
+    CREATE TRIGGER trigger_student_count_insert
     AFTER INSERT ON students
-    WHEN NEW.is_active = 1
-    BEGIN
-      UPDATE classes
-      SET student_count = student_count + 1,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = NEW.class_id;
-    END
+    FOR EACH ROW
+    EXECUTE FUNCTION update_student_count()
   `);
 
-  // 创建更新触发器1：处理学生离校场景（从在校变为离校）
-  db.exec(`
-    CREATE TRIGGER update_student_count_update_off
-    AFTER UPDATE OF is_active ON students
-    WHEN OLD.is_active = 1 AND NEW.is_active = 0
-    BEGIN
-      UPDATE classes
-      SET student_count = student_count - 1,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = OLD.class_id;
-    END
+  await pgClient.unsafe(`
+    CREATE TRIGGER trigger_student_count_update
+    AFTER UPDATE ON students
+    FOR EACH ROW
+    EXECUTE FUNCTION update_student_count()
   `);
 
-  // 创建更新触发器2：处理学生返校场景（从离校变为在校）
-  db.exec(`
-    CREATE TRIGGER update_student_count_update_on
-    AFTER UPDATE OF is_active ON students
-    WHEN OLD.is_active = 0 AND NEW.is_active = 1
-    BEGIN
-      UPDATE classes
-      SET student_count = student_count + 1,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = NEW.class_id;
-    END
-  `);
-
-  // 创建更新触发器3：处理转班场景（在校学生班级发生变化）
-  db.exec(`
-    CREATE TRIGGER update_student_count_update_transfer
-    AFTER UPDATE OF class_id ON students
-    WHEN OLD.class_id != NEW.class_id AND NEW.is_active = 1
-    BEGIN
-      UPDATE classes
-      SET student_count = student_count - 1,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = OLD.class_id;
-
-      UPDATE classes
-      SET student_count = student_count + 1,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = NEW.class_id;
-    END
-  `);
-
-  // 创建删除触发器：当删除在校学生时，对应班级的学生数量-1
-  db.exec(`
-    CREATE TRIGGER update_student_count_delete
+  await pgClient.unsafe(`
+    CREATE TRIGGER trigger_student_count_delete
     AFTER DELETE ON students
-    WHEN OLD.is_active = 1
-    BEGIN
-      UPDATE classes
-      SET student_count = student_count - 1,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = OLD.class_id;
-    END
+    FOR EACH ROW
+    EXECUTE FUNCTION update_student_count()
   `);
 
-  console.log("Student count triggers initialized successfully");
+  console.log("✅ PostgreSQL 学生数统计触发器初始化成功");
 }
 
 /**
  * 重建所有班级的学生数量统计
  * 用于触发器安装后的数据修复
  */
-export function rebuildStudentCounts(): void {
-  const db = getDb();
-
-  // 重置所有班级的学生数量为0
-  db.exec(`UPDATE classes SET student_count = 0`);
-
-  // 根据实际在校学生数量重新统计
-  db.exec(`
+export async function rebuildStudentCounts(): Promise<void> {
+  const pgClient = getRawPostgres();
+  await pgClient.unsafe(`
     UPDATE classes
     SET student_count = (
       SELECT COUNT(*)
       FROM students
-      WHERE students.class_id = classes.id AND students.is_active = 1
+      WHERE students.class_id = classes.id AND students.is_active = true
     ),
     updated_at = CURRENT_TIMESTAMP
   `);
 
-  console.log("Student counts rebuilt successfully");
+  console.log("✅ 班级学生数统计重建成功");
 }

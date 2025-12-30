@@ -1,5 +1,5 @@
 import { cookies } from "next/headers";
-import { getDb } from "@/lib/db";
+import { getRawPostgres } from "@/lib/db";
 import { hashPassword, verifyPassword } from "@/lib/utils/crypto";
 import type { User, UserRole } from "@/types";
 import type { LoginInput, UserCreateInput } from "@/lib/utils/validation";
@@ -22,12 +22,14 @@ export async function login(
   // 验证输入
   const validated = loginSchema.parse(input);
 
-  const db = getDb();
+  const pgClient = getRawPostgres();
 
   // 查询用户
-  const user = db
-    .prepare("SELECT * FROM users WHERE username = ? AND is_active = 1")
-    .get(validated.username) as User | undefined;
+  const users = await pgClient.unsafe(
+    "SELECT * FROM users WHERE username = $1 AND is_active = true",
+    [validated.username]
+  );
+  const user = users[0] as User | undefined;
 
   if (!user) {
     console.log("[LOGIN] User not found:", validated.username);
@@ -93,10 +95,12 @@ export async function getCurrentUser(): Promise<Omit<User, "password_hash"> | nu
     return null;
   }
 
-  const db = getDb();
-  const user = db
-    .prepare("SELECT * FROM users WHERE id = ? AND is_active = 1")
-    .get(userId) as User | undefined;
+  const pgClient = getRawPostgres();
+  const users = await pgClient.unsafe(
+    "SELECT * FROM users WHERE id = $1 AND is_active = true",
+    [userId]
+  );
+  const user = users[0] as User | undefined;
 
   if (!user) {
     return null;
@@ -116,11 +120,11 @@ export async function createUser(
   // 验证输入
   const validated = userCreateSchema.parse(input);
 
-  const db = getDb();
+  const pgClient = getRawPostgres();
 
   // 检查用户名是否已存在
-  const existingUser = db.prepare("SELECT id FROM users WHERE username = ?").get(validated.username);
-  if (existingUser) {
+  const existingUsers = await pgClient.unsafe("SELECT id FROM users WHERE username = $1", [validated.username]);
+  if (existingUsers.length > 0) {
     return { success: false, message: "用户名已存在" };
   }
 
@@ -128,21 +132,21 @@ export async function createUser(
   const password_hash = await hashPassword(validated.password);
 
   // 插入用户
-  const result = db
-    .prepare(
-      `INSERT INTO users (username, password_hash, real_name, role, phone, email)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    )
-    .run(
+  const result = await pgClient.unsafe(
+    `INSERT INTO users (username, password_hash, real_name, role, phone, email, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+     RETURNING id`,
+    [
       validated.username,
       password_hash,
       validated.real_name,
       validated.role,
       validated.phone || null,
       validated.email || null
-    );
+    ]
+  );
 
-  return { success: true, userId: result.lastInsertRowid as number };
+  return { success: true, userId: result[0]?.id };
 }
 
 /**
@@ -153,12 +157,11 @@ export async function changePassword(
   oldPassword: string,
   newPassword: string
 ): Promise<{ success: boolean; message?: string }> {
-  const db = getDb();
+  const pgClient = getRawPostgres();
 
   // 获取用户
-  const user = db
-    .prepare("SELECT password_hash FROM users WHERE id = ?")
-    .get(userId) as { password_hash: string } | undefined;
+  const users = await pgClient.unsafe("SELECT password_hash FROM users WHERE id = $1", [userId]);
+  const user = users[0] as { password_hash: string } | undefined;
 
   if (!user) {
     return { success: false, message: "用户不存在" };
@@ -174,9 +177,9 @@ export async function changePassword(
   const password_hash = await hashPassword(newPassword);
 
   // 更新密码
-  db.prepare("UPDATE users SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?").run(
-    password_hash,
-    userId
+  await pgClient.unsafe(
+    "UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2",
+    [password_hash, userId]
   );
 
   return { success: true };
