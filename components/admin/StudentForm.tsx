@@ -44,7 +44,7 @@ const studentSchema = z.object({
   parent_name: z.string().max(50, "家长姓名不能超过50个字符").optional(),
   parent_phone: z.string().regex(/^1[3-9]\d{9}$/, "请输入有效的手机号").optional().or(z.literal("")),
   address: z.string().max(200, "地址不能超过200个字符").optional(),
-  is_nutrition_meal: z.number().int().min(0).max(1),
+  is_nutrition_meal: z.boolean(),
   enrollment_date: z.string().optional(),
 });
 
@@ -83,7 +83,7 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
       parent_name: "",
       parent_phone: "",
       address: "",
-      is_nutrition_meal: 0,
+      is_nutrition_meal: false,
       enrollment_date: "",
     },
   });
@@ -99,7 +99,7 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
         parent_name: student.parent_name || "",
         parent_phone: student.parent_phone || "",
         address: student.address || "",
-        is_nutrition_meal: student.is_nutrition_meal ?? 0,
+        is_nutrition_meal: student.is_nutrition_meal ?? false,
         enrollment_date: student.enrollment_date || "",
       });
     } else {
@@ -112,7 +112,7 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
         parent_name: "",
         parent_phone: "",
         address: "",
-        is_nutrition_meal: 0,
+        is_nutrition_meal: false,
         enrollment_date: "",
       });
     }
@@ -415,8 +415,8 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
                   </div>
                   <FormControl>
                     <Switch
-                      checked={field.value === 1}
-                      onCheckedChange={(checked) => field.onChange(checked ? 1 : 0)}
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
                     />
                   </FormControl>
                 </FormItem>

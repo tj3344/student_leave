@@ -176,7 +176,7 @@ export async function createLeave(
   }
 
   // 验证补请假天数和日期重叠
-  const validation = validateLeaveRequest(
+  const validation = await validateLeaveRequest(
     input.student_id,
     input.semester_id,
     input.start_date,

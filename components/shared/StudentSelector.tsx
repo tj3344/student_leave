@@ -85,7 +85,7 @@ export function StudentSelector({
                   <span className="text-muted-foreground text-sm">
                     ({selectedStudent.student_no})
                   </span>
-                  {selectedStudent.is_nutrition_meal === 1 && (
+                  {selectedStudent.is_nutrition_meal === true && (
                     <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
                       营养餐
                     </span>
@@ -111,7 +111,7 @@ export function StudentSelector({
                     <span className="text-muted-foreground text-sm">
                       ({student.student_no})
                     </span>
-                    {student.is_nutrition_meal === 1 && (
+                    {student.is_nutrition_meal === true && (
                       <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded">
                         营养餐
                       </span>
@@ -143,7 +143,7 @@ export function StudentSelector({
       {selectedStudent && (
         <div className="text-sm text-muted-foreground">
           {selectedStudent.grade_name} {selectedStudent.class_name}
-          {selectedStudent.is_nutrition_meal === 1 && (
+          {selectedStudent.is_nutrition_meal === true && (
             <span className="text-orange-600 ml-2">
               （营养餐学生，不退费）
             </span>

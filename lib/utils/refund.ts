@@ -43,10 +43,20 @@ export function calculateRefund(
 }
 
 /**
- * 格式化金额显示
+ * 格式化金额显示（支持 number 和 string 类型）
  */
-export function formatCurrency(amount: number): string {
-  return `¥${amount.toFixed(2)}`;
+export function formatCurrency(amount: number | string): string {
+  const num = typeof amount === "string" ? parseFloat(amount) : amount;
+  return `¥${isNaN(num) ? "0.00" : num.toFixed(2)}`;
+}
+
+/**
+ * 安全地将金额转换为数字（用于 Excel 导出等场景）
+ */
+export function toFixedNumber(amount: number | string | null | undefined, digits: number = 2): string {
+  if (amount === null || amount === undefined) return "0.00";
+  const num = typeof amount === "string" ? parseFloat(amount) : amount;
+  return isNaN(num) ? "0.00" : num.toFixed(digits);
 }
 
 /**

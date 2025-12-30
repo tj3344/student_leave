@@ -16,8 +16,9 @@ interface RefundRecordTableProps {
 }
 
 export function RefundRecordTable({ data }: RefundRecordTableProps) {
-  const formatCurrency = (amount: number) => {
-    return `¥${amount.toFixed(2)}`;
+  const formatCurrency = (amount: number | string) => {
+    const num = typeof amount === "string" ? parseFloat(amount) : amount;
+    return `¥${isNaN(num) ? "0.00" : num.toFixed(2)}`;
   };
 
   return (
@@ -50,7 +51,7 @@ export function RefundRecordTable({ data }: RefundRecordTableProps) {
                 <TableCell>
                   <div className="flex items-center gap-2">
                     {item.student_name}
-                    {item.is_nutrition_meal === 1 && (
+                    {item.is_nutrition_meal === true && (
                       <Badge variant="secondary" className="text-xs">营养餐</Badge>
                     )}
                   </div>

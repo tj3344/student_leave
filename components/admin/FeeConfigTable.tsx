@@ -66,8 +66,9 @@ function FeeConfigTableInternal({ data, onEdit, onRefresh }: FeeConfigTableProps
     }
   }, [deleteDialog.feeConfig, onRefresh]);
 
-  const formatCurrency = useCallback((amount: number) => {
-    return `¥${amount.toFixed(2)}`;
+  const formatCurrency = useCallback((amount: number | string) => {
+    const num = typeof amount === "string" ? parseFloat(amount) : amount;
+    return `¥${isNaN(num) ? "0.00" : num.toFixed(2)}`;
   }, []);
 
   const handleEdit = useCallback((feeConfig: FeeConfigWithDetails) => {

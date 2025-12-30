@@ -295,6 +295,7 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
       const data = await response.json();
 
       if (!response.ok) {
+        console.error("API Error:", response.status, data);
         throw new Error(data.error || "提交失败");
       }
 

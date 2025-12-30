@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { ClassImportRow, StudentImportRow, UserImportRow, FeeConfigImportRow, LeaveImportRow } from '@/types';
+import { toFixedNumber } from './refund';
 
 /**
  * 生成班级导入模板（包含示例数据）
@@ -393,13 +394,13 @@ export function exportRefundRecordsToExcel(
     student_name: string;
     grade_name: string;
     class_name: string;
-    is_nutrition_meal: number;
+    is_nutrition_meal: number | boolean;
     prepaid_days: number;
     actual_days: number;
     leave_days: number;
     suspension_days: number;
-    meal_fee_standard: number;
-    refund_amount: number;
+    meal_fee_standard: number | string;
+    refund_amount: number | string;
   }>
 ): XLSX.WorkBook {
   const worksheetData = [
@@ -409,13 +410,13 @@ export function exportRefundRecordsToExcel(
       r.student_name,
       r.grade_name || '',
       r.class_name || '',
-      r.is_nutrition_meal === 1 ? '是' : '否',
+      r.is_nutrition_meal === true || r.is_nutrition_meal === 1 ? '是' : '否',
       r.prepaid_days,
       r.actual_days,
       r.leave_days,
       r.suspension_days,
-      r.meal_fee_standard.toFixed(2),
-      r.refund_amount.toFixed(2),
+      toFixedNumber(r.meal_fee_standard),
+      toFixedNumber(r.refund_amount),
     ]),
   ];
 
@@ -462,12 +463,12 @@ export function exportRefundSummaryToExcel(
       s.class_teacher_name || '',
       s.student_count,
       s.refund_students_count,
-      s.meal_fee_standard.toFixed(2),
+      toFixedNumber(s.meal_fee_standard),
       s.prepaid_days,
       s.actual_days,
       s.suspension_days,
       s.total_leave_days,
-      s.total_refund_amount.toFixed(2),
+      toFixedNumber(s.total_refund_amount),
     ]),
   ];
 
@@ -479,7 +480,7 @@ export function exportRefundSummaryToExcel(
       totals.refundStudentsCount,
       '', '', '', '',
       totals.totalLeaveDays,
-      totals.totalRefundAmount.toFixed(2),
+      toFixedNumber(totals.totalRefundAmount),
     ]);
   }
 
@@ -572,7 +573,7 @@ export function exportLeavesToExcel(
       l.reason,
       statusNames[l.status] || l.status,
       l.applicant_name || '',
-      l.refund_amount ? l.refund_amount.toFixed(2) : '0.00',
+      l.refund_amount ? toFixedNumber(l.refund_amount) : '0.00',
     ]),
   ];
 

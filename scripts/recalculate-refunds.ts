@@ -36,7 +36,7 @@ let totalChange = 0;
 console.log(`找到 ${leaves.length} 条需要更新的请假记录`);
 
 for (const leave of leaves) {
-  const isNutritionMeal = leave.is_nutrition_meal === 1;
+  const isNutritionMeal = leave.is_nutrition_meal === true || leave.is_nutrition_meal === 1;
   const mealFeeStandard = leave.meal_fee_standard ?? 0;
   const newAmount = isNutritionMeal ? null : leave.leave_days * mealFeeStandard;
 

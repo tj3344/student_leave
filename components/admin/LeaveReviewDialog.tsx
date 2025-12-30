@@ -171,9 +171,9 @@ export function LeaveReviewDialog({
               <div>
                 <Label className="text-muted-foreground">退费金额</Label>
                 <p className="font-medium">
-                  {leave.is_refund === 1 && leave.refund_amount ? (
+                  {leave.is_refund === true && leave.refund_amount ? (
                     <span className="text-green-600">{formatCurrency(leave.refund_amount)}</span>
-                  ) : leave.is_nutrition_meal === 1 ? (
+                  ) : leave.is_nutrition_meal === true ? (
                     <span className="text-orange-600">营养餐学生不退费</span>
                   ) : (
                     <span className="text-muted-foreground">无</span>

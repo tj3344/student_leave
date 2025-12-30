@@ -72,9 +72,9 @@ export async function validateDateOverlap(
   const pgClient = getRawPostgres();
 
   // 构建查询条件 - 严格边界检查：使用 < 而不是 <=
-  // 当新记录开始日期 < 已有记录结束日期 OR 新记录结束日期 > 已有记录开始日期 时，视为重叠
+  // 当新记录开始日期 < 已有记录结束日期 AND 新记录结束日期 > 已有记录开始日期 时，视为重叠
   const params: (number | string)[] = [studentId, semesterId, startDate, endDate];
-  let whereClause = "WHERE student_id = $1 AND semester_id = $2 AND status IN ('pending', 'approved') AND (($3 < end_date) OR ($4 > start_date))";
+  let whereClause = "WHERE student_id = $1 AND semester_id = $2 AND status IN ('pending', 'approved') AND (($3 < end_date) AND ($4 > start_date))";
 
   // 如果是编辑，排除自身记录
   if (excludeId) {
@@ -93,7 +93,7 @@ export async function validateDateOverlap(
       SELECT start_date, end_date, status
       FROM leave_records
       WHERE student_id = $1 AND semester_id = $2 AND status IN ('pending', 'approved')
-        AND (($3 < end_date) OR ($4 > start_date))
+        AND (($3 < end_date) AND ($4 > start_date))
         ${excludeId ? `AND id != $${detailParams.length + 1}` : ""}
       LIMIT 3
     `;

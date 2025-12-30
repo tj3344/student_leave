@@ -118,6 +118,7 @@ export async function POST(request: NextRequest) {
     const result = await createLeave(leaveInput, currentUser.id);
 
     if (!result.success) {
+      console.error("创建请假失败:", result.message);
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
 

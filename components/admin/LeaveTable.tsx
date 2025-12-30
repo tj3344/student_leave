@@ -167,9 +167,9 @@ const LeaveRow = memo(function LeaveRow({
         {leave.reason}
       </TableCell>
       <TableCell>
-        {leave.is_refund === 1 && leave.refund_amount ? (
+        {leave.is_refund === true && leave.refund_amount ? (
           <span className="text-green-600">{formatCurrency(leave.refund_amount)}</span>
-        ) : leave.is_nutrition_meal === 1 ? (
+        ) : leave.is_nutrition_meal === true ? (
           <span className="text-orange-600 text-sm">营养餐不退</span>
         ) : (
           <span className="text-muted-foreground">-</span>
