@@ -8,6 +8,8 @@ import {
   setCurrentSemester,
 } from "@/lib/api/semesters";
 import { PERMISSIONS } from "@/lib/constants";
+import { semesterCreateSchema } from "@/lib/utils/validation";
+import { validateSemesterOverlap } from "@/lib/utils/semester-validation";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -67,6 +69,43 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const body = (await request.json()) as Partial<
       import("@/types").SemesterInput & { is_current?: boolean }
     >;
+
+    // 如果包含日期字段，进行验证
+    if (body.start_date || body.end_date) {
+      // 需要获取现有学期数据来构建完整的验证对象
+      const existing = await getSemesterById(semesterId);
+      if (!existing) {
+        return NextResponse.json({ error: "学期不存在" }, { status: 404 });
+      }
+
+      const startDate = body.start_date || existing.start_date;
+      const endDate = body.end_date || existing.end_date;
+
+      // 构建完整的验证对象
+      const validationData = {
+        name: body.name || existing.name,
+        start_date: startDate,
+        end_date: endDate,
+        school_days: body.school_days ?? existing.school_days,
+        is_current: body.is_current ?? existing.is_current,
+      };
+
+      // 使用 Zod schema 验证
+      const validationResult = semesterCreateSchema.safeParse(validationData);
+      if (!validationResult.success) {
+        const errorMessages = validationResult.error.errors
+          .map((e) => `${e.path.join(".")}: ${e.message}`)
+          .join("; ");
+        return NextResponse.json({ error: errorMessages }, { status: 400 });
+      }
+
+      // 检查学期重叠（排除自身）
+      const overlapResult = await validateSemesterOverlap(startDate, endDate, semesterId);
+      if (!overlapResult.success) {
+        return NextResponse.json({ error: overlapResult.message }, { status: 400 });
+      }
+    }
+
     const result = await updateSemester(semesterId, body);
 
     if (!result.success) {

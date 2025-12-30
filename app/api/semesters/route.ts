@@ -3,6 +3,8 @@ import { revalidatePath } from "next/cache";
 import { getCurrentUser, hasPermission } from "@/lib/api/auth";
 import { getSemesters, createSemester } from "@/lib/api/semesters";
 import { PERMISSIONS } from "@/lib/constants";
+import { semesterCreateSchema } from "@/lib/utils/validation";
+import { validateSemesterOverlap } from "@/lib/utils/semester-validation";
 import type { SemesterInput } from "@/types";
 
 // 缓存配置：学期列表是相对静态的数据，缓存 24 小时
@@ -62,6 +64,22 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as SemesterInput & { is_current?: boolean };
+
+    // 使用 Zod schema 验证请求数据
+    const validationResult = semesterCreateSchema.safeParse(body);
+    if (!validationResult.success) {
+      const errorMessages = validationResult.error.errors
+        .map((e) => `${e.path.join(".")}: ${e.message}`)
+        .join("; ");
+      return NextResponse.json({ error: errorMessages }, { status: 400 });
+    }
+
+    // 检查学期重叠
+    const overlapResult = await validateSemesterOverlap(body.start_date, body.end_date);
+    if (!overlapResult.success) {
+      return NextResponse.json({ error: overlapResult.message }, { status: 400 });
+    }
+
     const result = await createSemester(body);
 
     if (!result.success) {

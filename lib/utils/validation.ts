@@ -128,19 +128,122 @@ export type LeaveReviewInput = z.infer<typeof leaveReviewSchema>;
 // 学期相关验证
 // ============================================
 
-export const semesterCreateSchema = z
-  .object({
-    name: z.string().min(1, "学期名称不能为空").max(50, "学期名称最多50个字符"),
-    start_date: z.string().min(1, "开始日期不能为空"),
-    end_date: z.string().min(1, "结束日期不能为空"),
-    school_days: z.number().int().positive("在校天数必须大于0"),
+/**
+ * 日期格式验证正则（yyyy-MM-dd）
+ */
+const DATE_REGEX = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+
+/**
+ * 验证日期格式是否为 yyyy-MM-dd
+ */
+const isValidDateFormat = (dateStr: string): boolean => {
+  if (!DATE_REGEX.test(dateStr)) {
+    return false;
+  }
+  // 进一步验证日期的合法性（如2月30日等）
+  const date = new Date(dateStr);
+  return !isNaN(date.getTime()) && date.toISOString().slice(0, 10) === dateStr;
+};
+
+/**
+ * 计算两个日期之间的自然天数（包含首尾）
+ */
+const calculateNaturalDays = (startDate: string, endDate: string): number => {
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  const diffTime = end.getTime() - start.getTime();
+  return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
+};
+
+/**
+ * 学期验证配置
+ */
+const SEMESTER_VALIDATION_CONFIG = {
+  // 允许的年份范围（相对于当前年份）
+  MIN_YEAR_OFFSET: -10, // 最早10年前
+  MAX_YEAR_OFFSET: 10, // 最晚10年后
+} as const;
+
+/**
+ * 学期基础 schema（用于 partial）
+ */
+const baseSemesterSchema = z.object({
+  name: z.string().min(1, "学期名称不能为空").max(50, "学期名称不能超过50个字符"),
+  start_date: z.string().min(1, "开始日期不能为空"),
+  end_date: z.string().min(1, "结束日期不能为空"),
+  school_days: z.coerce
+    .number()
+    .int()
+    .positive("学校天数必须大于0")
+    .max(365, "学校天数不能超过365"),
+  is_current: z.boolean().default(false).optional(),
+});
+
+/**
+ * 学期创建验证 schema
+ * 包含完整的验证规则
+ */
+export const semesterCreateSchema = baseSemesterSchema
+  .refine((data) => isValidDateFormat(data.start_date), {
+    message: "开始日期格式不正确，请使用 yyyy-MM-dd 格式",
+    path: ["start_date"],
   })
-  .refine((data) => new Date(data.start_date) <= new Date(data.end_date), {
-    message: "结束日期必须大于或等于开始日期",
+  .refine((data) => isValidDateFormat(data.end_date), {
+    message: "结束日期格式不正确，请使用 yyyy-MM-dd 格式",
     path: ["end_date"],
+  })
+  .refine((data) => new Date(data.end_date) > new Date(data.start_date), {
+    message: "结束日期必须大于开始日期",
+    path: ["end_date"],
+  })
+  .superRefine((data, ctx) => {
+    // 验证学校天数不能超过日期范围的自然天数
+    const naturalDays = calculateNaturalDays(data.start_date, data.end_date);
+    if (data.school_days > naturalDays) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `学校天数（${data.school_days}天）不能超过日期范围的自然天数（${naturalDays}天）`,
+        path: ["school_days"],
+      });
+    }
+
+    // 验证日期合理性（不能过早或过晚）
+    const currentYear = new Date().getFullYear();
+    const startYear = new Date(data.start_date).getFullYear();
+    const endYear = new Date(data.end_date).getFullYear();
+
+    if (
+      startYear < currentYear + SEMESTER_VALIDATION_CONFIG.MIN_YEAR_OFFSET ||
+      startYear > currentYear + SEMESTER_VALIDATION_CONFIG.MAX_YEAR_OFFSET
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `开始日期超出允许范围（${currentYear + SEMESTER_VALIDATION_CONFIG.MIN_YEAR_OFFSET}年至${currentYear + SEMESTER_VALIDATION_CONFIG.MAX_YEAR_OFFSET}年）`,
+        path: ["start_date"],
+      });
+    }
+
+    if (
+      endYear < currentYear + SEMESTER_VALIDATION_CONFIG.MIN_YEAR_OFFSET ||
+      endYear > currentYear + SEMESTER_VALIDATION_CONFIG.MAX_YEAR_OFFSET
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: `结束日期超出允许范围（${currentYear + SEMESTER_VALIDATION_CONFIG.MIN_YEAR_OFFSET}年至${currentYear + SEMESTER_VALIDATION_CONFIG.MAX_YEAR_OFFSET}年）`,
+        path: ["end_date"],
+      });
+    }
   });
 
 export type SemesterCreateInput = z.infer<typeof semesterCreateSchema>;
+
+/**
+ * 学期更新验证 schema
+ * 与创建相同，但所有字段都是可选的
+ */
+export const semesterUpdateSchema = baseSemesterSchema.partial();
+
+export type SemesterUpdateInput = z.infer<typeof semesterUpdateSchema>;
 
 // ============================================
 // 年级相关验证

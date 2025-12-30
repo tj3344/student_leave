@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
+import { semesterCreateSchema } from "@/lib/utils/validation";
 import {
   Dialog,
   DialogContent,
@@ -26,23 +27,7 @@ import { Switch } from "@/components/ui/switch";
 import { Loader2 } from "lucide-react";
 import type { Semester } from "@/types";
 
-const semesterSchema = z
-  .object({
-    name: z.string().min(1, "学期名称不能为空").max(50, "学期名称不能超过50个字符"),
-    start_date: z.string().min(1, "开始日期不能为空"),
-    end_date: z.string().min(1, "结束日期不能为空"),
-    school_days: z.coerce
-      .number()
-      .min(1, "学校天数必须大于0")
-      .max(365, "学校天数不能超过365"),
-    is_current: z.boolean().default(false),
-  })
-  .refine((data) => new Date(data.end_date) > new Date(data.start_date), {
-    message: "结束日期必须大于开始日期",
-    path: ["end_date"],
-  });
-
-type SemesterFormValues = z.infer<typeof semesterSchema>;
+type SemesterFormValues = z.infer<typeof semesterCreateSchema>;
 
 interface SemesterFormProps {
   open: boolean;
@@ -56,7 +41,7 @@ export function SemesterForm({ open, onClose, onSuccess, semester }: SemesterFor
   const isEdit = !!semester;
 
   const form = useForm<SemesterFormValues>({
-    resolver: zodResolver(semesterSchema),
+    resolver: zodResolver(semesterCreateSchema),
     defaultValues: {
       name: "",
       start_date: "",
