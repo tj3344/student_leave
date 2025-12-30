@@ -40,6 +40,7 @@ export default function ClassTeacherLeavesPage() {
   const [semesterLoading, setSemesterLoading] = useState(true);
   const [classInfo, setClassInfo] = useState<{ id: number; name: string; grade_name: string } | null>(null);
   const [canEditLeave, setCanEditLeave] = useState(true); // 编辑权限开关
+  const [teacherApplyEnabled, setTeacherApplyEnabled] = useState(true); // 教师请假申请功能开关
 
   // 表单对话框状态
   const [formOpen, setFormOpen] = useState(false);
@@ -99,6 +100,13 @@ export default function ClassTeacherLeavesPage() {
       const editData = await editRes.json();
       if (editData.data?.config_value) {
         setCanEditLeave(editData.data.config_value === "true" || editData.data.config_value === "1");
+      }
+
+      // 获取教师请假申请功能配置
+      const applyRes = await fetch("/api/system-config/leave.teacher_apply_enabled");
+      const applyData = await applyRes.json();
+      if (applyData.data?.config_value) {
+        setTeacherApplyEnabled(applyData.data.config_value === "true" || applyData.data.config_value === "1");
       }
     } catch (error) {
       console.error("Fetch class info error:", error);
@@ -256,10 +264,12 @@ export default function ClassTeacherLeavesPage() {
             <Download className="mr-2 h-4 w-4" />
             导出
           </Button>
-          <Button onClick={() => setFormOpen(true)} disabled={!currentSemesterId}>
-            <Plus className="mr-2 h-4 w-4" />
-            新增请假
-          </Button>
+          {teacherApplyEnabled && (
+            <Button onClick={() => setFormOpen(true)} disabled={!currentSemesterId}>
+              <Plus className="mr-2 h-4 w-4" />
+              新增请假
+            </Button>
+          )}
         </div>
       </div>
 
