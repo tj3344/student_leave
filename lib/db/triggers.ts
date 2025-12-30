@@ -1,10 +1,55 @@
 import { getRawPostgres } from "./index";
+import postgres from "postgres";
 
 /**
  * 初始化学生数量统计触发器
  */
 export async function initStudentCountTriggers(): Promise<void> {
   await initPostgresTriggers();
+}
+
+/**
+ * 检查触发器是否存在
+ */
+async function triggerExists(pgClient: postgres.Sql, triggerName: string): Promise<boolean> {
+  const result = await pgClient.unsafe(`
+    SELECT EXISTS (
+      SELECT 1 FROM pg_trigger
+      WHERE tgname = $1
+    )
+  `, [triggerName]) as { exists: boolean }[];
+  return result[0]?.exists || false;
+}
+
+/**
+ * 检查函数是否存在
+ */
+async function functionExists(pgClient: postgres.Sql, functionName: string): Promise<boolean> {
+  const result = await pgClient.unsafe(`
+    SELECT EXISTS (
+      SELECT 1 FROM pg_proc
+      WHERE proname = $1
+    )
+  `, [functionName]) as { exists: boolean }[];
+  return result[0]?.exists || false;
+}
+
+/**
+ * 确保触发器已初始化（带检查）
+ */
+export async function ensureTriggersInitialized(): Promise<boolean> {
+  const pgClient = getRawPostgres();
+
+  const hasFunction = await functionExists(pgClient, 'update_student_count');
+  const hasTrigger = await triggerExists(pgClient, 'trigger_student_count_insert');
+
+  if (!hasFunction || !hasTrigger) {
+    console.log('⚠️  检测到触发器未初始化，正在自动初始化...');
+    await initPostgresTriggers();
+    return true;
+  }
+
+  return false;
 }
 
 /**

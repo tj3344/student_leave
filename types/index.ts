@@ -12,7 +12,7 @@ export interface User {
   role: UserRole;
   phone?: string;
   email?: string;
-  is_active: number;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -31,7 +31,7 @@ export interface UserUpdate {
   role?: UserRole;
   phone?: string;
   email?: string;
-  is_active?: number;
+  is_active?: boolean;
 }
 
 // 用户导入行类型（Excel 解析后）
@@ -102,6 +102,7 @@ export interface Class {
   grade_id: number;
   name: string;
   class_teacher_id?: number;
+  meal_fee: string;
   student_count: number;
   created_at: string;
   updated_at: string;
@@ -149,9 +150,9 @@ export interface Student {
   parent_name?: string;
   parent_phone?: string;
   address?: string;
-  is_nutrition_meal: number;
+  is_nutrition_meal: boolean;
   enrollment_date?: string;
-  is_active: number;
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -165,7 +166,7 @@ export interface StudentInput {
   parent_name?: string;
   parent_phone?: string;
   address?: string;
-  is_nutrition_meal?: number;
+  is_nutrition_meal?: boolean;
   enrollment_date?: string;
 }
 
@@ -218,8 +219,8 @@ export interface LeaveRecord {
   reviewer_id?: number;
   review_time?: string;
   review_remark?: string;
-  is_refund: number;
-  refund_amount?: number;
+  is_refund: boolean;
+  refund_amount?: string;
   created_at: string;
   updated_at: string;
 }
@@ -247,7 +248,7 @@ export interface LeaveWithDetails extends LeaveRecord {
   applicant_name?: string;
   reviewer_name?: string;
   semester_name?: string;
-  is_nutrition_meal?: number;
+  is_nutrition_meal?: boolean;
 }
 
 // ============================================
@@ -377,13 +378,13 @@ export interface StudentRefundRecord {
   student_no: string;
   class_name: string;
   grade_name: string;
-  is_nutrition_meal: number;
+  is_nutrition_meal: boolean;
   leave_days: number;
   prepaid_days: number;
   actual_days: number;
   suspension_days: number;
-  meal_fee_standard: number;
-  refund_amount: number;
+  meal_fee_standard: string;
+  refund_amount: string;
 }
 
 // 班级退费汇总

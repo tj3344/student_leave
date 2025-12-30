@@ -9,34 +9,34 @@ import Database from "better-sqlite3";
 import { drizzle } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import {
-  usersPg,
-  semestersPg,
-  gradesPg,
-  classesPg,
-  studentsPg,
-  leaveRecordsPg,
-  systemConfigPg,
-  operationLogsPg,
-  feeConfigsPg,
-  backupRecordsPg,
-  backupConfigPg,
-} from "../lib/db/schema/index";
+  users,
+  semesters,
+  grades,
+  classes,
+  students,
+  leaveRecords,
+  systemConfig,
+  operationLogs,
+  feeConfigs,
+  backupRecords,
+  backupConfig,
+} from "../lib/db/schema";
 import fs from "fs";
 import path from "path";
 
 // Schema 对象
 const schema = {
-  users: usersPg,
-  semesters: semestersPg,
-  grades: gradesPg,
-  classes: classesPg,
-  students: studentsPg,
-  leaveRecords: leaveRecordsPg,
-  systemConfig: systemConfigPg,
-  operationLogs: operationLogsPg,
-  feeConfigs: feeConfigsPg,
-  backupRecords: backupRecordsPg,
-  backupConfig: backupConfigPg,
+  users,
+  semesters,
+  grades,
+  classes,
+  students,
+  leaveRecords,
+  systemConfig,
+  operationLogs,
+  feeConfigs,
+  backupRecords,
+  backupConfig,
 };
 
 // 迁移结果接口
@@ -212,7 +212,7 @@ function createBackup(): string {
 }
 
 /**
- * 迁移单个表
+ * 迁移单个表（优化版 - 批量插入）
  */
 async function migrateTable(
   sqliteDb: Database.Database,
@@ -238,30 +238,48 @@ async function migrateTable(
       throw new Error(`未找到表 ${tableName} 的 schema 映射`);
     }
 
+    const transformer = transformers[tableName];
     const pgTable = schema[schemaTableName];
 
-    // 批量插入（每批 100 条）
-    const batchSize = 100;
-    for (let i = 0; i < rows.length; i += batchSize) {
-      const batch = rows.slice(i, i + batchSize);
+    // 批量插入（每批 1000 条）
+    const batchSize = 1000;
+    const transformedData: any[] = [];
 
-      for (const row of batch) {
-        try {
-          // 转换数据格式
-          const transformer = transformers[tableName];
-          const data = transformer ? transformer(row) : row;
+    // 预处理：转换所有数据
+    for (const row of rows) {
+      try {
+        const data = transformer ? transformer(row) : row;
+        transformedData.push(data);
+      } catch (error: any) {
+        errors.push(`ID ${row.id}: 数据转换失败 - ${error.message}`);
+      }
+    }
 
-          // 插入到 PostgreSQL
-          await pgDrizzle.insert(pgTable).values(data);
-          migrated++;
-        } catch (error: any) {
-          errors.push(`ID ${row.id}: ${error.message}`);
+    // 分批并行插入
+    for (let i = 0; i < transformedData.length; i += batchSize) {
+      const batch = transformedData.slice(i, i + batchSize);
+
+      try {
+        // 使用 Promise.all 并行插入
+        await Promise.all(
+          batch.map(data => pgDrizzle.insert(pgTable).values(data).onConflictDoNothing())
+        );
+        migrated += batch.length;
+
+        const progress = Math.min(i + batchSize, transformedData.length);
+        console.log(`  进度: ${progress}/${transformedData.length}`);
+      } catch (error: any) {
+        console.error(`  批量插入失败，回退到逐条插入: ${error.message}`);
+        // 如果批量失败，回退到逐条插入
+        for (const data of batch) {
+          try {
+            await pgDrizzle.insert(pgTable).values(data).onConflictDoNothing();
+            migrated++;
+          } catch (err: any) {
+            errors.push(`插入失败: ${err.message}`);
+          }
         }
       }
-
-      // 显示进度
-      const progress = Math.min(i + batchSize, rows.length);
-      console.log(`  进度: ${progress}/${rows.length}`);
     }
 
     if (errors.length > 0) {
