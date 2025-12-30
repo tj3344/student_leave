@@ -4,6 +4,7 @@
 - [环境要求](#环境要求)
 - [部署方式](#部署方式)
 - [Docker 部署](#docker-部署)
+- [Docker + PM2 组合部署](#docker--pm2-组合部署)
 - [传统 Node.js 部署](#传统-nodejs-部署)
 - [Nginx 反向代理配置](#nginx-反向代理配置)
 - [HTTPS 配置](#https-配置)
@@ -30,11 +31,12 @@
 
 ## 部署方式
 
-本项目支持三种部署方式：
+本项目支持四种部署方式：
 
 1. **Docker 容器化部署**（推荐，易于管理和迁移）
-2. **PM2 进程管理**（传统 Node.js 部署）
-3. **Systemd 系统服务**（Linux 原生服务管理）
+2. **Docker + PM2 组合部署**（容器内进程管理，增强稳定性）
+3. **PM2 进程管理**（传统 Node.js 部署）
+4. **Systemd 系统服务**（Linux 原生服务管理）
 
 ## Docker 部署
 
@@ -129,6 +131,107 @@ tar -czf backup-$(date +%Y%m%d).tar.gz data/
 # 启动服务
 docker compose start
 ```
+
+## Docker + PM2 组合部署
+
+此方案在 Docker 容器内部使用 PM2 管理 Next.js 应用进程，结合了 Docker 的隔离性和 PM2 的进程管理能力。
+
+### 优势
+
+- **进程自愈**: PM2 在容器内监控应用进程，崩溃自动重启
+- **日志管理**: PM2 统一管理应用日志，便于排查问题
+- **资源监控**: 可通过 `pm2 monit` 实时查看资源使用情况
+- **优雅关闭**: PM2 支持优雅关闭机制，确保请求处理完成后再退出
+- **扩展性**: 为未来迁移到集群模式预留空间
+
+### 配置说明
+
+项目已配置好 Docker + PM2 组合部署，相关文件：
+
+| 文件 | 说明 |
+|------|------|
+| [Dockerfile](Dockerfile:79-100) | 安装 PM2 并使用 `pm2-runtime` 启动 |
+| [ecosystem.config.cjs](ecosystem.config.cjs) | PM2 配置（容器环境路径 `/app`） |
+| [docker-compose.yml](docker-compose.yml) | Docker Compose 编排配置 |
+
+**关键配置**:
+- `pm2-runtime`: Docker 内必须使用 runtime，不能后台运行
+- `--no-daemon`: 保持 PM2 前台运行，防止容器退出
+- `instances: 1`: SQLite 不支持多实例并发写入
+- `cwd: '/app'`: 容器内工作目录
+
+### 部署步骤
+
+```bash
+# 进入项目目录
+cd /home/admin/code_data/student_leave
+
+# 停止现有容器
+sudo docker compose down
+
+# 重新构建镜像
+sudo docker compose build
+
+# 启动服务
+sudo docker compose up -d
+
+# 查看日志
+sudo docker compose logs -f student-leave
+```
+
+### 验证部署
+
+```bash
+# 1. 检查容器状态
+sudo docker compose ps
+
+# 2. 进入容器检查 PM2
+sudo docker exec -it student-leave-app sh
+pm2 status
+pm2 logs
+exit
+
+# 3. 健康检查
+curl http://localhost:3000/api/health
+```
+
+### 常用操作命令
+
+```bash
+# 重启容器
+sudo docker compose restart
+
+# 查看 PM2 日志（不进容器）
+sudo docker exec student-leave-app pm2 logs
+
+# 监控资源使用
+sudo docker exec student-leave-app pm2 monit
+
+# 查看 PM2 进程状态
+sudo docker exec student-leave-app pm2 status
+
+# 重启应用（不重建容器）
+sudo docker exec student-leave-app pm2 restart student-leave
+```
+
+### 更新部署
+
+```bash
+# 拉取最新代码
+git pull
+
+# 重新构建并启动
+sudo docker compose up -d --build
+
+# 清理旧镜像
+sudo docker image prune -f
+```
+
+### 注意事项
+
+1. **SQLite 限制**: 由于 SQLite 不支持多实例并发写入，PM2 配置中 `instances` 必须保持为 1
+2. **内存限制**: PM2 的 `max_memory_restart` 设置为 1G，可根据服务器实际情况调整
+3. **日志轮转**: PM2 日志会持续增长，建议定期清理或配置日志轮转
 
 ## 传统 Node.js 部署
 

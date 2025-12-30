@@ -76,6 +76,12 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # 复制数据库层（运行时需要）
 COPY --chown=nextjs:nodejs lib/db ./lib/db
 
+# 安装 PM2（容器内进程管理）
+RUN npm install -g pm2 && npm cache clean --force
+
+# 复制 PM2 配置文件
+COPY --chown=nextjs:nodejs ecosystem.config.cjs ./
+
 # 创建必要的目录并设置权限
 RUN mkdir -p /app/data/backups /app/logs && \
     chown -R nextjs:nodejs /app/data /app/logs
@@ -90,5 +96,5 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-# 启动应用
-CMD ["node", "server.js"]
+# 使用 PM2 Runtime 启动应用（容器内必须使用 --no-daemon）
+CMD ["pm2-runtime", "start", "ecosystem.config.cjs", "--no-daemon"]

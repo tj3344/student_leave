@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
+    "build:release": "node scripts/build-release.js",
     "start": "next start",
     "lint": "next lint",
     "test": "vitest",

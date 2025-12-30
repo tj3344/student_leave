@@ -1,33 +1,36 @@
 import { NextResponse } from "next/server";
-import { getDb, seedAdminUser } from "@/lib/db";
+import { runMigrations } from "@/lib/db";
 
 /**
- * POST /api/init - Initialize the database with default admin user
- * This endpoint is only for development/initial setup
+ * GET /api/init - Return init status/instructions
+ */
+export async function GET() {
+  return NextResponse.json({
+    message: "Database initialization requires POST request",
+    usage: "curl -X POST http://your-server:3000/api/init",
+  });
+}
+
+/**
+ * POST /api/init - Initialize the database
+ * Creates tables, indexes, triggers, and default admin user
+ * This endpoint is only for initial setup
  */
 export async function POST() {
   try {
-    const db = getDb();
-
-    // Check if users table exists and has users
-    const userCount = db.prepare("SELECT COUNT(*) as count FROM users").get() as { count: number };
-
-    if (userCount.count > 0) {
-      return NextResponse.json({
-        success: false,
-        message: "Database already has users. Initialization skipped.",
-      });
-    }
-
-    // Create the default admin user
-    await seedAdminUser();
+    // Run complete database initialization
+    // This includes: creating tables, indexes, triggers, system config, and default admin user
+    await runMigrations();
 
     return NextResponse.json({
       success: true,
-      message: "Database initialized successfully. Default admin user created.",
-      credentials: {
-        username: "admin",
-        password: "admin123",
+      message: "Database initialized successfully",
+      details: {
+        tables: "Created all required tables",
+        indexes: "Created all indexes",
+        triggers: "Initialized student count triggers",
+        config: "Initialized system configuration",
+        admin: "Default admin user created (username: admin, password: admin123)",
       },
     });
   } catch (error) {

@@ -30,17 +30,22 @@ export async function login(
     .get(validated.username) as User | undefined;
 
   if (!user) {
+    console.log("[LOGIN] User not found:", validated.username);
     return { success: false, message: "用户名或密码错误" };
   }
 
+  console.log("[LOGIN] User found:", user.username, "Role:", user.role);
+
   // 验证密码
   const isValid = await verifyPassword(validated.password, user.password_hash);
+  console.log("[LOGIN] Password valid:", isValid);
   if (!isValid) {
     return { success: false, message: "用户名或密码错误" };
   }
 
   // 检查角色权限
   if (!ALLOWED_LOGIN_ROLES.includes(user.role)) {
+    console.log("[LOGIN] Role not allowed:", user.role);
     return { success: false, message: "无权限登录，仅管理员和班主任可登录" };
   }
 

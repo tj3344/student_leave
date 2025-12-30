@@ -2,9 +2,8 @@ module.exports = {
   apps: [
     {
       name: 'student-leave',
-      script: 'node_modules/next/dist/bin/next',
-      args: 'start -p 3000',
-      cwd: '/home/admin/code_data/student_leave',
+      script: 'server.js',
+      cwd: '/app',
       instances: 1, // SQLite 不支持多实例并发写入
       exec_mode: 'fork',
       autorestart: true,
@@ -14,8 +13,8 @@ module.exports = {
         NODE_ENV: 'production',
         PORT: 3000,
       },
-      error_file: './logs/pm2-error.log',
-      out_file: './logs/pm2-out.log',
+      error_file: '/app/logs/pm2-error.log',
+      out_file: '/app/logs/pm2-out.log',
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       merge_logs: true,
       // 优雅关闭
