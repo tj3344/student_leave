@@ -384,9 +384,14 @@ export async function getStudentRefundRecords(
     ${feeConfigJoin}
     ${leaveRecordJoin}
     ${whereClause}
-    GROUP BY s.id, s.student_no, s.name, c.name, g.name, s.is_nutrition_meal,
+    GROUP BY s.id, s.student_no, s.name, c.name, g.name, g.sort_order, s.is_nutrition_meal,
              fc.prepaid_days, fc.actual_days, fc.suspension_days, fc.meal_fee_standard
-    HAVING refund_amount > 0 OR COALESCE(SUM(lr.leave_days), 0) > 0
+    HAVING (CASE
+        WHEN s.is_nutrition_meal = true THEN 0
+        ELSE COALESCE(CAST(fc.meal_fee_standard AS NUMERIC), 0) *
+          (COALESCE(fc.prepaid_days, 0) - COALESCE(fc.actual_days, 0) +
+           COALESCE(fc.suspension_days, 0) + COALESCE(SUM(lr.leave_days), 0))
+      END) > 0 OR COALESCE(SUM(lr.leave_days), 0) > 0
     ORDER BY g.sort_order ASC, c.name ASC, s.student_no ASC
     LIMIT $${paramIndex++} OFFSET $${paramIndex++}
   `;
@@ -483,7 +488,7 @@ export async function getClassRefundSummary(
   }
 
   query += `
-    GROUP BY c.id, c.name, g.name, u.real_name,
+    GROUP BY c.id, c.name, g.name, g.sort_order, u.real_name,
              fc.prepaid_days, fc.actual_days, fc.suspension_days, fc.meal_fee_standard
     ORDER BY g.sort_order ASC, c.name ASC
   `;

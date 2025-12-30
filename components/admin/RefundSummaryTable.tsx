@@ -15,8 +15,9 @@ interface RefundSummaryTableProps {
 }
 
 export function RefundSummaryTable({ data }: RefundSummaryTableProps) {
-  const formatCurrency = (amount: number) => {
-    return `¥${amount.toFixed(2)}`;
+  const formatCurrency = (amount: number | string) => {
+    const num = typeof amount === "string" ? parseFloat(amount) : amount;
+    return `¥${isNaN(num) ? "0.00" : num.toFixed(2)}`;
   };
 
   // 计算总计
