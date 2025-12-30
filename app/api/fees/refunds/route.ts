@@ -38,6 +38,11 @@ export async function GET(request: NextRequest) {
 
     const result = await getStudentRefundRecords(params);
 
+    // 处理返回值：可能是数组或分页响应
+    if (Array.isArray(result)) {
+      return NextResponse.json({ data: result, total: result.length });
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     console.error("Get student refund records error:", error);
