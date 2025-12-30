@@ -31,7 +31,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "无效的学期ID" }, { status: 400 });
     }
 
-    const semester = getSemesterById(semesterId);
+    const semester = await getSemesterById(semesterId);
 
     if (!semester) {
       return NextResponse.json({ error: "学期不存在" }, { status: 404 });
@@ -66,7 +66,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const body = (await request.json()) as Partial<
       import("@/types").SemesterInput & { is_current?: boolean }
     >;
-    const result = updateSemester(semesterId, body);
+    const result = await updateSemester(semesterId, body);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
@@ -98,7 +98,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "无效的学期ID" }, { status: 400 });
     }
 
-    const result = deleteSemester(semesterId);
+    const result = await deleteSemester(semesterId);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
@@ -133,7 +133,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const body = (await request.json()) as { action?: string };
 
     if (body.action === "set_current") {
-      const result = setCurrentSemester(semesterId);
+      const result = await setCurrentSemester(semesterId);
 
       if (!result.success) {
         return NextResponse.json({ error: result.message }, { status: 400 });

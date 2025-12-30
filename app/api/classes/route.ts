@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       params.class_teacher_id = user.id;
     }
 
-    const result = getClasses(params);
+    const result = await getClasses(params);
 
     // 如果是数组（无分页），直接返回
     if (Array.isArray(result)) {
@@ -79,7 +79,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as ClassInput;
-    const result = createClass(body);
+    const result = await createClass(body);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });

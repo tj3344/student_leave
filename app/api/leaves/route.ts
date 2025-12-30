@@ -65,7 +65,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取请假记录列表
-    const result = getLeaves({
+    const result = await getLeaves({
       page,
       limit,
       search: search || undefined,
@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 创建请假申请
-    const result = createLeave(leaveInput, currentUser.id);
+    const result = await createLeave(leaveInput, currentUser.id);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });

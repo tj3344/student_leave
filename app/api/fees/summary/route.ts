@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
       class_id: classId ? parseInt(classId, 10) : undefined,
     };
 
-    const result = getClassRefundSummary(params);
+    const result = await getClassRefundSummary(params);
 
     return NextResponse.json({ data: result });
   } catch (error) {

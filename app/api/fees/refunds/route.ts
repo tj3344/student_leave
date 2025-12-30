@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       class_id: classId ? parseInt(classId, 10) : undefined,
     };
 
-    const result = getStudentRefundRecords(params);
+    const result = await getStudentRefundRecords(params);
 
     return NextResponse.json(result);
   } catch (error) {

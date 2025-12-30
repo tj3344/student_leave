@@ -23,7 +23,7 @@ export async function GET(
     }
 
     const { key } = await params;
-    const value = getConfig(key);
+    const value = await getConfig(key);
 
     if (value === undefined) {
       return NextResponse.json({ error: "配置不存在" }, { status: 404 });
@@ -61,7 +61,7 @@ export async function PUT(
       return NextResponse.json({ error: "缺少配置值" }, { status: 400 });
     }
 
-    setConfig(key, String(config_value), description);
+    await setConfig(key, String(config_value), description);
 
     return NextResponse.json({
       success: true,

@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     // 获取学生
-    const student = getStudentById(id);
+    const student = await getStudentById(id);
 
     if (!student) {
       return NextResponse.json({ error: "学生不存在" }, { status: 404 });
@@ -60,7 +60,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       // 如果是班主任，检查是否有编辑权限配置
       if (currentUser.role === "class_teacher") {
         const { getBooleanConfig } = await import("@/lib/api/system-config");
-        const canEdit = getBooleanConfig("permission.class_teacher_edit_student", false);
+        const canEdit = await getBooleanConfig("permission.class_teacher_edit_student", false);
         if (!canEdit) {
           return NextResponse.json({ error: "班主任无编辑权限" }, { status: 403 });
         }
@@ -81,10 +81,10 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const studentUpdate = body as Partial<StudentInput> & { is_active?: number };
 
     // 获取学生信息用于日志
-    const student = getStudentById(id);
+    const student = await getStudentById(id);
 
     // 更新学生
-    const result = updateStudent(id, studentUpdate);
+    const result = await updateStudent(id, studentUpdate);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
@@ -117,7 +117,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       // 如果是班主任，检查是否有删除权限配置
       if (currentUser.role === "class_teacher") {
         const { getBooleanConfig } = await import("@/lib/api/system-config");
-        const canDelete = getBooleanConfig("permission.class_teacher_delete_student", false);
+        const canDelete = await getBooleanConfig("permission.class_teacher_delete_student", false);
         if (!canDelete) {
           return NextResponse.json({ error: "班主任无删除权限" }, { status: 403 });
         }
@@ -134,10 +134,10 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     }
 
     // 获取学生信息用于日志
-    const student = getStudentById(id);
+    const student = await getStudentById(id);
 
     // 删除学生
-    const result = deleteStudent(id);
+    const result = await deleteStudent(id);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
@@ -178,7 +178,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     }
 
     // 切换状态
-    const result = toggleStudentStatus(id);
+    const result = await toggleStudentStatus(id);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });

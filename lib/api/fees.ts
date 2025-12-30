@@ -358,7 +358,7 @@ export async function getStudentRefundRecords(
   const totalResult = await pgClient.unsafe(countQuery, queryParams) as { total: number }[];
   const total = totalResult[0]?.total || 0;
 
-  // 获取数据
+  // 获取数据（注意：meal_fee_standard 是 text 类型，需要转换为 numeric）
   const dataQuery = `
     SELECT
       s.id as student_id,
@@ -374,7 +374,7 @@ export async function getStudentRefundRecords(
       COALESCE(fc.meal_fee_standard, 0) as meal_fee_standard,
       CASE
         WHEN s.is_nutrition_meal = true THEN 0
-        ELSE COALESCE(fc.meal_fee_standard, 0) *
+        ELSE COALESCE(CAST(fc.meal_fee_standard AS NUMERIC), 0) *
           (COALESCE(fc.prepaid_days, 0) - COALESCE(fc.actual_days, 0) +
            COALESCE(fc.suspension_days, 0) + COALESCE(SUM(lr.leave_days), 0))
       END as refund_amount
@@ -437,7 +437,7 @@ export async function getClassRefundSummary(
 
   studentLeaveQuery += " GROUP BY s.id, s.class_id, s.is_nutrition_meal";
 
-  // 主查询：获取班级退费汇总
+  // 主查询：获取班级退费汇总（注意：meal_fee_standard 是 text 类型，需要转换为 numeric）
   let query = `
     SELECT
       c.id as class_id,
@@ -452,7 +452,7 @@ export async function getClassRefundSummary(
       COUNT(DISTINCT sl.student_id) as student_count,
       SUM(CASE
         WHEN sl.is_nutrition_meal = false THEN
-          COALESCE(fc.meal_fee_standard, 0) *
+          COALESCE(CAST(fc.meal_fee_standard AS NUMERIC), 0) *
           (COALESCE(fc.prepaid_days, 0) - COALESCE(fc.actual_days, 0) +
            COALESCE(fc.suspension_days, 0) + COALESCE(sl.leave_days, 0))
         ELSE 0

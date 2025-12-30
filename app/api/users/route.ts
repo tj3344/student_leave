@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
     const roles = role ? role.split(",").map(r => r.trim()) : [];
 
     // 获取用户列表
-    const result = getUsers({
+    const result = await getUsers({
       page,
       limit,
       search: search || undefined,

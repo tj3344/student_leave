@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
     }
 
     // 获取学生列表
-    const result = getStudents({
+    const result = await getStudents({
       page,
       limit,
       search: search || undefined,
@@ -104,7 +104,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "学生列表不能为空" }, { status: 400 });
       }
 
-      const result = batchCreateStudents(studentsInput);
+      const result = await batchCreateStudents(studentsInput);
 
       if (!result.success) {
         return NextResponse.json({ error: result.message }, { status: 400 });
@@ -131,7 +131,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: "缺少必填字段" }, { status: 400 });
       }
 
-      const result = createStudent(studentInput);
+      const result = await createStudent(studentInput);
 
       if (!result.success) {
         return NextResponse.json({ error: result.message }, { status: 400 });

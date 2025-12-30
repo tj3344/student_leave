@@ -17,7 +17,7 @@ export async function GET() {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
-    const configs = getAllConfigs();
+    const configs = await getAllConfigs();
 
     return NextResponse.json({ data: configs });
   } catch (error) {
@@ -50,7 +50,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "无效的请求参数" }, { status: 400 });
     }
 
-    const success = updateConfigs(
+    const success = await updateConfigs(
       configs.map((c: { config_key: string; config_value: string }) => ({
         key: c.config_key,
         value: c.config_value,

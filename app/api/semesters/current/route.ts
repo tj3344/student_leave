@@ -15,7 +15,7 @@ export async function GET() {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
-    const currentSemester = getCurrentSemester();
+    const currentSemester = await getCurrentSemester();
 
     if (!currentSemester) {
       return NextResponse.json({ error: "未找到当前学期" }, { status: 404 });

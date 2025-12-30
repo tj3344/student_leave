@@ -26,7 +26,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "无效的班级ID" }, { status: 400 });
     }
 
-    const classData = getClassById(classId);
+    const classData = await getClassById(classId);
 
     if (!classData) {
       return NextResponse.json({ error: "班级不存在" }, { status: 404 });
@@ -59,7 +59,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
 
     const body = (await request.json()) as Partial<import("@/types").ClassInput>;
-    const result = updateClass(classId, body);
+    const result = await updateClass(classId, body);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
@@ -91,7 +91,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "无效的班级ID" }, { status: 400 });
     }
 
-    const result = deleteClass(classId);
+    const result = await deleteClass(classId);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });

@@ -22,7 +22,7 @@ export async function GET() {
     }
 
     // 2. 获取当前学期
-    const currentSemester = getCurrentSemester();
+    const currentSemester = await getCurrentSemester();
     if (!currentSemester) {
       return NextResponse.json({ error: "未设置当前学期" }, { status: 400 });
     }
@@ -53,10 +53,10 @@ export async function GET() {
     `, [semesterId]);
     const leaveStats = leaveStatsResult[0] as { total: number; pending: number; approved: number; rejected: number };
 
-    // 5. 获取退费统计
+    // 5. 获取退费统计（注意：refund_amount 是 text 类型，需要转换为 numeric）
     const refundStatsResult = await pgClient.unsafe(`
       SELECT
-        COALESCE(SUM(refund_amount), 0) as total_refund_amount,
+        COALESCE(SUM(CAST(refund_amount AS NUMERIC)), 0) as total_refund_amount,
         COUNT(DISTINCT student_id) as refund_students_count
       FROM leave_records
       WHERE semester_id = $1

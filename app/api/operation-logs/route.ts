@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const pgClient = getRawPostgres();
 
     // 3. 构建查询条件
-    const whereConditions: string[] = ["1=1"];
+    const whereConditions: string[] = [];
     const queryParams: (string | number)[] = [];
     let paramIndex = 1;
 
@@ -63,14 +63,14 @@ export async function GET(request: NextRequest) {
       paramIndex++;
     }
 
-    const whereClause = whereConditions.join(" AND ");
+    const whereClause = whereConditions.length > 0 ? "WHERE " + whereConditions.join(" AND ") : "";
 
     // 4. 查询总数
     const countResult = await pgClient.unsafe(`
       SELECT COUNT(*) as total
       FROM operation_logs ol
       LEFT JOIN users u ON ol.user_id = u.id
-      WHERE ${whereClause}
+      ${whereClause}
     `, queryParams);
     const totalCount = countResult[0]?.total || 0;
 
@@ -90,9 +90,9 @@ export async function GET(request: NextRequest) {
         u.role
       FROM operation_logs ol
       LEFT JOIN users u ON ol.user_id = u.id
-      WHERE ${whereClause}
+      ${whereClause}
       ORDER BY ol.${sort} ${order.toUpperCase()}
-      LIMIT $${paramIndex + 1} OFFSET $${paramIndex + 2}
+      LIMIT $${queryParams.length - 1} OFFSET $${queryParams.length}
     `, queryParams) as Array<{
       id: number;
       user_id: number | null;

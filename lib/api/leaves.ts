@@ -237,7 +237,8 @@ export async function createLeave(
 
   // 计算退费金额：退费金额 = 请假天数 × 餐费标准
   const isNutritionMeal = student.is_nutrition_meal;
-  const mealFeeStandard = student.meal_fee_standard ?? 0;
+  // 将字符串转换为数字，无效值默认为 0
+  const mealFeeStandard = parseFloat(String(student.meal_fee_standard ?? '0')) || 0;
   const refundAmount = isNutritionMeal ? 0 : leaveDays * mealFeeStandard;
 
   // 插入请假记录
@@ -487,13 +488,13 @@ export async function getLeavesByStudent(studentId: number, semesterId?: number)
 export async function recalculateAllLeaveRefunds(): Promise<{ updated: number; message: string }> {
   const pgClient = getRawPostgres();
 
-  // 使用单条 SQL 批量更新所有记录，避免 N+1 查询问题
+  // 使用单条 SQL 批量更新所有记录，避免 N+1 查询问题（注意：meal_fee_standard 是 text 类型，需要转换为 numeric）
   await pgClient.unsafe(`
     UPDATE leave_records
     SET refund_amount =
       CASE
         WHEN s.is_nutrition_meal = true THEN NULL
-        ELSE leave_records.leave_days * COALESCE(fc.meal_fee_standard, 0)
+        ELSE leave_records.leave_days * COALESCE(CAST(fc.meal_fee_standard AS NUMERIC), 0)
       END,
       updated_at = CURRENT_TIMESTAMP
     FROM leave_records
@@ -619,7 +620,8 @@ export async function updateLeave(
 
   // 计算退费金额
   const isNutritionMeal = student.is_nutrition_meal;
-  const mealFeeStandard = student.meal_fee_standard ?? 0;
+  // 将字符串转换为数字，无效值默认为 0
+  const mealFeeStandard = parseFloat(String(student.meal_fee_standard ?? '0')) || 0;
   const refundAmount = isNutritionMeal ? 0 : input.leave_days * mealFeeStandard;
 
   // 构建更新 SQL，根据是否包含状态字段来决定更新哪些列

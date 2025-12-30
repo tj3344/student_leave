@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       class_id: classId ? parseInt(classId, 10) : undefined,
     };
 
-    const result = getFeeConfigs(params);
+    const result = await getFeeConfigs(params);
 
     // 如果是数组（无分页），直接返回
     if (Array.isArray(result)) {
@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as FeeConfigInput;
-    const result = createFeeConfig(body);
+    const result = await createFeeConfig(body);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });

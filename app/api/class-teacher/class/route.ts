@@ -18,7 +18,7 @@ export async function GET() {
     }
 
     // 2. 获取当前学期
-    const currentSemester = getCurrentSemester();
+    const currentSemester = await getCurrentSemester();
     if (!currentSemester) {
       return NextResponse.json({ error: "未设置当前学期" }, { status: 400 });
     }

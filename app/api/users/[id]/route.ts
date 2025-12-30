@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     // 获取用户
-    const user = getUserById(id);
+    const user = await getUserById(id);
 
     if (!user) {
       return NextResponse.json({ error: "用户不存在" }, { status: 404 });
@@ -111,10 +111,10 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     }
 
     // 获取用户信息用于日志
-    const user = getUserById(id);
+    const user = await getUserById(id);
 
     // 删除用户
-    const result = deleteUser(id);
+    const result = await deleteUser(id);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
@@ -160,10 +160,10 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
     let result;
     if (action === "toggle") {
-      result = toggleUserStatus(id);
+      result = await toggleUserStatus(id);
     } else if (action === "resetPassword") {
       const newPassword = body.password;
-      result = resetUserPassword(id, newPassword);
+      result = await resetUserPassword(id, newPassword);
     } else {
       return NextResponse.json({ error: "无效的操作" }, { status: 400 });
     }

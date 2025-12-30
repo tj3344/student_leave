@@ -32,7 +32,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
     }
 
     // 获取请假记录
-    const leave = getLeaveById(id);
+    const leave = await getLeaveById(id);
 
     if (!leave) {
       return NextResponse.json({ error: "请假记录不存在" }, { status: 404 });
@@ -67,7 +67,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
 
     // 班主任需要检查系统配置开关
     if (currentUser.role === "class_teacher") {
-      const canEdit = getBooleanConfig("permission.class_teacher_edit_leave", true);
+      const canEdit = await getBooleanConfig("permission.class_teacher_edit_leave", true);
       if (!canEdit) {
         return NextResponse.json({ error: "无权限，系统未开放此功能" }, { status: 403 });
       }
@@ -81,7 +81,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
 
     // 检查请假记录是否存在
-    const existingLeave = getLeaveById(id);
+    const existingLeave = await getLeaveById(id);
     if (!existingLeave) {
       return NextResponse.json({ error: "请假记录不存在" }, { status: 404 });
     }
@@ -90,7 +90,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     const body = await request.json();
 
     // 更新请假记录
-    const result = updateLeave(id, body);
+    const result = await updateLeave(id, body);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
@@ -129,7 +129,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     }
 
     // 检查是否是自己申请的记录
-    const leave = getLeaveById(id);
+    const leave = await getLeaveById(id);
     if (!leave) {
       return NextResponse.json({ error: "请假记录不存在" }, { status: 404 });
     }
@@ -139,7 +139,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     }
 
     // 删除请假记录
-    const result = deleteLeave(id);
+    const result = await deleteLeave(id);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });

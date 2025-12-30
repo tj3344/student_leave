@@ -30,7 +30,7 @@ export async function GET(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "无效的费用配置ID" }, { status: 400 });
     }
 
-    const feeConfig = getFeeConfigById(id);
+    const feeConfig = await getFeeConfigById(id);
 
     if (!feeConfig) {
       return NextResponse.json({ error: "费用配置不存在" }, { status: 404 });
@@ -65,7 +65,7 @@ export async function PUT(request: NextRequest, context: RouteContext) {
     }
 
     const body = (await request.json()) as Partial<FeeConfigInput>;
-    const result = updateFeeConfig(id, body);
+    const result = await updateFeeConfig(id, body);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
@@ -99,7 +99,7 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: "无效的费用配置ID" }, { status: 400 });
     }
 
-    const result = deleteFeeConfig(id);
+    const result = await deleteFeeConfig(id);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });

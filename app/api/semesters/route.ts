@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
       order,
     };
 
-    const result = getSemesters(params);
+    const result = await getSemesters(params);
 
     // 如果是数组（无分页），直接返回
     if (Array.isArray(result)) {
@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as SemesterInput & { is_current?: boolean };
-    const result = createSemester(body);
+    const result = await createSemester(body);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });

@@ -33,7 +33,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     // 获取请假记录用于日志
-    const leave = getLeaveById(id);
+    const leave = await getLeaveById(id);
 
     // 解析请求体
     const body = await request.json();
@@ -48,7 +48,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
 
     // 审核请假
-    const result = reviewLeave(id, review, currentUser.id);
+    const result = await reviewLeave(id, review, currentUser.id);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });

@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       order,
     };
 
-    const result = getGrades(params);
+    const result = await getGrades(params);
 
     // 如果是数组（无分页），直接返回
     if (Array.isArray(result)) {
@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as GradeInput;
-    const result = createGrade(body);
+    const result = await createGrade(body);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
@@ -94,7 +94,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "无效的请求数据" }, { status: 400 });
     }
 
-    const result = updateGradesOrder(body.updates);
+    const result = await updateGradesOrder(body.updates);
 
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
