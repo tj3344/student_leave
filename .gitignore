@@ -51,6 +51,7 @@ next-env.d.ts
 /data/*.db-wal
 
 # backups
+/data/backups/
 /backups/*.db
 /backups/*.sql
 .claude/
