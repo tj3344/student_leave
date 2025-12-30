@@ -57,6 +57,8 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const [currentSemesterName, setCurrentSemesterName] = useState<string>("");
   const [semesterLoading, setSemesterLoading] = useState(true);
+  const [semesterName, setSemesterName] = useState<string>("");
+  const [allSemesters, setAllSemesters] = useState<Array<{ id: number; name: string }>>([]);
   const isEdit = !!classData;
 
   const form = useForm<ClassFormValues>({
@@ -78,6 +80,20 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
         name: classData.name,
         class_teacher_id: classData.class_teacher_id,
       });
+      // 编辑模式下，根据 semester_id 获取学期名称
+      const semester = allSemesters.find(s => s.id === classData.semester_id);
+      if (semester) {
+        setSemesterName(semester.name);
+      }
+      // 获取该学期的年级列表
+      fetch(`/api/grades?semester_id=${classData.semester_id}`)
+        .then((res) => res.json())
+        .then((data) => {
+          setGrades(data.data || []);
+        })
+        .catch((error) => {
+          console.error("Fetch grades error:", error);
+        });
     } else if (currentSemesterId) {
       // 新增时，使用当前学期作为默认值，并获取该学期的年级
       form.reset({
@@ -103,7 +119,7 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
         class_teacher_id: undefined,
       });
     }
-  }, [classData, currentSemesterId]);
+  }, [classData, currentSemesterId, allSemesters]);
 
   // 获取当前学期
   useEffect(() => {
@@ -122,6 +138,8 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
     try {
       const response = await fetch("/api/semesters");
       const data = await response.json();
+      // 保存所有学期数据
+      setAllSemesters(data.data || []);
       const currentSemester = data.data?.find((s: { is_current: boolean }) => s.is_current === true);
       if (currentSemester) {
         setCurrentSemesterId(currentSemester.id);
@@ -228,7 +246,9 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
             {isEdit && (
               <div className="rounded-md bg-muted p-3">
                 <div className="text-sm font-medium">所属学期</div>
-                <div className="text-sm text-muted-foreground">已设置（ID: {classData?.semester_id})</div>
+                <div className="text-sm text-muted-foreground">
+                  {semesterName || semesterLoading ? semesterName : `已设置（ID: ${classData?.semester_id}）`}
+                </div>
               </div>
             )}
 

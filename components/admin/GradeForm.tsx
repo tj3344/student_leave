@@ -46,6 +46,8 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const [currentSemesterName, setCurrentSemesterName] = useState<string>("");
   const [semesterLoading, setSemesterLoading] = useState(true);
+  const [semesterName, setSemesterName] = useState<string>("");
+  const [allSemesters, setAllSemesters] = useState<Array<{ id: number; name: string }>>([]);
   const isEdit = !!grade;
 
   const form = useForm<GradeFormValues>({
@@ -66,6 +68,11 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
         name: grade.name,
         sort_order: grade.sort_order ?? 0,
       });
+      // 编辑模式下，根据 semester_id 获取学期名称
+      const semester = allSemesters.find(s => s.id === grade.semester_id);
+      if (semester) {
+        setSemesterName(semester.name);
+      }
     } else if (currentSemesterId) {
       // 新增时，使用当前学期作为默认值
       form.reset({
@@ -80,7 +87,7 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
         sort_order: 0,
       });
     }
-  }, [grade, currentSemesterId]);
+  }, [grade, currentSemesterId, allSemesters]);
 
   // 获取当前学期
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -100,6 +107,8 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
     try {
       const response = await fetch("/api/semesters");
       const data = await response.json();
+      // 保存所有学期数据
+      setAllSemesters(data.data || []);
       const currentSemester = data.data?.find((s: { is_current: boolean }) => s.is_current === true);
       if (currentSemester) {
         setCurrentSemesterId(currentSemester.id);
@@ -193,7 +202,9 @@ export function GradeForm({ open, onClose, onSuccess, grade }: GradeFormProps) {
             {isEdit && (
               <div className="rounded-md bg-muted p-3">
                 <div className="text-sm font-medium">所属学期</div>
-                <div className="text-sm text-muted-foreground">已设置（ID: {grade?.semester_id})</div>
+                <div className="text-sm text-muted-foreground">
+                  {semesterName || semesterLoading ? semesterName : `已设置（ID: ${grade?.semester_id}）`}
+                </div>
               </div>
             )}
 
