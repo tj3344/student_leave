@@ -62,7 +62,7 @@ export interface Semester {
   start_date: string;
   end_date: string;
   school_days: number;
-  is_current: number;
+  is_current: boolean;
   created_at: string;
   updated_at: string;
 }

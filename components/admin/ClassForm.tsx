@@ -122,7 +122,7 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
     try {
       const response = await fetch("/api/semesters");
       const data = await response.json();
-      const currentSemester = data.data?.find((s: { is_current: number }) => s.is_current === 1);
+      const currentSemester = data.data?.find((s: { is_current: boolean }) => s.is_current === true);
       if (currentSemester) {
         setCurrentSemesterId(currentSemester.id);
         setCurrentSemesterName(currentSemester.name);

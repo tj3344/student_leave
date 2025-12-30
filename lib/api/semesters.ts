@@ -214,6 +214,16 @@ export async function deleteSemester(id: number): Promise<{ success: boolean; me
     return { success: false, message: "学期不存在" };
   }
 
+  // 检查是否有关联的年级
+  const hasGrades = await pgClient.unsafe(
+    "SELECT COUNT(*) as count FROM grades WHERE semester_id = $1",
+    [id]
+  );
+
+  if (hasGrades[0]?.count > 0) {
+    return { success: false, message: "该学期存在年级，无法删除" };
+  }
+
   // 检查是否有关联的请假记录
   const hasLeaveRecords = await pgClient.unsafe(
     "SELECT COUNT(*) as count FROM leave_records WHERE semester_id = $1",

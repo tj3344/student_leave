@@ -57,7 +57,7 @@ export default function FeesPage() {
       const response = await fetch("/api/semesters");
       const data = await response.json();
       setSemesters(data.data || []);
-      const currentSemester = data.data?.find((s: { is_current: number }) => s.is_current === 1);
+      const currentSemester = data.data?.find((s: { is_current: boolean }) => s.is_current === true);
       if (currentSemester) {
         setCurrentSemesterId(currentSemester.id);
       }

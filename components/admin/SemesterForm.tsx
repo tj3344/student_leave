@@ -73,7 +73,7 @@ export function SemesterForm({ open, onClose, onSuccess, semester }: SemesterFor
         start_date: semester.start_date,
         end_date: semester.end_date,
         school_days: semester.school_days,
-        is_current: semester.is_current === 1,
+        is_current: semester.is_current,
       });
     } else {
       form.reset({

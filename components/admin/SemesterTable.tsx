@@ -179,7 +179,7 @@ const SemesterRow = memo(function SemesterRow({ semester, onEdit, onSetCurrent, 
       <TableCell className="font-medium">
         <div className="flex items-center gap-2">
           {semester.name}
-          {semester.is_current === 1 && (
+          {semester.is_current && (
             <Badge variant="default" className="gap-1">
               <Star className="h-3 w-3 fill-current" />
               当前
@@ -195,7 +195,7 @@ const SemesterRow = memo(function SemesterRow({ semester, onEdit, onSetCurrent, 
       </TableCell>
       <TableCell>{semester.school_days} 天</TableCell>
       <TableCell>
-        {semester.is_current === 1 ? (
+        {semester.is_current ? (
           <Badge variant="default">当前学期</Badge>
         ) : (
           <Badge variant="secondary">非当前</Badge>
@@ -209,7 +209,7 @@ const SemesterRow = memo(function SemesterRow({ semester, onEdit, onSetCurrent, 
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            {semester.is_current !== 1 && (
+            {!semester.is_current && (
               <DropdownMenuItem onClick={() => onSetCurrent(semester)}>
                 <Star className="mr-2 h-4 w-4" />
                 设为当前学期

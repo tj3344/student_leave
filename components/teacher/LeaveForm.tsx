@@ -42,7 +42,7 @@ import type { User, LeaveWithDetails } from "@/types";
 interface SemesterOption {
   id: number;
   name: string;
-  is_current: number;
+  is_current: boolean;
   school_days: number;
 }
 
@@ -258,7 +258,7 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
       setSemesterOptions(data.data || []);
 
       // 获取当前学期
-      const current = data.data?.find((s: SemesterOption) => s.is_current === 1);
+      const current = data.data?.find((s: SemesterOption) => s.is_current === true);
       if (current) {
         setCurrentSemester(current);
         form.setValue("semester_id", current.id);

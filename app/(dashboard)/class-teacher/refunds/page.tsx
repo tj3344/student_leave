@@ -93,7 +93,7 @@ export default function ClassTeacherRefundsPage() {
       setSemesters(data.data || []);
 
       // 自动选择当前学期
-      const currentSemester = data.data?.find((s: { is_current: number }) => s.is_current === 1);
+      const currentSemester = data.data?.find((s: { is_current: boolean }) => s.is_current === true);
       if (currentSemester) {
         setSemesterFilter(currentSemester.id.toString());
       }

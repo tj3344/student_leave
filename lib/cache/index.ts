@@ -81,19 +81,19 @@ class MemoryCache {
 export const cache = new MemoryCache();
 
 /**
- * 带缓存的数据库查询装饰器
+ * 带缓存的数据库查询装饰器（异步版本）
  */
-export function cached<T>(
+export async function cached<T>(
   key: string,
-  fetchFn: () => T,
+  fetchFn: () => Promise<T>,
   ttl: number = 5 * 60 * 1000
-): T {
+): Promise<T> {
   const cached = cache.get<T>(key);
   if (cached !== null) {
     return cached;
   }
 
-  const data = fetchFn();
+  const data = await fetchFn();
   cache.set(key, data, ttl);
   return data;
 }

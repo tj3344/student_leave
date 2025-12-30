@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { getCurrentUser, hasPermission } from "@/lib/api/auth";
 import {
   getSemesterById,
@@ -72,6 +73,9 @@ export async function PUT(request: NextRequest, context: RouteContext) {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
 
+    // 清除 Next.js 路由缓存
+    revalidatePath("/api/semesters");
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Update semester error:", error);
@@ -103,6 +107,9 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
+
+    // 清除 Next.js 路由缓存
+    revalidatePath("/api/semesters");
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -138,6 +145,9 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       if (!result.success) {
         return NextResponse.json({ error: result.message }, { status: 400 });
       }
+
+      // 清除 Next.js 路由缓存
+      revalidatePath("/api/semesters");
 
       return NextResponse.json({ success: true });
     }

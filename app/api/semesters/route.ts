@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { getCurrentUser, hasPermission } from "@/lib/api/auth";
 import { getSemesters, createSemester } from "@/lib/api/semesters";
 import { PERMISSIONS } from "@/lib/constants";
@@ -66,6 +67,9 @@ export async function POST(request: NextRequest) {
     if (!result.success) {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
+
+    // 清除 Next.js 路由缓存
+    revalidatePath("/api/semesters");
 
     return NextResponse.json({ id: result.semesterId }, { status: 201 });
   } catch (error) {
