@@ -4,6 +4,7 @@ import { getStudents } from "@/lib/api/students";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { exportStudentsToExcel, workbookToBlob } from "@/lib/utils/excel";
 import { logExport } from "@/lib/utils/logger";
+import { checkExportLimit } from "@/lib/utils/export";
 import type { StudentWithDetails } from "@/types";
 
 /**
@@ -54,6 +55,12 @@ export async function GET(request: NextRequest) {
 
     // 获取学生数据（不分页，获取所有）
     const result = getStudents(params) as { data: StudentWithDetails[] };
+
+    // 检查导出行数是否超过系统限制
+    const limitCheck = await checkExportLimit(result.data.length);
+    if (!limitCheck.canExport) {
+      return NextResponse.json({ error: limitCheck.message }, { status: 400 });
+    }
 
     // 生成 Excel 文件
     const workbook = exportStudentsToExcel(result.data);

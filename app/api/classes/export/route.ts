@@ -4,6 +4,7 @@ import { getClasses } from "@/lib/api/classes";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { exportClassesToExcel, workbookToBlob } from "@/lib/utils/excel";
 import { getRawPostgres } from "@/lib/db";
+import { checkExportLimit } from "@/lib/utils/export";
 import type { ClassWithDetails } from "@/types";
 
 /**
@@ -60,6 +61,12 @@ export async function GET(request: NextRequest) {
       class_teacher_name: c.class_teacher_name || '',
       student_count: c.student_count,
     }));
+
+    // 检查导出行数是否超过系统限制
+    const limitCheck = await checkExportLimit(exportData.length);
+    if (!limitCheck.canExport) {
+      return NextResponse.json({ error: limitCheck.message }, { status: 400 });
+    }
 
     // 生成 Excel 文件
     const workbook = exportClassesToExcel(exportData);

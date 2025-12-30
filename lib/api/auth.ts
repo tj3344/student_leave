@@ -11,7 +11,6 @@ import { logLogin } from "@/lib/utils/logger";
 const ALLOWED_LOGIN_ROLES: UserRole[] = [ROLES.ADMIN, ROLES.CLASS_TEACHER];
 
 const SESSION_COOKIE_NAME = "student_leave_session";
-const SESSION_MAX_AGE = 7 * 24 * 60 * 60; // 7 天
 
 /**
  * 用户登录
@@ -50,6 +49,11 @@ export async function login(
     console.log("[LOGIN] Role not allowed:", user.role);
     return { success: false, message: "无权限登录，仅管理员和班主任可登录" };
   }
+
+  // 从系统配置获取会话超时天数
+  const { getNumberConfig } = await import("./system-config");
+  const sessionTimeoutDays = await getNumberConfig("system.session_timeout", 7);
+  const SESSION_MAX_AGE = sessionTimeoutDays * 24 * 60 * 60;
 
   // 设置会话
   const cookieStore = await cookies();

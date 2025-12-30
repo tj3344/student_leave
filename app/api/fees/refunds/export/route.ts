@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/api/auth";
 import { getStudentRefundRecords } from "@/lib/api/fees";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { exportRefundRecordsToExcel, workbookToBlob } from "@/lib/utils/excel";
+import { checkExportLimit } from "@/lib/utils/export";
 
 /**
  * GET /api/fees/refunds/export - 导出退费记录
@@ -33,6 +34,12 @@ export async function GET(request: NextRequest) {
 
     if (refundRecords.length === 0) {
       return NextResponse.json({ error: "暂无退费记录可导出" }, { status: 400 });
+    }
+
+    // 检查导出行数是否超过系统限制
+    const limitCheck = await checkExportLimit(refundRecords.length);
+    if (!limitCheck.canExport) {
+      return NextResponse.json({ error: limitCheck.message }, { status: 400 });
     }
 
     // 生成 Excel

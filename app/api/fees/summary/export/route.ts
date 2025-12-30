@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/api/auth";
 import { getClassRefundSummary } from "@/lib/api/fees";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { exportRefundSummaryToExcel, workbookToBlob } from "@/lib/utils/excel";
+import { checkExportLimit } from "@/lib/utils/export";
 
 /**
  * GET /api/fees/summary/export - 导出退费汇总
@@ -30,6 +31,12 @@ export async function GET(request: NextRequest) {
 
     if (summaryData.length === 0) {
       return NextResponse.json({ error: "暂无退费汇总数据可导出" }, { status: 400 });
+    }
+
+    // 检查导出行数是否超过系统限制
+    const limitCheck = await checkExportLimit(summaryData.length);
+    if (!limitCheck.canExport) {
+      return NextResponse.json({ error: limitCheck.message }, { status: 400 });
     }
 
     // 计算总计

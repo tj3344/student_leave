@@ -4,6 +4,7 @@ import { getUsers } from "@/lib/api/users";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { exportUsersToExcel, workbookToBlob } from "@/lib/utils/excel";
 import { logExport } from "@/lib/utils/logger";
+import { checkExportLimit } from "@/lib/utils/export";
 
 /**
  * GET /api/users/export - 导出用户列表
@@ -43,6 +44,12 @@ export async function GET(request: NextRequest) {
 
     // 获取用户数据（不分页，获取所有）
     const result = getUsers(params);
+
+    // 检查导出行数是否超过系统限制
+    const limitCheck = await checkExportLimit(result.data.length);
+    if (!limitCheck.canExport) {
+      return NextResponse.json({ error: limitCheck.message }, { status: 400 });
+    }
 
     // 生成 Excel 文件
     const workbook = exportUsersToExcel(result.data);

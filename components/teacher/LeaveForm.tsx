@@ -295,7 +295,6 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
       const data = await response.json();
 
       if (!response.ok) {
-        console.error("API Error:", response.status, data);
         throw new Error(data.error || "提交失败");
       }
 
@@ -303,7 +302,6 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
       onClose();
       form.reset();
     } catch (error) {
-      console.error("Submit leave error:", error);
       form.setError("root", {
         message: error instanceof Error ? error.message : "提交失败，请稍后重试",
       });

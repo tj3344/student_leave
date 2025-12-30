@@ -4,6 +4,7 @@ import { getLeaves } from "@/lib/api/leaves";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { exportLeavesToExcel, workbookToBlob } from "@/lib/utils/excel";
 import { logExport } from "@/lib/utils/logger";
+import { checkExportLimit } from "@/lib/utils/export";
 import type { LeaveWithDetails } from "@/types";
 
 /**
@@ -113,6 +114,12 @@ export async function GET(request: NextRequest) {
         is_refund: leave.is_refund,
         refund_amount: leave.refund_amount,
       }));
+
+    // 检查导出行数是否超过系统限制
+    const limitCheck = await checkExportLimit(validData.length);
+    if (!limitCheck.canExport) {
+      return NextResponse.json({ error: limitCheck.message }, { status: 400 });
+    }
 
     // 生成 Excel 文件
     const workbook = exportLeavesToExcel(validData);

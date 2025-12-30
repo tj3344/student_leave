@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/api/auth";
 import { getFeeConfigs } from "@/lib/api/fees";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { exportFeeConfigsToExcel, workbookToBlob } from "@/lib/utils/excel";
+import { checkExportLimit } from "@/lib/utils/export";
 import type { FeeConfigWithDetails } from "@/types";
 
 /**
@@ -47,6 +48,13 @@ export async function GET(request: NextRequest) {
       actual_days: f.actual_days,
       suspension_days: f.suspension_days,
     }));
+
+    // 检查导出行数是否超过系统限制
+    const limitCheck = await checkExportLimit(exportData.length);
+    if (!limitCheck.canExport) {
+      return NextResponse.json({ error: limitCheck.message }, { status: 400 });
+    }
+
     const workbook = exportFeeConfigsToExcel(exportData);
     const blob = workbookToBlob(workbook);
 

@@ -1,5 +1,5 @@
 import { getRawPostgres } from "@/lib/db";
-import { getNumberConfig } from "./system-config";
+import { getNumberConfig, getBooleanConfig } from "./system-config";
 import { validateOrderBy, SORT_FIELDS, DEFAULT_SORT_FIELDS } from "@/lib/utils/sql-security";
 import { validateLeaveRequest } from "@/lib/utils/leave-validation";
 import type {
@@ -241,6 +241,10 @@ export async function createLeave(
   const mealFeeStandard = parseFloat(String(student.meal_fee_standard ?? '0')) || 0;
   const refundAmount = isNutritionMeal ? 0 : leaveDays * mealFeeStandard;
 
+  // 检查是否需要审批
+  const requireApproval = await getBooleanConfig("leave.require_approval", true);
+  const initialStatus = requireApproval ? "pending" : "approved";
+
   // 插入请假记录
   const result = await pgClient.unsafe(
     `INSERT INTO leave_records (
@@ -256,13 +260,25 @@ export async function createLeave(
       input.end_date,
       leaveDays,
       input.reason,
-      "pending",
+      initialStatus,
       isNutritionMeal ? false : true,
       isNutritionMeal ? null : refundAmount
     ]
   );
 
-  return { success: true, leaveId: result[0]?.id };
+  const leaveId = result[0]?.id;
+
+  // 如果不需要审批，自动设置为已批准状态并记录审核人
+  if (!requireApproval && leaveId) {
+    await pgClient.unsafe(
+      `UPDATE leave_records
+       SET reviewer_id = $1, review_time = CURRENT_TIMESTAMP
+       WHERE id = $2`,
+      [applicantId, leaveId]
+    );
+  }
+
+  return { success: true, leaveId };
 }
 
 /**

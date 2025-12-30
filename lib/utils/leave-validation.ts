@@ -30,9 +30,9 @@ export function calculateRetroactiveDays(startDate: string): number {
  * @param startDate 请假开始日期
  * @returns 验证结果
  */
-export function validateRetroactiveDays(startDate: string): ValidationResult {
+export async function validateRetroactiveDays(startDate: string): Promise<ValidationResult> {
   const retroactiveDays = calculateRetroactiveDays(startDate);
-  const maxRetroactiveDays = getNumberConfig("leave.retroactive_days", 0);
+  const maxRetroactiveDays = await getNumberConfig("leave.retroactive_days", 0);
 
   // 如果是过去的日期
   if (retroactiveDays < 0) {
@@ -129,7 +129,7 @@ export async function validateLeaveRequest(
   excludeId?: number
 ): Promise<ValidationResult> {
   // 先验证补请假天数
-  const retroactiveResult = validateRetroactiveDays(startDate);
+  const retroactiveResult = await validateRetroactiveDays(startDate);
   if (!retroactiveResult.success) {
     return retroactiveResult;
   }

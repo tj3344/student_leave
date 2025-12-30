@@ -14,10 +14,13 @@ const CSP_HEADER = [
 ].join("; ");
 
 // 不需要认证的路径
-const publicPaths = ["/", "/login", "/api/auth/login", "/api/init"];
+const publicPaths = ["/", "/login", "/api/auth/login", "/api/init", "/maintenance"];
 
 // API 路径（由路由处理器自己处理认证）
 const apiPaths = ["/api"];
+
+// 管理员路径（维护模式下仍可访问）
+const adminPaths = ["/admin"];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
@@ -58,6 +61,39 @@ export async function middleware(request: NextRequest) {
     const loginUrl = new URL("/login", request.url);
     loginUrl.searchParams.set("redirect", pathname);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // ===== 维护模式检查 =====
+  // 检查是否是管理员路径
+  const isAdminPath = adminPaths.some((path) => pathname.startsWith(path));
+
+  if (!isAdminPath) {
+    try {
+      // 动态导入配置获取函数
+      const { getConfig } = await import("@/lib/api/system-config");
+      const maintenanceMode = await getConfig("system.maintenance_mode");
+
+      if (maintenanceMode === "true" || maintenanceMode === "1") {
+        // 维护模式：检查用户角色
+        const { getRawPostgres } = await import("@/lib/db");
+        const pgClient = getRawPostgres();
+        const userId = parseInt(sessionCookie.value, 10);
+
+        const users = await pgClient.unsafe(
+          "SELECT role FROM users WHERE id = $1 AND is_active = true",
+          [userId]
+        );
+        const user = users[0] as { role: string } | undefined;
+
+        // 非管理员用户，显示维护页面
+        if (!user || user.role !== "admin") {
+          return NextResponse.redirect(new URL("/maintenance", request.url));
+        }
+      }
+    } catch (error) {
+      // 配置获取失败，记录错误但继续放行
+      console.error("获取维护模式配置失败:", error);
+    }
   }
 
   return response;

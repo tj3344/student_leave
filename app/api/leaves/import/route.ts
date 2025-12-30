@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/api/auth";
 import { batchCreateLeaves, getStudentIdByInfo } from "@/lib/api/leaves";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { logImport } from "@/lib/utils/logger";
+import { getNumberConfig } from "@/lib/api/system-config";
 import type { LeaveImportRow, LeaveInput } from "@/types";
 
 /**
@@ -98,9 +99,12 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // 业务规则：请假天数必须大于3天
-      if (leaveDays <= 3) {
-        validationErrors.push({ row: rowNum, message: "请假天数必须大于3天" });
+      // 从系统配置获取最小请假天数
+      const minLeaveDays = await getNumberConfig("leave.min_days", 3);
+
+      // 业务规则：请假天数必须大于最小天数
+      if (leaveDays <= minLeaveDays) {
+        validationErrors.push({ row: rowNum, message: `请假天数必须大于${minLeaveDays}天` });
         continue;
       }
 
