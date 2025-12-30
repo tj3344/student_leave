@@ -306,9 +306,79 @@ export async function deleteFeeConfig(id: number): Promise<{ success: boolean; m
  * 营养餐学生不退费
  */
 export async function getStudentRefundRecords(
-  params: PaginationParams & { semester_id?: number; class_id?: number }
-): Promise<PaginatedResponse<StudentRefundRecord>> {
+  params?: PaginationParams & { semester_id?: number; class_id?: number }
+): Promise<PaginatedResponse<StudentRefundRecord> | StudentRefundRecord[]> {
   const pgClient = getRawPostgres();
+
+  // 如果没有分页参数，返回所有数据
+  if (!params?.page && !params?.limit) {
+    const queryParams: (string | number)[] = [];
+    let paramIndex = 1;
+
+    // 根据 semester_id 筛选条件，动态构建 JOIN
+    const feeConfigJoin = params?.semester_id
+      ? "LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = $" + (paramIndex++)
+      : "LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = c.semester_id";
+
+    if (params?.semester_id) {
+      queryParams.push(params.semester_id);
+    }
+
+    // 构建查询条件
+    let whereClause = "WHERE s.is_active = true";
+
+    if (params?.class_id) {
+      whereClause += " AND s.class_id = $" + (paramIndex++);
+      queryParams.push(params.class_id);
+    }
+
+    // 请假记录的 JOIN 条件也需要根据学期动态调整
+    const leaveRecordJoin = params?.semester_id
+      ? "LEFT JOIN leave_records lr ON s.id = lr.student_id AND lr.semester_id = $" + (paramIndex++) + " AND lr.status = 'approved'"
+      : "LEFT JOIN leave_records lr ON s.id = lr.student_id AND lr.semester_id = c.semester_id AND lr.status = 'approved'";
+
+    if (params?.semester_id) {
+      queryParams.push(params.semester_id);
+    }
+
+    const dataQuery = `
+      SELECT
+        s.id as student_id,
+        s.student_no,
+        s.name as student_name,
+        c.name as class_name,
+        g.name as grade_name,
+        s.is_nutrition_meal,
+        COALESCE(SUM(lr.leave_days), 0) as leave_days,
+        COALESCE(fc.prepaid_days, 0) as prepaid_days,
+        COALESCE(fc.actual_days, 0) as actual_days,
+        COALESCE(fc.suspension_days, 0) as suspension_days,
+        COALESCE(fc.meal_fee_standard, 0) as meal_fee_standard,
+        CASE
+          WHEN s.is_nutrition_meal = true THEN 0
+          ELSE COALESCE(CAST(fc.meal_fee_standard AS NUMERIC), 0) *
+            (COALESCE(fc.prepaid_days, 0) - COALESCE(fc.actual_days, 0) +
+             COALESCE(fc.suspension_days, 0) + COALESCE(SUM(lr.leave_days), 0))
+        END as refund_amount
+      FROM students s
+      LEFT JOIN classes c ON s.class_id = c.id
+      LEFT JOIN grades g ON c.grade_id = g.id
+      ${feeConfigJoin}
+      ${leaveRecordJoin}
+      ${whereClause}
+      GROUP BY s.id, s.student_no, s.name, c.name, g.name, g.sort_order, s.is_nutrition_meal,
+               fc.prepaid_days, fc.actual_days, fc.suspension_days, fc.meal_fee_standard
+      HAVING (CASE
+          WHEN s.is_nutrition_meal = true THEN 0
+          ELSE COALESCE(CAST(fc.meal_fee_standard AS NUMERIC), 0) *
+            (COALESCE(fc.prepaid_days, 0) - COALESCE(fc.actual_days, 0) +
+             COALESCE(fc.suspension_days, 0) + COALESCE(SUM(lr.leave_days), 0))
+        END) > 0 OR COALESCE(SUM(lr.leave_days), 0) > 0
+      ORDER BY g.sort_order ASC, c.name ASC, s.student_no ASC
+    `;
+
+    return await pgClient.unsafe(dataQuery, queryParams) as StudentRefundRecord[];
+  }
 
   const page = params.page || 1;
   const limit = params.limit || 20;

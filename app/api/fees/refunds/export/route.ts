@@ -29,8 +29,8 @@ export async function GET(request: NextRequest) {
     if (class_id) params.class_id = parseInt(class_id, 10);
 
     // 获取所有退费记录（不分页）
-    const result = getStudentRefundRecords(params);
-    const refundRecords = Array.isArray(result) ? result : result.data;
+    const result = await getStudentRefundRecords(params);
+    const refundRecords = Array.isArray(result) ? result : result.data || [];
 
     if (refundRecords.length === 0) {
       return NextResponse.json({ error: "暂无退费记录可导出" }, { status: 400 });
