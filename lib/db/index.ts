@@ -95,13 +95,54 @@ export async function initializeDatabaseSchema(connectionString: string): Promis
     connect_timeout: 10,
   });
 
-  const tempDb = drizzle(client, { schema });
+  try {
+    // 先检查是否存在旧结构（错误的 users 表）
+    const checkResult = await client.unsafe(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'users' AND column_name = 'password'
+    `);
 
-  // 使用 Drizzle 的 push 功能创建表结构
-  // 这里我们手动创建所有表，因为 drizzle-kit push 需要 CLI
-  await createAllTables(client);
+    // 如果存在旧的 password 字段，说明是旧结构，需要重建
+    if (checkResult.length > 0) {
+      console.log("检测到旧表结构，正在删除并重建...");
+      await dropAllTables(client);
+    }
 
-  await client.end();
+    // 创建所有表
+    await createAllTables(client);
+  } finally {
+    await client.end();
+  }
+}
+
+/**
+ * 删除所有表（按依赖逆序）
+ */
+async function dropAllTables(client: postgres.Sql): Promise<void> {
+  const tablesToDrop = [
+    "database_switch_history",
+    "database_connections",
+    "backup_config",
+    "backup_records",
+    "fee_configs",
+    "operation_logs",
+    "system_config",
+    "leave_records",
+    "students",
+    "classes",
+    "grades",
+    "semesters",
+    "users",
+  ];
+
+  for (const table of tablesToDrop) {
+    try {
+      await client.unsafe(`DROP TABLE IF EXISTS ${table} CASCADE`);
+    } catch {
+      // 忽略不存在的表
+    }
+  }
 }
 
 /**
