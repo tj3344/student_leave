@@ -106,6 +106,7 @@ export async function initializeDatabaseSchema(connectionString: string): Promis
 
 /**
  * 创建所有数据库表
+ * 注意：SQL 定义必须与 Drizzle Schema 完全一致
  */
 async function createAllTables(client: postgres.Sql): Promise<void> {
   // 按依赖顺序创建表
@@ -113,142 +114,160 @@ async function createAllTables(client: postgres.Sql): Promise<void> {
     // 用户表（最先创建，其他表可能依赖它）
     `CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
-      username VARCHAR(50) NOT NULL UNIQUE,
-      password VARCHAR(255) NOT NULL,
-      real_name VARCHAR(100) NOT NULL,
-      role VARCHAR(20) NOT NULL,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      real_name TEXT NOT NULL,
+      role TEXT NOT NULL,
+      phone TEXT,
+      email TEXT,
       is_active BOOLEAN NOT NULL DEFAULT true,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP NOT NULL,
+      updated_at TIMESTAMP NOT NULL
     )`,
 
     // 学期表
     `CREATE TABLE IF NOT EXISTS semesters (
       id SERIAL PRIMARY KEY,
-      name VARCHAR(50) NOT NULL UNIQUE,
-      start_date DATE NOT NULL,
-      end_date DATE NOT NULL,
+      name TEXT NOT NULL,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      school_days INTEGER NOT NULL,
       is_current BOOLEAN NOT NULL DEFAULT false,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP NOT NULL,
+      updated_at TIMESTAMP NOT NULL
     )`,
 
     // 年级表
     `CREATE TABLE IF NOT EXISTS grades (
       id SERIAL PRIMARY KEY,
-      name VARCHAR(50) NOT NULL UNIQUE
+      semester_id INTEGER NOT NULL REFERENCES semesters(id) ON DELETE RESTRICT,
+      name TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL
     )`,
 
     // 班级表
     `CREATE TABLE IF NOT EXISTS classes (
       id SERIAL PRIMARY KEY,
-      name VARCHAR(50) NOT NULL,
+      semester_id INTEGER NOT NULL REFERENCES semesters(id) ON DELETE RESTRICT,
       grade_id INTEGER NOT NULL REFERENCES grades(id) ON DELETE RESTRICT,
-      UNIQUE(name, grade_id)
+      name TEXT NOT NULL,
+      class_teacher_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      meal_fee TEXT NOT NULL,
+      student_count INTEGER NOT NULL DEFAULT 0,
+      created_at TIMESTAMP NOT NULL,
+      updated_at TIMESTAMP NOT NULL
     )`,
 
     // 学生表
     `CREATE TABLE IF NOT EXISTS students (
       id SERIAL PRIMARY KEY,
-      student_no VARCHAR(50) NOT NULL UNIQUE,
-      name VARCHAR(100) NOT NULL,
-      gender VARCHAR(10) NOT NULL,
+      student_no TEXT NOT NULL UNIQUE,
+      name TEXT NOT NULL,
+      gender TEXT,
       class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE RESTRICT,
-      phone VARCHAR(20),
-      dormitory VARCHAR(100),
+      birth_date TEXT,
+      parent_name TEXT,
+      parent_phone TEXT,
+      address TEXT,
+      is_nutrition_meal BOOLEAN NOT NULL DEFAULT false,
+      enrollment_date TEXT,
       is_active BOOLEAN NOT NULL DEFAULT true,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP NOT NULL,
+      updated_at TIMESTAMP NOT NULL
     )`,
 
     // 请假记录表
     `CREATE TABLE IF NOT EXISTS leave_records (
       id SERIAL PRIMARY KEY,
       student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE RESTRICT,
-      start_time TIMESTAMP NOT NULL,
-      end_time TIMESTAMP NOT NULL,
+      semester_id INTEGER NOT NULL REFERENCES semesters(id) ON DELETE RESTRICT,
+      applicant_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      start_date TEXT NOT NULL,
+      end_date TEXT NOT NULL,
+      leave_days INTEGER NOT NULL,
       reason TEXT NOT NULL,
-      destination VARCHAR(200),
-      status VARCHAR(20) NOT NULL DEFAULT 'pending',
+      status TEXT NOT NULL DEFAULT 'pending',
       reviewer_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       review_time TIMESTAMP,
-      review_comment TEXT,
-      leave_type VARCHAR(20) NOT NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      review_remark TEXT,
+      is_refund BOOLEAN NOT NULL DEFAULT true,
+      refund_amount TEXT,
+      created_at TIMESTAMP NOT NULL,
+      updated_at TIMESTAMP NOT NULL
     )`,
 
     // 系统配置表
     `CREATE TABLE IF NOT EXISTS system_config (
       id SERIAL PRIMARY KEY,
-      config_key VARCHAR(100) NOT NULL UNIQUE,
+      config_key TEXT NOT NULL UNIQUE,
       config_value TEXT NOT NULL,
       description TEXT,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP NOT NULL,
+      updated_at TIMESTAMP NOT NULL
     )`,
 
     // 操作日志表
     `CREATE TABLE IF NOT EXISTS operation_logs (
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      action VARCHAR(50) NOT NULL,
-      target_type VARCHAR(50),
+      action TEXT NOT NULL,
+      target_type TEXT,
       target_id INTEGER,
       details TEXT,
-      ip_address VARCHAR(50),
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      ip_address TEXT,
+      created_at TIMESTAMP NOT NULL
     )`,
 
     // 费用配置表
     `CREATE TABLE IF NOT EXISTS fee_configs (
       id SERIAL PRIMARY KEY,
       semester_id INTEGER NOT NULL REFERENCES semesters(id) ON DELETE RESTRICT,
-      fee_type VARCHAR(50) NOT NULL,
-      amount DECIMAL(10, 2) NOT NULL,
-      description TEXT,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      UNIQUE(semester_id, fee_type)
+      grade_id INTEGER NOT NULL REFERENCES grades(id) ON DELETE RESTRICT,
+      meal_fee_standard TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL,
+      updated_at TIMESTAMP NOT NULL
     )`,
 
     // 备份记录表
     `CREATE TABLE IF NOT EXISTS backup_records (
       id SERIAL PRIMARY KEY,
-      name VARCHAR(200) NOT NULL,
-      type VARCHAR(20) NOT NULL,
+      name TEXT NOT NULL,
+      type TEXT NOT NULL,
       modules TEXT NOT NULL,
-      file_path TEXT,
-      file_size BIGINT NOT NULL DEFAULT 0,
+      file_path TEXT NOT NULL,
+      file_size INTEGER NOT NULL DEFAULT 0,
       description TEXT,
-      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      created_at TIMESTAMP NOT NULL
     )`,
 
     // 备份配置表
     `CREATE TABLE IF NOT EXISTS backup_config (
       id SERIAL PRIMARY KEY,
       enabled BOOLEAN NOT NULL DEFAULT false,
-      schedule_type VARCHAR(20) NOT NULL,
-      schedule_time VARCHAR(10) NOT NULL,
-      backup_type VARCHAR(20) NOT NULL,
+      schedule_type TEXT NOT NULL,
+      schedule_time TEXT NOT NULL,
+      backup_type TEXT NOT NULL,
       modules TEXT NOT NULL,
       retention_days INTEGER NOT NULL DEFAULT 30,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+      updated_at TIMESTAMP NOT NULL
     )`,
 
     // 数据库连接表
     `CREATE TABLE IF NOT EXISTS database_connections (
       id SERIAL PRIMARY KEY,
-      name VARCHAR(100) NOT NULL,
+      name TEXT NOT NULL,
       connection_string_encrypted TEXT NOT NULL,
-      environment VARCHAR(50) NOT NULL,
+      environment TEXT NOT NULL,
       is_active BOOLEAN NOT NULL DEFAULT false,
       description TEXT,
       created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP NOT NULL,
+      updated_at TIMESTAMP NOT NULL,
       last_switched_at TIMESTAMP,
       last_switched_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      connection_test_status VARCHAR(20),
+      connection_test_status TEXT,
       connection_test_message TEXT,
       connection_test_at TIMESTAMP
     )`,
@@ -258,14 +277,14 @@ async function createAllTables(client: postgres.Sql): Promise<void> {
       id SERIAL PRIMARY KEY,
       from_connection_id INTEGER REFERENCES database_connections(id) ON DELETE SET NULL,
       to_connection_id INTEGER NOT NULL REFERENCES database_connections(id) ON DELETE RESTRICT,
-      switch_type VARCHAR(20) NOT NULL,
-      status VARCHAR(20) NOT NULL,
+      switch_type TEXT NOT NULL,
+      status TEXT NOT NULL,
       backup_file_path TEXT,
       error_message TEXT,
       migrated_tables TEXT,
       migration_details TEXT,
       switched_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      created_at TIMESTAMP NOT NULL,
       completed_at TIMESTAMP
     )`,
   ];
