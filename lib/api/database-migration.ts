@@ -60,7 +60,7 @@ export async function switchDatabase(
 
     // 3. 解密连接字符串
     const targetConnectionString = decryptConnectionString(
-      targetConnection.connection_string_encrypted
+      targetConnection.connectionStringEncrypted
     );
 
     // 4. 测试目标数据库连接
@@ -263,7 +263,7 @@ async function migrateDataBetweenDatabases(
 
   const currentConn = currentConnections[0];
   const currentConnectionString = decryptConnectionString(
-    currentConn.connection_string_encrypted
+    currentConn.connectionStringEncrypted
   );
 
   const sourceClient = postgres(currentConnectionString, {
@@ -272,7 +272,7 @@ async function migrateDataBetweenDatabases(
   });
 
   const targetConnectionString = decryptConnectionString(
-    targetConnection.connection_string_encrypted
+    targetConnection.connectionStringEncrypted
   );
 
   const targetClient = postgres(targetConnectionString, {
@@ -474,7 +474,7 @@ async function restoreFromBackup(
     }
 
     const connectionString = decryptConnectionString(
-      connResult[0].connection_string_encrypted
+      connResult[0].connectionStringEncrypted
     );
 
     const client = postgres(connectionString, {
