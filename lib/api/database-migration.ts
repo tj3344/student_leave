@@ -28,11 +28,50 @@ export async function switchDatabase(
 
   try {
     // 1. 获取当前活动连接
-    const currentConnection = await db
+    let currentConnection = await db
       .select()
       .from(databaseConnections)
       .where(eq(databaseConnections.isActive, true))
       .limit(1);
+
+    // 如果没有活动连接记录，自动创建当前环境变量连接
+    if (currentConnection.length === 0) {
+      const currentUrl = process.env.POSTGRES_URL;
+      if (!currentUrl) {
+        return {
+          success: false,
+          message: "未找到当前数据库连接配置",
+        };
+      }
+
+      // 解析连接字符串获取信息
+      const urlMatch = currentUrl.match(/postgresql:\/\/([^:]+):([^@]+)@([^:]+):(\d+)\/(.+)/);
+      if (!urlMatch) {
+        return {
+          success: false,
+          message: "无法解析当前数据库连接字符串",
+        };
+      }
+
+      const [, username, , host, port, database] = urlMatch;
+
+      // 创建默认连接记录
+      const { encryptConnectionString } = await import("@/lib/utils/crypto");
+      const [newConn] = await db
+        .insert(databaseConnections)
+        .values({
+          name: "默认数据库（环境变量）",
+          connectionStringEncrypted: encryptConnectionString(currentUrl),
+          environment: "development",
+          isActive: true,
+          description: "从环境变量 POSTGRES_URL 自动创建的默认连接",
+          createdBy: userId,
+        })
+        .returning();
+
+      currentConnection = [newConn];
+      console.log("已自动创建当前环境变量连接记录");
+    }
 
     const currentId = currentConnection[0]?.id;
     if (currentId === targetConnectionId) {
