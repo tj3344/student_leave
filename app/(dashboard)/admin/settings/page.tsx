@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Settings, Save } from "lucide-react";
 import type { SystemConfig } from "@/types";
 import { DatabaseManagementCard } from "@/components/settings/database/DatabaseManagementCard";
@@ -212,47 +213,66 @@ export default function SettingsPage() {
         </Button>
       </div>
 
-      {CONFIG_DEFINITIONS.map((group) => (
-        <Card key={group.title}>
-          <CardHeader>
-            <CardTitle>{group.title}</CardTitle>
-            <p className="text-sm text-muted-foreground">{group.description}</p>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {group.configs.map((config) => (
-              <div key={config.key} className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor={config.key} className="font-medium">
-                    {config.label}
-                  </Label>
-                  {config.type === "boolean" ? (
-                    <Switch
-                      id={config.key}
-                      checked={getBooleanValue(config.key)}
-                      onCheckedChange={(checked) =>
-                        handleConfigChange(config.key, checked ? "true" : "false")
-                      }
-                    />
-                  ) : (
-                    <Input
-                      id={config.key}
-                      type="number"
-                      value={getNumberValue(config.key, config.default as number)}
-                      onChange={(e) => handleConfigChange(config.key, e.target.value)}
-                      className="w-32"
-                      min="0"
-                    />
-                  )}
-                </div>
-                <p className="text-xs text-muted-foreground">{config.description}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      ))}
+      <Tabs defaultValue="leave" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-4 lg:w-auto">
+          <TabsTrigger value="leave">请假管理</TabsTrigger>
+          <TabsTrigger value="permission">权限管理</TabsTrigger>
+          <TabsTrigger value="system">系统参数</TabsTrigger>
+          <TabsTrigger value="database">数据库管理</TabsTrigger>
+        </TabsList>
 
-      {/* 数据库管理卡片 */}
-      <DatabaseManagementCard />
+        {CONFIG_DEFINITIONS.map((group) => {
+          const value = group.title === "请假管理配置" ? "leave" :
+                       group.title === "权限管理配置" ? "permission" :
+                       group.title === "系统参数配置" ? "system" : "";
+          return (
+            <TabsContent key={group.title} value={value} className="space-y-4">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="mb-4">
+                    <h3 className="text-lg font-semibold">{group.title}</h3>
+                    <p className="text-sm text-muted-foreground">{group.description}</p>
+                  </div>
+                  <div className="space-y-6">
+                    {group.configs.map((config) => (
+                      <div key={config.key} className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor={config.key} className="font-medium">
+                            {config.label}
+                          </Label>
+                          {config.type === "boolean" ? (
+                            <Switch
+                              id={config.key}
+                              checked={getBooleanValue(config.key)}
+                              onCheckedChange={(checked) =>
+                                handleConfigChange(config.key, checked ? "true" : "false")
+                              }
+                            />
+                          ) : (
+                            <Input
+                              id={config.key}
+                              type="number"
+                              value={getNumberValue(config.key, config.default as number)}
+                              onChange={(e) => handleConfigChange(config.key, e.target.value)}
+                              className="w-32"
+                              min="0"
+                            />
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground">{config.description}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+          );
+        })}
+
+        <TabsContent value="database">
+          <DatabaseManagementCard />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

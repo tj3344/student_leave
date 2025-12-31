@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Download, Trash2, Clock, HardDrive, RotateCcw } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Download, Trash2, Clock, HardDrive, RotateCcw, Plus } from "lucide-react";
 import type { BackupRecordWithDetails, BackupConfig, BackupModule } from "@/types";
 
 const BACKUP_MODULES = [
@@ -280,270 +281,270 @@ export default function BackupPage() {
         <p className="text-muted-foreground">管理系统数据备份和恢复</p>
       </div>
 
-      {/* 创建备份 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>创建备份</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <Label>选择备份模块</Label>
-              <Button variant="ghost" size="sm" onClick={toggleAllModules}>
-                {selectedModules.length === BACKUP_MODULES.length ? "全不选" : "全选"}
-              </Button>
-            </div>
-            <div className="grid grid-cols-3 gap-2">
-              {BACKUP_MODULES.map((module) => (
-                <div key={module.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={module.id}
-                    checked={selectedModules.includes(module.id)}
-                    onCheckedChange={() => toggleModule(module.id)}
-                  />
-                  <Label htmlFor={module.id} className="cursor-pointer">
-                    {module.name}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </div>
+      <Tabs defaultValue="create" className="space-y-4">
+        <TabsList className="grid w-full grid-cols-4 lg:w-auto">
+          <TabsTrigger value="create">创建备份</TabsTrigger>
+          <TabsTrigger value="list">备份记录</TabsTrigger>
+          <TabsTrigger value="restore">恢复数据</TabsTrigger>
+          <TabsTrigger value="schedule">自动备份</TabsTrigger>
+        </TabsList>
 
-          <div>
-            <Label htmlFor="backup-name">备份名称</Label>
-            <Input
-              id="backup-name"
-              value={backupName}
-              onChange={(e) => setBackupName(e.target.value)}
-              placeholder="留空自动生成"
-            />
-          </div>
-
-          <div>
-            <Label htmlFor="description">备注说明</Label>
-            <Textarea
-              id="description"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="备份说明（可选）"
-              rows={2}
-            />
-          </div>
-
-          <Button onClick={handleCreateBackup} disabled={selectedModules.length === 0 || isCreating}>
-            {isCreating ? "创建中..." : "创建备份"}
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* 备份列表 */}
-      <Card>
-        <CardHeader>
-          <CardTitle>备份记录</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {backups.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">暂无备份记录</div>
-          ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>备份名称</TableHead>
-                  <TableHead>类型</TableHead>
-                  <TableHead>模块数</TableHead>
-                  <TableHead>文件大小</TableHead>
-                  <TableHead>创建时间</TableHead>
-                  <TableHead>创建人</TableHead>
-                  <TableHead className="text-right">操作</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {backups.map((backup) => (
-                  <TableRow key={backup.id}>
-                    <TableCell className="font-medium">{backup.name}</TableCell>
-                    <TableCell>{backup.type === "full" ? "全量" : "部分"}</TableCell>
-                    <TableCell>{backup.module_count || JSON.parse(backup.modules).length}</TableCell>
-                    <TableCell>{(backup.file_size / 1024).toFixed(2)} KB</TableCell>
-                    <TableCell>{new Date(backup.created_at).toLocaleString("zh-CN")}</TableCell>
-                    <TableCell>{backup.created_by_name || "-"}</TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end space-x-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => downloadBackup(backup.id)}
-                        >
-                          <Download className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => deleteBackup(backup.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
+        {/* 创建备份 */}
+        <TabsContent value="create">
+          <Card>
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <Label>选择备份模块</Label>
+                    <Button variant="ghost" size="sm" onClick={toggleAllModules}>
+                      {selectedModules.length === BACKUP_MODULES.length ? "全不选" : "全选"}
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    {BACKUP_MODULES.map((module) => (
+                      <div key={module.id} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={module.id}
+                          checked={selectedModules.includes(module.id)}
+                          onCheckedChange={() => toggleModule(module.id)}
+                        />
+                        <Label htmlFor={module.id} className="cursor-pointer">
+                          {module.name}
+                        </Label>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* 恢复数据 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center text-orange-600">
-            <RotateCcw className="w-5 h-5 mr-2" />
-            恢复数据
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* 从备份记录恢复 */}
-          <div className="space-y-2">
-            <Label>从备份记录恢复</Label>
-            <Select value={selectedBackupId} onValueChange={setSelectedBackupId}>
-              <SelectTrigger>
-                <SelectValue placeholder="选择要恢复的备份" />
-              </SelectTrigger>
-              <SelectContent>
-                {backups.length === 0 ? (
-                  <div className="px-2 py-1 text-sm text-muted-foreground">暂无备份记录</div>
-                ) : (
-                  backups.map((backup) => (
-                    <SelectItem key={backup.id} value={String(backup.id)}>
-                      {backup.name} - {new Date(backup.created_at).toLocaleString("zh-CN")}
-                    </SelectItem>
-                  ))
-                )}
-              </SelectContent>
-            </Select>
-            <Button
-              onClick={handleRestoreFromBackup}
-              disabled={!selectedBackupId || isRestoring}
-              className="w-full"
-            >
-              {isRestoring ? "恢复中..." : "恢复选定备份"}
-            </Button>
-          </div>
-
-          <div className="border-t pt-4">
-            <div className="text-sm text-muted-foreground mb-2">或从文件恢复</div>
-            <Input
-              id="restore-file"
-              type="file"
-              accept=".sql"
-              onChange={handleRestore}
-              disabled={isRestoring}
-            />
-          </div>
-
-          <p className="text-sm text-muted-foreground">
-            警告：恢复操作将覆盖现有数据，系统会自动在恢复前创建备份
-          </p>
-        </CardContent>
-      </Card>
-
-      {/* 自动备份配置 */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Clock className="w-5 h-5 mr-2" />
-            自动备份配置
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {scheduleConfig && (
-            <>
-              <div className="flex items-center justify-between">
-                <div className="space-y-1">
-                  <Label>启用自动备份</Label>
-                  <p className="text-sm text-muted-foreground">开启后系统将按配置自动创建备份</p>
-                </div>
-                <Switch
-                  checked={scheduleConfig.enabled === 1}
-                  onCheckedChange={(checked) =>
-                    setScheduleConfig({ ...scheduleConfig, enabled: checked ? 1 : 0 })
-                  }
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>备份频率</Label>
-                  <Select
-                    value={scheduleConfig.schedule_type}
-                    onValueChange={(value: "daily" | "weekly" | "monthly") =>
-                      setScheduleConfig({ ...scheduleConfig, schedule_type: value })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="daily">每天</SelectItem>
-                      <SelectItem value="weekly">每周</SelectItem>
-                      <SelectItem value="monthly">每月</SelectItem>
-                    </SelectContent>
-                  </Select>
+                    ))}
+                  </div>
                 </div>
 
                 <div>
-                  <Label>备份时间</Label>
+                  <Label htmlFor="backup-name">备份名称</Label>
                   <Input
-                    type="time"
-                    value={scheduleConfig.schedule_time}
-                    onChange={(e) =>
-                      setScheduleConfig({ ...scheduleConfig, schedule_time: e.target.value })
-                    }
+                    id="backup-name"
+                    value={backupName}
+                    onChange={(e) => setBackupName(e.target.value)}
+                    placeholder="留空自动生成"
                   />
                 </div>
-              </div>
 
-              <div>
-                <Label>备份类型</Label>
-                <Select
-                  value={scheduleConfig.backup_type}
-                  onValueChange={(value: "full" | "partial") =>
-                    setScheduleConfig({ ...scheduleConfig, backup_type: value })
-                  }
-                >
+                <div>
+                  <Label htmlFor="description">备注说明</Label>
+                  <Textarea
+                    id="description"
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    placeholder="备份说明（可选）"
+                    rows={2}
+                  />
+                </div>
+
+                <Button onClick={handleCreateBackup} disabled={selectedModules.length === 0 || isCreating}>
+                  {isCreating ? "创建中..." : "创建备份"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 备份记录 */}
+        <TabsContent value="list">
+          <Card>
+            <CardContent className="pt-6">
+              {backups.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">暂无备份记录</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>备份名称</TableHead>
+                      <TableHead>类型</TableHead>
+                      <TableHead>模块数</TableHead>
+                      <TableHead>文件大小</TableHead>
+                      <TableHead>创建时间</TableHead>
+                      <TableHead>创建人</TableHead>
+                      <TableHead className="text-right">操作</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {backups.map((backup) => (
+                      <TableRow key={backup.id}>
+                        <TableCell className="font-medium">{backup.name}</TableCell>
+                        <TableCell>{backup.type === "full" ? "全量" : "部分"}</TableCell>
+                        <TableCell>{backup.module_count || JSON.parse(backup.modules).length}</TableCell>
+                        <TableCell>{(backup.file_size / 1024).toFixed(2)} KB</TableCell>
+                        <TableCell>{new Date(backup.created_at).toLocaleString("zh-CN")}</TableCell>
+                        <TableCell>{backup.created_by_name || "-"}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end space-x-2">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => downloadBackup(backup.id)}
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => deleteBackup(backup.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 恢复数据 */}
+        <TabsContent value="restore">
+          <Card>
+            <CardContent className="pt-6 space-y-4">
+              <div className="space-y-2">
+                <Label>从备份记录恢复</Label>
+                <Select value={selectedBackupId} onValueChange={setSelectedBackupId}>
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue placeholder="选择要恢复的备份" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="full">全量备份</SelectItem>
-                    <SelectItem value="partial">部分备份</SelectItem>
+                    {backups.length === 0 ? (
+                      <div className="px-2 py-1 text-sm text-muted-foreground">暂无备份记录</div>
+                    ) : (
+                      backups.map((backup) => (
+                        <SelectItem key={backup.id} value={String(backup.id)}>
+                          {backup.name} - {new Date(backup.created_at).toLocaleString("zh-CN")}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
+                <Button
+                  onClick={handleRestoreFromBackup}
+                  disabled={!selectedBackupId || isRestoring}
+                  className="w-full"
+                >
+                  {isRestoring ? "恢复中..." : "恢复选定备份"}
+                </Button>
               </div>
 
-              <div>
-                <Label>保留天数</Label>
+              <div className="border-t pt-4 space-y-2">
+                <div className="text-sm text-muted-foreground">或从文件恢复</div>
                 <Input
-                  type="number"
-                  min="1"
-                  max="365"
-                  value={scheduleConfig.retention_days}
-                  onChange={(e) =>
-                    setScheduleConfig({
-                      ...scheduleConfig,
-                      retention_days: parseInt(e.target.value) || 30,
-                    })
-                  }
+                  id="restore-file"
+                  type="file"
+                  accept=".sql"
+                  onChange={handleRestore}
+                  disabled={isRestoring}
                 />
-                <p className="text-sm text-muted-foreground">超过此天数的自动备份将被自动删除</p>
               </div>
 
-              <Button onClick={handleSaveSchedule} disabled={isSavingSchedule}>
-                {isSavingSchedule ? "保存中..." : "保存配置"}
-              </Button>
-            </>
-          )}
-        </CardContent>
-      </Card>
+              <p className="text-sm text-muted-foreground">
+                警告：恢复操作将覆盖现有数据，系统会自动在恢复前创建备份
+              </p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* 自动备份配置 */}
+        <TabsContent value="schedule">
+          <Card>
+            <CardContent className="pt-6">
+              {scheduleConfig && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-1">
+                      <Label>启用自动备份</Label>
+                      <p className="text-sm text-muted-foreground">开启后系统将按配置自动创建备份</p>
+                    </div>
+                    <Switch
+                      checked={scheduleConfig.enabled === 1}
+                      onCheckedChange={(checked) =>
+                        setScheduleConfig({ ...scheduleConfig, enabled: checked ? 1 : 0 })
+                      }
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>备份频率</Label>
+                      <Select
+                        value={scheduleConfig.schedule_type}
+                        onValueChange={(value: "daily" | "weekly" | "monthly") =>
+                          setScheduleConfig({ ...scheduleConfig, schedule_type: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="daily">每天</SelectItem>
+                          <SelectItem value="weekly">每周</SelectItem>
+                          <SelectItem value="monthly">每月</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div>
+                      <Label>备份时间</Label>
+                      <Input
+                        type="time"
+                        value={scheduleConfig.schedule_time}
+                        onChange={(e) =>
+                          setScheduleConfig({ ...scheduleConfig, schedule_time: e.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label>备份类型</Label>
+                    <Select
+                      value={scheduleConfig.backup_type}
+                      onValueChange={(value: "full" | "partial") =>
+                        setScheduleConfig({ ...scheduleConfig, backup_type: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="full">全量备份</SelectItem>
+                        <SelectItem value="partial">部分备份</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div>
+                    <Label>保留天数</Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="365"
+                      value={scheduleConfig.retention_days}
+                      onChange={(e) =>
+                        setScheduleConfig({
+                          ...scheduleConfig,
+                          retention_days: parseInt(e.target.value) || 30,
+                        })
+                      }
+                    />
+                    <p className="text-sm text-muted-foreground">超过此天数的自动备份将被自动删除</p>
+                  </div>
+
+                  <Button onClick={handleSaveSchedule} disabled={isSavingSchedule}>
+                    {isSavingSchedule ? "保存中..." : "保存配置"}
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
