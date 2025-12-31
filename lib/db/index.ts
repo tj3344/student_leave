@@ -96,15 +96,33 @@ export async function initializeDatabaseSchema(connectionString: string): Promis
   });
 
   try {
-    // 先检查是否存在旧结构（错误的 users 表）
-    const checkResult = await client.unsafe(`
+    // 检查是否存在旧结构（多种方式检测）
+    let needsRebuild = false;
+
+    // 检测1：users 表是否有旧的 password 列
+    const checkPassword = await client.unsafe(`
       SELECT column_name
       FROM information_schema.columns
       WHERE table_name = 'users' AND column_name = 'password'
     `);
+    if (checkPassword.length > 0) {
+      console.log("检测到旧列: users.password");
+      needsRebuild = true;
+    }
 
-    // 如果存在旧的 password 字段，说明是旧结构，需要重建
-    if (checkResult.length > 0) {
+    // 检测2：leave_records 表是否有旧的 start_time 列
+    const checkStartTime = await client.unsafe(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'leave_records' AND column_name = 'start_time'
+    `);
+    if (checkStartTime.length > 0) {
+      console.log("检测到旧列: leave_records.start_time");
+      needsRebuild = true;
+    }
+
+    // 如果检测到旧结构，删除所有表重建
+    if (needsRebuild) {
       console.log("检测到旧表结构，正在删除并重建...");
       await dropAllTables(client);
     }

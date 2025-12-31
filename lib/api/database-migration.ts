@@ -174,6 +174,45 @@ export async function switchDatabase(
       }
     }
 
+    // 检查目标数据库表结构是否正确（检测旧结构）
+    const oldStructureTables: string[] = [];
+    for (const table of tablesToMigrate) {
+      // 检查 users 表是否有旧的 password 列
+      if (table === "users") {
+        const checkResult = await targetClient.unsafe(`
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_name = 'users' AND column_name = 'password'
+        `);
+        if (checkResult.length > 0) {
+          oldStructureTables.push(table);
+        }
+      }
+      // 检查 leave_records 表是否有旧的 start_time 列
+      if (table === "leave_records") {
+        const checkResult = await targetClient.unsafe(`
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_name = 'leave_records' AND column_name = 'start_time'
+        `);
+        if (checkResult.length > 0) {
+          oldStructureTables.push(table);
+        }
+      }
+    }
+
+    // 如果检测到旧结构，重建表
+    if (oldStructureTables.length > 0) {
+      console.log(`检测到旧表结构: ${oldStructureTables.join(", ")}，正在重建...`);
+      await targetClient.end();
+      await initializeDatabaseSchema(targetConnectionString);
+      // 重新连接
+      targetClient = postgres(targetConnectionString, {
+        max: 10,
+        connect_timeout: 10,
+      });
+    }
+
     // 8. 执行数据迁移
     const migrationResult = await migrateDataBetweenDatabases(
       await db.select().from(databaseConnections).where(eq(databaseConnections.isActive, true)).limit(1),
