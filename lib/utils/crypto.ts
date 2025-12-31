@@ -4,9 +4,21 @@ import crypto from "crypto";
 const SALT_ROUNDS = 10;
 
 // 数据库连接字符串加密配置
-const ENCRYPTION_KEY = process.env.DB_ENCRYPTION_KEY
-  ? Buffer.from(process.env.DB_ENCRYPTION_KEY, "hex")
-  : crypto.randomBytes(32);
+// 注意：必须在 .env 中设置 DB_ENCRYPTION_KEY，否则每次重启服务器密钥都会改变
+// 导致已加密的数据无法解密
+const getEncryptionKey = (): Buffer => {
+  const keyEnv = process.env.DB_ENCRYPTION_KEY;
+  if (!keyEnv) {
+    throw new Error(
+      "DB_ENCRYPTION_KEY environment variable is not set. " +
+      "Please generate a key using: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\" " +
+      "and add it to your .env file as DB_ENCRYPTION_KEY=<generated_key>"
+    );
+  }
+  return Buffer.from(keyEnv, "hex");
+};
+
+const ENCRYPTION_KEY = getEncryptionKey();
 const ALGORITHM = "aes-256-gcm";
 
 /**
