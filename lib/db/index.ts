@@ -121,6 +121,39 @@ export async function initializeDatabaseSchema(connectionString: string): Promis
       needsRebuild = true;
     }
 
+    // 检测3：fee_configs 表是否有旧的 grade_id 列
+    const checkGradeId = await client.unsafe(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'fee_configs' AND column_name = 'grade_id'
+    `);
+    if (checkGradeId.length > 0) {
+      console.log("检测到旧列: fee_configs.grade_id");
+      needsRebuild = true;
+    }
+
+    // 检测4：system_config 表是否有旧的 created_at 列
+    const checkSystemConfigCreatedAt = await client.unsafe(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'system_config' AND column_name = 'created_at'
+    `);
+    if (checkSystemConfigCreatedAt.length > 0) {
+      console.log("检测到旧列: system_config.created_at");
+      needsRebuild = true;
+    }
+
+    // 检测5：operation_logs 表是否有旧的 target_type 列
+    const checkTargetType = await client.unsafe(`
+      SELECT column_name
+      FROM information_schema.columns
+      WHERE table_name = 'operation_logs' AND column_name = 'target_type'
+    `);
+    if (checkTargetType.length > 0) {
+      console.log("检测到旧列: operation_logs.target_type");
+      needsRebuild = true;
+    }
+
     // 如果检测到旧结构，删除所有表重建
     if (needsRebuild) {
       console.log("检测到旧表结构，正在删除并重建...");
@@ -260,9 +293,8 @@ async function createAllTables(client: postgres.Sql): Promise<void> {
     `CREATE TABLE IF NOT EXISTS system_config (
       id SERIAL PRIMARY KEY,
       config_key TEXT NOT NULL UNIQUE,
-      config_value TEXT NOT NULL,
+      config_value TEXT,
       description TEXT,
-      created_at TIMESTAMP NOT NULL,
       updated_at TIMESTAMP NOT NULL
     )`,
 
@@ -271,9 +303,8 @@ async function createAllTables(client: postgres.Sql): Promise<void> {
       id SERIAL PRIMARY KEY,
       user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
       action TEXT NOT NULL,
-      target_type TEXT,
-      target_id INTEGER,
-      details TEXT,
+      module TEXT NOT NULL,
+      description TEXT,
       ip_address TEXT,
       created_at TIMESTAMP NOT NULL
     )`,
@@ -281,11 +312,15 @@ async function createAllTables(client: postgres.Sql): Promise<void> {
     // 费用配置表
     `CREATE TABLE IF NOT EXISTS fee_configs (
       id SERIAL PRIMARY KEY,
+      class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE RESTRICT,
       semester_id INTEGER NOT NULL REFERENCES semesters(id) ON DELETE RESTRICT,
-      grade_id INTEGER NOT NULL REFERENCES grades(id) ON DELETE RESTRICT,
       meal_fee_standard TEXT NOT NULL,
+      prepaid_days INTEGER NOT NULL DEFAULT 0,
+      actual_days INTEGER NOT NULL DEFAULT 0,
+      suspension_days INTEGER NOT NULL DEFAULT 0,
       created_at TIMESTAMP NOT NULL,
-      updated_at TIMESTAMP NOT NULL
+      updated_at TIMESTAMP NOT NULL,
+      UNIQUE(class_id, semester_id)
     )`,
 
     // 备份记录表
@@ -316,17 +351,17 @@ async function createAllTables(client: postgres.Sql): Promise<void> {
     // 数据库连接表
     `CREATE TABLE IF NOT EXISTS database_connections (
       id SERIAL PRIMARY KEY,
-      name TEXT NOT NULL,
+      name VARCHAR(100) NOT NULL,
       connection_string_encrypted TEXT NOT NULL,
-      environment TEXT NOT NULL,
+      environment VARCHAR(50) NOT NULL,
       is_active BOOLEAN NOT NULL DEFAULT false,
       description TEXT,
       created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      created_at TIMESTAMP NOT NULL,
-      updated_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
       last_switched_at TIMESTAMP,
       last_switched_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      connection_test_status TEXT,
+      connection_test_status VARCHAR(20),
       connection_test_message TEXT,
       connection_test_at TIMESTAMP
     )`,
@@ -336,14 +371,14 @@ async function createAllTables(client: postgres.Sql): Promise<void> {
       id SERIAL PRIMARY KEY,
       from_connection_id INTEGER REFERENCES database_connections(id) ON DELETE SET NULL,
       to_connection_id INTEGER NOT NULL REFERENCES database_connections(id) ON DELETE RESTRICT,
-      switch_type TEXT NOT NULL,
-      status TEXT NOT NULL,
+      switch_type VARCHAR(20) NOT NULL,
+      status VARCHAR(20) NOT NULL,
       backup_file_path TEXT,
       error_message TEXT,
       migrated_tables TEXT,
       migration_details TEXT,
       switched_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-      created_at TIMESTAMP NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT NOW(),
       completed_at TIMESTAMP
     )`,
   ];

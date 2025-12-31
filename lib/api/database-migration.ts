@@ -199,6 +199,39 @@ export async function switchDatabase(
           oldStructureTables.push(table);
         }
       }
+      // 检查 fee_configs 表是否有旧的 grade_id 列
+      if (table === "fee_configs") {
+        const checkResult = await targetClient.unsafe(`
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_name = 'fee_configs' AND column_name = 'grade_id'
+        `);
+        if (checkResult.length > 0) {
+          oldStructureTables.push(table);
+        }
+      }
+      // 检查 system_config 表是否有旧的 created_at 列
+      if (table === "system_config") {
+        const checkResult = await targetClient.unsafe(`
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_name = 'system_config' AND column_name = 'created_at'
+        `);
+        if (checkResult.length > 0) {
+          oldStructureTables.push(table);
+        }
+      }
+      // 检查 operation_logs 表是否有旧的 target_type 列
+      if (table === "operation_logs") {
+        const checkResult = await targetClient.unsafe(`
+          SELECT column_name
+          FROM information_schema.columns
+          WHERE table_name = 'operation_logs' AND column_name = 'target_type'
+        `);
+        if (checkResult.length > 0) {
+          oldStructureTables.push(table);
+        }
+      }
     }
 
     // 如果检测到旧结构，重建表
@@ -379,6 +412,13 @@ async function migrateDataBetweenDatabases(
   });
 
   try {
+    // 先按逆序清空所有目标表（避免外键约束冲突）
+    const reversedTables = [...tables].reverse();
+    for (const table of reversedTables) {
+      await targetClient.unsafe(`DELETE FROM ${table}`);
+    }
+
+    // 然后按正序迁移数据
     for (const table of tables) {
       const startTime = Date.now();
 
@@ -415,6 +455,8 @@ async function migrateDataBetweenDatabases(
         start_time: "start_date",
         end_time: "end_date",
         review_comment: "review_remark",
+        grade_id: "class_id",
+        target_type: "module",  // operation_logs: target_type -> module
       };
 
       // 新列名 -> 旧列名（反向映射）
@@ -423,7 +465,15 @@ async function migrateDataBetweenDatabases(
         start_date: "start_time",
         end_date: "end_time",
         review_remark: "review_comment",
+        class_id: "grade_id",
+        module: "target_type",  // operation_logs: module -> target_type
       };
+
+      // 已删除的列（旧结构有，新结构没有，迁移时忽略）
+      const deletedColumns = [
+        "created_at",  // system_config 的 created_at 已删除
+        "target_id",   // operation_logs 的 target_id 已删除
+      ];
 
       // 检测源数据库和目标数据库的结构类型
       const sourceHasOldColumns = sourceColumns.some((col: string) =>
@@ -432,9 +482,6 @@ async function migrateDataBetweenDatabases(
       const targetHasOldColumns = targetColumns.some((col: string) =>
         Object.keys(oldToNewMapping).includes(col)
       );
-
-      // 清空目标表数据
-      await targetClient.unsafe(`DELETE FROM ${table}`);
 
       // 批量插入
       let inserted = 0;
@@ -474,7 +521,23 @@ async function migrateDataBetweenDatabases(
             }
 
             const val = row[sourceCol];
-            if (val === null || val === undefined) return "NULL";
+
+            // 如果值不存在且列是 NOT NULL 的时间戳类型，使用当前时间作为默认值
+            if (val === null || val === undefined) {
+              // 检查是否是时间戳列且源表中不存在该列
+              const isTimestampColumn = col.endsWith("_at") || col.endsWith("_time");
+              const columnNotInSource = !sourceColumns.includes(col) &&
+                                       !sourceColumns.includes(sourceCol);
+
+              if (isTimestampColumn && columnNotInSource) {
+                // 为缺失的时间戳列使用当前时间
+                return `'${new Date().toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '')}'`;
+              }
+
+              // 对于其他 NULL 值，返回 NULL 字符串
+              return "NULL";
+            }
+
             if (typeof val === "number") return String(val);
             if (typeof val === "boolean") return val ? "true" : "false";
             if (val instanceof Date) {

@@ -6,6 +6,8 @@ import path from "path";
 /**
  * 表的依赖顺序（考虑外键关系）
  * 注意：backup_records 有外键引用 users，必须在 users 之后
+ * database_connections 也有外键引用 users，必须在 users 之后
+ * database_switch_history 引用 database_connections，必须在之后
  */
 export const TABLE_DEPENDENCY_ORDER: BackupModule[] = [
   "users",
@@ -17,7 +19,10 @@ export const TABLE_DEPENDENCY_ORDER: BackupModule[] = [
   "fee_configs",
   "system_config",
   "operation_logs",
-  "backup_records",  // 必须在 users 之后，因为有外键引用
+  "backup_config",         // 无外键依赖
+  "database_connections",  // 引用 users (created_by)
+  "backup_records",        // 引用 users (created_by)
+  "database_switch_history", // 引用 database_connections 和 users
 ];
 
 /**
