@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Settings, Save } from "lucide-react";
 import type { SystemConfig } from "@/types";
+import { DatabaseManagementCard } from "@/components/settings/database/DatabaseManagementCard";
 
 interface ConfigGroup {
   title: string;
@@ -249,6 +250,9 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       ))}
+
+      {/* 数据库管理卡片 */}
+      <DatabaseManagementCard />
     </div>
   );
 }

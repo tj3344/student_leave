@@ -598,3 +598,111 @@ export interface UpgradePreview {
   total_classes: number;
   total_students: number;
 }
+
+// ============================================
+// 数据库管理相关类型
+// ============================================
+
+export type DatabaseEnvironment = "production" | "staging" | "development";
+export type DatabaseConnectionTestStatus = "success" | "failed" | "pending";
+export type DatabaseSwitchType = "switch" | "rollback";
+export type DatabaseSwitchStatus = "success" | "failed" | "rollback";
+
+// 数据库连接
+export interface DatabaseConnection {
+  id: number;
+  name: string;
+  connection_string_encrypted: string;
+  environment: DatabaseEnvironment;
+  is_active: boolean;
+  description?: string;
+  created_by?: number;
+  created_at: string;
+  updated_at: string;
+  last_switched_at?: string;
+  last_switched_by?: number;
+  connection_test_status?: DatabaseConnectionTestStatus;
+  connection_test_message?: string;
+  connection_test_at?: string;
+}
+
+// 数据库连接输入（明文连接字符串）
+export interface DatabaseConnectionInput {
+  name: string;
+  connection_string: string;
+  environment: DatabaseEnvironment;
+  description?: string;
+}
+
+// 数据库连接（带详情）
+export interface DatabaseConnectionWithDetails extends DatabaseConnection {
+  created_by_name?: string;
+  last_switched_by_name?: string;
+  is_current?: boolean;
+}
+
+// 数据库切换历史
+export interface DatabaseSwitchHistory {
+  id: number;
+  from_connection_id?: number;
+  to_connection_id: number;
+  switch_type: DatabaseSwitchType;
+  status: DatabaseSwitchStatus;
+  backup_file_path?: string;
+  error_message?: string;
+  migrated_tables?: string;
+  migration_details?: string;
+  switched_by?: number;
+  created_at: string;
+  completed_at?: string;
+}
+
+// 数据库切换历史（带详情）
+export interface DatabaseSwitchHistoryWithDetails extends DatabaseSwitchHistory {
+  from_connection_name?: string;
+  to_connection_name?: string;
+  switched_by_name?: string;
+}
+
+// 数据库状态
+export interface DatabaseStatus {
+  status: "connected" | "disconnected" | "maintenance";
+  name: string;
+  version?: string;
+  size?: string;
+  connection_pool?: {
+    total: number;
+    active: number;
+    idle: number;
+  };
+  tables?: Array<{
+    name: string;
+    rows: number;
+  }>;
+}
+
+// 数据库迁移选项
+export interface DatabaseMigrationOptions {
+  createBackup: boolean;
+  tables?: BackupModule[];
+  batchSize?: number;
+  validateAfterMigration: boolean;
+}
+
+// 数据库迁移结果
+export interface DatabaseMigrationResult {
+  success: boolean;
+  message: string;
+  details?: {
+    backupPath?: string;
+    migratedTables: Array<{
+      table: string;
+      rows: number;
+      duration: number;
+    }>;
+    totalRows: number;
+    totalDuration: number;
+    validationPassed: boolean;
+  };
+  error?: string;
+}
