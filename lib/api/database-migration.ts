@@ -351,14 +351,32 @@ async function migrateDataBetweenDatabases(
         continue;
       }
 
-      // 获取列名
-      const columnsResult = await sourceClient.unsafe(`
+      // 从目标数据库获取列名（确保使用正确的表结构）
+      const columnsResult = await targetClient.unsafe(`
         SELECT column_name
         FROM information_schema.columns
         WHERE table_name = '${table}'
         ORDER BY ordinal_position
       `);
-      const columns = columnsResult.map((r: any) => r.column_name);
+      const targetColumns = columnsResult.map((r: any) => r.column_name);
+
+      // 获取源数据库的列名，用于检查列映射
+      const sourceColumnsResult = await sourceClient.unsafe(`
+        SELECT column_name
+        FROM information_schema.columns
+        WHERE table_name = '${table}'
+        ORDER BY ordinal_position
+      `);
+      const sourceColumns = sourceColumnsResult.map((r: any) => r.column_name);
+
+      // 列名映射：处理新旧结构差异
+      const columnMapping: Record<string, string> = {
+        // 旧列名 -> 新列名
+        password: "password_hash",
+        start_time: "start_date",
+        end_time: "end_date",
+        review_comment: "review_remark",
+      };
 
       // 清空目标表数据
       await targetClient.unsafe(`DELETE FROM ${table}`);
@@ -369,8 +387,19 @@ async function migrateDataBetweenDatabases(
         const batch = rows.slice(i, i + batchSize);
 
         for (const row of batch) {
-          const values = columns.map((col) => {
-            const val = row[col];
+          const values = targetColumns.map((col) => {
+            // 找到源数据中对应的值
+            let sourceCol = col;
+
+            // 反向映射：新列名 -> 旧列名
+            for (const [oldCol, newCol] of Object.entries(columnMapping)) {
+              if (newCol === col) {
+                sourceCol = oldCol;
+                break;
+              }
+            }
+
+            const val = row[sourceCol];
             if (val === null || val === undefined) return "NULL";
             if (typeof val === "number") return String(val);
             if (typeof val === "boolean") return val ? "true" : "false";
@@ -381,7 +410,7 @@ async function migrateDataBetweenDatabases(
           });
 
           await targetClient.unsafe(
-            `INSERT INTO ${table} (${columns.join(", ")}) VALUES (${values.join(", ")})`
+            `INSERT INTO ${table} (${targetColumns.join(", ")}) VALUES (${values.join(", ")})`
           );
           inserted++;
         }
