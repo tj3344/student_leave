@@ -8,7 +8,7 @@ import type {
   DatabaseMigrationResult,
   BackupModule,
 } from "@/types";
-import { db, databaseConnections, databaseSwitchHistory } from "@/lib/db";
+import { db, databaseConnections, databaseSwitchHistory, initializeDatabaseSchema } from "@/lib/db";
 import { decryptConnectionString } from "@/lib/utils/crypto";
 import { generateBackupSQL, getBackupDir, TABLE_DEPENDENCY_ORDER } from "@/lib/utils/backup";
 import { getAllConfigs, updateConfig } from "@/lib/api/system-config";
@@ -96,22 +96,42 @@ export async function switchDatabase(
     await updateConfig("system.maintenance_mode", "true");
 
     // 7. 连接目标数据库并验证表结构
-    const targetClient = postgres(targetConnectionString, {
+    let targetClient = postgres(targetConnectionString, {
       max: 10,
       connect_timeout: 10,
     });
 
-    // 检查目标数据库表是否存在
+    // 检查目标数据库表是否存在，如果不存在则自动创建
     const tablesToMigrate = options.tables || TABLE_DEPENDENCY_ORDER;
+    const missingTables: string[] = [];
     for (const table of tablesToMigrate) {
       const exists = await checkTableExists(targetClient, table);
       if (!exists) {
-        await targetClient.end();
-        await updateConfig("system.maintenance_mode", "false");
-        return {
-          success: false,
-          message: `目标数据库缺少表: ${table}。请先运行数据库迁移脚本创建表结构`,
-        };
+        missingTables.push(table);
+      }
+    }
+
+    // 如果有缺失的表，自动创建表结构
+    if (missingTables.length > 0) {
+      console.log(`目标数据库缺少表: ${missingTables.join(", ")}，正在自动创建表结构...`);
+      await targetClient.end();
+      await initializeDatabaseSchema(targetConnectionString);
+      // 重新连接以继续后续操作
+      targetClient = postgres(targetConnectionString, {
+        max: 10,
+        connect_timeout: 10,
+      });
+      // 验证表已创建
+      for (const table of missingTables) {
+        const exists = await checkTableExists(targetClient, table);
+        if (!exists) {
+          await targetClient.end();
+          await updateConfig("system.maintenance_mode", "false");
+          return {
+            success: false,
+            message: `自动创建表 ${table} 失败`,
+          };
+        }
       }
     }
 
