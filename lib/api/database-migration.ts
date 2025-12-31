@@ -409,13 +409,29 @@ async function migrateDataBetweenDatabases(
       const sourceColumns = sourceColumnsResult.map((r: any) => r.column_name);
 
       // 列名映射：处理新旧结构差异
-      const columnMapping: Record<string, string> = {
-        // 旧列名 -> 新列名
+      // 旧列名 -> 新列名
+      const oldToNewMapping: Record<string, string> = {
         password: "password_hash",
         start_time: "start_date",
         end_time: "end_date",
         review_comment: "review_remark",
       };
+
+      // 新列名 -> 旧列名（反向映射）
+      const newToOldMapping: Record<string, string> = {
+        password_hash: "password",
+        start_date: "start_time",
+        end_date: "end_time",
+        review_remark: "review_comment",
+      };
+
+      // 检测源数据库和目标数据库的结构类型
+      const sourceHasOldColumns = sourceColumns.some((col: string) =>
+        Object.keys(oldToNewMapping).includes(col)
+      );
+      const targetHasOldColumns = targetColumns.some((col: string) =>
+        Object.keys(oldToNewMapping).includes(col)
+      );
 
       // 清空目标表数据
       await targetClient.unsafe(`DELETE FROM ${table}`);
@@ -430,11 +446,30 @@ async function migrateDataBetweenDatabases(
             // 找到源数据中对应的值
             let sourceCol = col;
 
-            // 反向映射：新列名 -> 旧列名
-            for (const [oldCol, newCol] of Object.entries(columnMapping)) {
-              if (newCol === col) {
-                sourceCol = oldCol;
-                break;
+            // 根据源和目标的结构类型，决定如何映射
+            if (sourceHasOldColumns && targetHasOldColumns) {
+              // 都是旧结构：直接映射，不需要转换
+              sourceCol = col;
+            } else if (!sourceHasOldColumns && !targetHasOldColumns) {
+              // 都是新结构：直接映射，不需要转换
+              sourceCol = col;
+            } else if (sourceHasOldColumns && !targetHasOldColumns) {
+              // 源是旧结构，目标是新结构：使用正向映射
+              // 目标列是新列名（如 password_hash），尝试从源找旧列名（如 password）
+              for (const [oldCol, newCol] of Object.entries(oldToNewMapping)) {
+                if (newCol === col && sourceColumns.includes(oldCol)) {
+                  sourceCol = oldCol;
+                  break;
+                }
+              }
+            } else {
+              // 源是新结构，目标是旧结构：使用反向映射
+              // 目标列是旧列名（如 password），尝试从源找新列名（如 password_hash）
+              for (const [newCol, oldCol] of Object.entries(newToOldMapping)) {
+                if (oldCol === col && sourceColumns.includes(newCol)) {
+                  sourceCol = newCol;
+                  break;
+                }
               }
             }
 
