@@ -39,12 +39,19 @@ export async function POST(request: NextRequest) {
 
     fs.writeFileSync(filePath, sqlContent, "utf-8");
 
-    // 记录到数据库（使用本地时间）
+    // 记录到数据库（格式化为本地时间字符串）
     const { getRawPostgres } = await import("@/lib/db");
     const pgClient = getRawPostgres();
     const now = new Date();
-    // 格式化为 ISO 格式（不带时区后缀，PostgreSQL 会使用当前时区）
-    const formattedDate = now.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, '');
+    // 格式化为本地时间字符串（YYYY-MM-DD HH:MM:SS）
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const formattedDate = `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+
     const result = await pgClient.unsafe(
       `
       INSERT INTO backup_records (name, type, modules, file_path, file_size, created_by, description, created_at)

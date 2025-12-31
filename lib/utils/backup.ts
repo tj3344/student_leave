@@ -160,14 +160,12 @@ export async function restoreFromSQL(
     const preBackupSQL = await generateBackupSQL(TABLE_DEPENDENCY_ORDER);
     fs.writeFileSync(preBackupPath, preBackupSQL, "utf-8");
 
-    // 开始事务恢复
-    await pgClient.unsafe("BEGIN");
-
-    try {
+    // 使用 postgres 包的 begin 方法处理事务
+    await pgClient.begin(async (sql) => {
       // 删除现有数据（按依赖逆序）
       const reversedOrder = [...TABLE_DEPENDENCY_ORDER].reverse();
       for (const table of reversedOrder) {
-        await pgClient.unsafe(`DELETE FROM ${table}`);
+        await sql.unsafe(`DELETE FROM ${table}`);
       }
 
       // 执行恢复 SQL（逐行解析，避免 split(";") 问题）
@@ -184,17 +182,12 @@ export async function restoreFromSQL(
         if (trimmed.endsWith(";")) {
           const insertStmt = currentStmt.trim();
           if (insertStmt.toUpperCase().includes("INSERT")) {
-            await pgClient.unsafe(insertStmt);
+            await sql.unsafe(insertStmt);
           }
           currentStmt = "";
         }
       }
-
-      await pgClient.unsafe("COMMIT");
-    } catch (error) {
-      await pgClient.unsafe("ROLLBACK");
-      throw error;
-    }
+    });
 
     // 同步序列（必须在事务外执行）
     await syncSequencesAfterRestore(pgClient);
@@ -271,16 +264,13 @@ export function generateBackupFileName(name: string): string {
     .replace(/\s+/g, "_")             // 替换空格为下划线
     .substring(0, 100);               // 限制长度
 
-  // 使用本地时间而非 UTC 时间，保持与前端显示一致
+  // 使用本地时间，只保留日期部分
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
-  const hours = String(now.getHours()).padStart(2, '0');
-  const minutes = String(now.getMinutes()).padStart(2, '0');
-  const seconds = String(now.getSeconds()).padStart(2, '0');
 
-  const timestamp = `${year}-${month}-${day}T${hours}-${minutes}-${seconds}`;
+  const timestamp = `${year}-${month}-${day}`;
   return `${sanitizedName}_${timestamp}.sql`;
 }
 
