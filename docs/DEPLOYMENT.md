@@ -23,7 +23,7 @@
 - **操作系统**: Linux (Ubuntu 20.04+, CentOS 7+) 或 Windows Server
 - **Node.js**: >= 18.0.0
 - **npm**: >= 9.0.0
-- **SQLite**: >= 3.35.0
+- **PostgreSQL**: >= 14.0（推荐使用 Docker 或独立安装）
 
 ### 网络要求
 - 开放端口: 3000 (应用端口) 或 80/443 (使用 Nginx)
@@ -449,11 +449,26 @@ Certbot 会自动修改 Nginx 配置，添加 HTTPS 支持。
 
 #### 手动备份
 ```bash
-# 进入系统备份页面
+# 方式一：使用系统备份页面
 # 访问: http://your-domain.com/admin/backup
 
-# 或直接备份数据库文件
-cp data/student_leave.db backups/student-leave-$(date +%Y%m%d-%H%M%S).db
+# 方式二：使用 pg_dump 命令行工具
+pg_dump -h localhost -U postgres -d student_leave > backups/student-leave-$(date +%Y%m%d-%H%M%S).sql
+
+# 方式三：使用 pg_dump 自定义格式（支持压缩和并行）
+pg_dump -h localhost -U postgres -d student_leave -F c -f backups/student-leave-$(date +%Y%m%d-%H%M%S).dump
+```
+
+#### 数据库恢复
+```bash
+# 方式一：使用系统恢复页面
+# 访问: http://your-domain.com/admin/backup
+
+# 方式二：使用 psql 恢复 SQL 文件
+psql -h localhost -U postgres -d student_leave < backups/student-leave-20250101-120000.sql
+
+# 方式三：使用 pg_restore 恢复自定义格式
+pg_restore -h localhost -U postgres -d student_leave backups/student-leave-20250101-120000.dump
 ```
 
 #### 自动备份
@@ -465,22 +480,21 @@ cp data/student_leave.db backups/student-leave-$(date +%Y%m%d-%H%M%S).db
 ### 2. 文件系统备份
 
 ```bash
-# 创建备份脚本
+# 创建 PostgreSQL 备份脚本
 cat > /opt/backup-student-leave.sh << 'EOF'
 #!/bin/bash
 BACKUP_DIR="/opt/backups/student-leave"
-APP_DIR="/opt/student-leave"
 DATE=$(date +%Y%m%d-%H%M%S)
 
 mkdir -p $BACKUP_DIR
 
-# 备份数据库
-tar -czf $BACKUP_DIR/data-$DATE.tar.gz -C $APP_DIR data/
+# 备份 PostgreSQL 数据库（使用 pg_dump）
+pg_dump -h localhost -U postgres -d student_leave -F c -f $BACKUP_DIR/student-leave-$DATE.dump
 
 # 保留最近 30 天的备份
-find $BACKUP_DIR -name "data-*.tar.gz" -mtime +30 -delete
+find $BACKUP_DIR -name "student-leave-*.dump" -mtime +30 -delete
 
-echo "Backup completed: data-$DATE.tar.gz"
+echo "Backup completed: student-leave-$DATE.dump"
 EOF
 
 chmod +x /opt/backup-student-leave.sh

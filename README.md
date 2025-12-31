@@ -25,7 +25,7 @@
 - **前端框架**: Next.js 15 (App Router)
 - **编程语言**: TypeScript 5
 - **UI 组件**: shadcn/ui + Tailwind CSS v4
-- **数据库**: SQLite + better-sqlite3
+- **数据库**: PostgreSQL + Drizzle ORM
 - **测试**: Vitest
 
 ## 快速开始

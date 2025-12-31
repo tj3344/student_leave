@@ -488,10 +488,22 @@
 - ✅ **部署准备：Docker 容器化配置、PM2 配置、部署脚本、健康检查 API**
 - ✅ **文档完善：项目 README.md、部署文档、用户使用手册**
 
+### 近期修复（2025-12-30）
+- ✅ **PostgreSQL 迁移**：数据库从 SQLite 迁移到 PostgreSQL + Drizzle ORM
+- ✅ **异步调用修复**：修复多处异步函数调用缺少 await 的问题
+- ✅ **权限限制**：限制班主任只能编辑待审核或已拒绝的请假记录
+- ✅ **班主任请假页面**：增加教师请假申请功能开关控制
+
+### 近期修复（2025-12-31）
+- ✅ **数据备份功能修复**：修复三个问题
+  - 备份创建时间显示本地时间而非 UTC
+  - 备份文件名简化为日期格式（YYYY-MM-DD）
+  - 修复备份恢复的 UNSAFE_TRANSACTION 错误
+
 ### 当前状态
 - 🟢 构建正常，无 TypeScript 错误
 - 🟢 Docker 容器部署成功，应用运行正常
-- 🟢 数据库读写权限正常
+- 🟢 PostgreSQL 数据库运行正常
 - 🟢 CSS 静态资源加载正常
 - 🟢 所有核心功能正常运行
 - 🟢 学期数据隔离功能完成
@@ -561,7 +573,32 @@
 
 ## 文件结构
 
-```
+``` ✓ Compiled /api/database/connections in 278ms (1185 modules)
+获取数据库连接失败: Error: Failed query: select "database_connections"."id", "database_connections"."name", "database_connections"."connection_string_encrypted", "database_connections"."environment", "database_connections"."is_active", "database_connections"."description", "database_connections"."created_by", "database_connections"."created_at", "database_connections"."updated_at", "database_connections"."last_switched_at", "database_connections"."last_switched_by", "database_connections"."connection_test_status", "database_connections"."connection_test_message", "database_connections"."connection_test_at", "users"."real_name", "users"."real_name" from "database_connections" left join "users" on "database_connections"."created_by" = "users"."id" order by "database_connections"."created_at" desc
+params:
+    at async getConnections (lib/api/database.ts:19:23)
+    at async GET (app/api/database/connections/route.ts:26:25)
+  17 |  */
+  18 | export async function getConnections(): Promise<DatabaseConnectionWithDetails[]> {
+> 19 |   const connections = await db
+     |                       ^
+  20 |     .select({
+  21 |       id: databaseConnections.id,
+  22 |       name: databaseConnections.name, {
+  query: 'select "database_connections"."id", "database_connections"."name", "database_connections"."connection_string_encrypted", "database_connections"."environment", "database_connections"."is_active", "database_connections"."description", "database_connections"."created_by", "database_connections"."created_at", "database_connections"."updated_at", "database_connections"."last_switched_at", "database_connections"."last_switched_by", "database_connections"."connection_test_status", "database_connections"."connection_test_message", "database_connections"."connection_test_at", "users"."real_name", "users"."real_name" from "database_connections" left join "users" on "database_connections"."created_by" = "users"."id" order by "database_connections"."created_at" desc',
+  params: [],
+  [cause]: [Error [PostgresError]: relation "database_connections" does not exist] {
+    severity_local: 'ERROR',
+    severity: 'ERROR',
+    code: '42P01',
+    position: '621',
+    file: 'parse_relation.c',
+    line: '1466',
+    routine: 'parserOpenTable'
+  }
+}
+ GET /api/database/connections 500 in 590ms
+
 student_leave/
 ├── app/                          # Next.js App Router
 │   ├── (auth)/                  # 认证路由组
