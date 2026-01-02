@@ -8,7 +8,7 @@ import { hasPermission, PERMISSIONS } from "@/lib/constants";
  */
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const currentUser = await getCurrentUser();
@@ -20,7 +20,8 @@ export async function PUT(
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
-    const notificationId = parseInt(params.id, 10);
+    const { id } = await params;
+    const notificationId = parseInt(id, 10);
     const result = await markNotificationAsRead(notificationId, currentUser.id);
 
     if (!result.success) {

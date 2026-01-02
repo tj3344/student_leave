@@ -22,8 +22,11 @@ import {
 import { NOTIFICATION_TYPE_NAMES } from "@/lib/constants";
 
 // 懒加载组件
-const NotificationList = dynamic(
-  () => import("@/components/NotificationList").then((m) => ({ default: m.NotificationList })),
+const ClassTeacherNotificationList = dynamic(
+  () =>
+    import("@/components/ClassTeacherNotificationList").then(
+      (m) => ({ default: m.ClassTeacherNotificationList })
+    ),
   { ssr: false }
 );
 
@@ -207,13 +210,10 @@ export default function ClassTeacherNotificationsPage() {
       </div>
 
       {/* 通知列表 */}
-      <NotificationList
+      <ClassTeacherNotificationList
         notifications={notifications}
         loading={loading}
         onRefresh={fetchData}
-        showSender={true}
-        showReceiver={false}
-        canDelete={true}
       />
     </div>
   );

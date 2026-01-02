@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, RefreshCw, Search, Bell } from "lucide-react";
+import { Plus, RefreshCw, Search, Bell, Trash2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { NotificationBatch, PaginatedResponse } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -32,10 +32,19 @@ const NotificationBatchCard = dynamic(
   { ssr: false }
 );
 
+const NotificationCleanupDialog = dynamic(
+  () =>
+    import("@/components/admin/NotificationCleanupDialog").then(
+      (m) => ({ default: m.NotificationCleanupDialog })
+    ),
+  { ssr: false }
+);
+
 export default function NotificationsPage() {
   const [batches, setBatches] = useState<NotificationBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [cleanupDialogOpen, setCleanupDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [pagination, setPagination] = useState({
@@ -86,6 +95,10 @@ export default function NotificationsPage() {
     fetchNotifications(1);
   };
 
+  const handleCleanupSuccess = () => {
+    fetchNotifications(1);
+  };
+
   const handlePageChange = (newPage: number) => {
     if (newPage >= 1 && newPage <= pagination.totalPages) {
       fetchNotifications(newPage);
@@ -105,10 +118,16 @@ export default function NotificationsPage() {
             查看和管理发送给班主任的通知 · 共 {pagination.total} 条批次
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          发送通知
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setCleanupDialogOpen(true)}>
+            <Trash2 className="mr-2 h-4 w-4" />
+            清理通知
+          </Button>
+          <Button onClick={() => setDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            发送通知
+          </Button>
+        </div>
       </div>
 
       {/* 筛选栏 */}
@@ -194,6 +213,9 @@ export default function NotificationsPage() {
 
       {/* 发送通知对话框 */}
       <NotificationSendDialog open={dialogOpen} onClose={handleDialogClose} onSuccess={handleDialogSuccess} />
+
+      {/* 清理通知对话框 */}
+      <NotificationCleanupDialog open={cleanupDialogOpen} onClose={() => setCleanupDialogOpen(false)} onSuccess={handleCleanupSuccess} />
     </div>
   );
 }
