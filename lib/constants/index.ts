@@ -146,6 +146,13 @@ export const PERMISSIONS = {
 
   // 数据库管理
   DATABASE_MANAGE: "database:manage",
+
+  // 通知管理
+  NOTIFICATION_CREATE: "notification:create",
+  NOTIFICATION_READ: "notification:read",
+  NOTIFICATION_SEND: "notification:send",
+  NOTIFICATION_MARK_READ: "notification:mark_read",
+  NOTIFICATION_DELETE: "notification:delete",
 } as const;
 
 // 角色权限映射
@@ -157,6 +164,8 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     PERMISSIONS.LEAVE_READ,
     PERMISSIONS.SEMESTER_READ,
     PERMISSIONS.SYSTEM_CONFIG_READ,
+    PERMISSIONS.NOTIFICATION_READ,
+    PERMISSIONS.NOTIFICATION_MARK_READ,
   ],
   class_teacher: [
     PERMISSIONS.STUDENT_READ,
@@ -171,6 +180,9 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     PERMISSIONS.LEAVE_EXPORT,
     PERMISSIONS.STUDENT_EXPORT,
     PERMISSIONS.SYSTEM_CONFIG_READ,
+    PERMISSIONS.NOTIFICATION_READ,
+    PERMISSIONS.NOTIFICATION_MARK_READ,
+    PERMISSIONS.NOTIFICATION_DELETE,
   ],
 };
 
@@ -205,6 +217,7 @@ export const OPERATION_MODULES = {
   SYSTEM: "system",
   AUTH: "auth",
   BACKUP: "backup",
+  NOTIFICATIONS: "notifications",
 } as const;
 
 export const MODULE_NAMES: Record<string, string> = {
@@ -218,6 +231,7 @@ export const MODULE_NAMES: Record<string, string> = {
   system: "系统设置",
   auth: "认证系统",
   backup: "数据备份",
+  notifications: "通知管理",
 };
 
 export const OPERATION_ACTIONS = {
@@ -249,3 +263,28 @@ export const ACTION_NAMES: Record<string, string> = {
   approve: "批准",
   reject: "拒绝",
 };
+
+// ============================================
+// 通知相关常量
+// ============================================
+
+export const NOTIFICATION_TYPES = {
+  SYSTEM: "system",
+  ANNOUNCEMENT: "announcement",
+  REMINDER: "reminder",
+  WARNING: "warning",
+} as const;
+
+export const NOTIFICATION_TYPE_NAMES: Record<string, string> = {
+  system: "系统通知",
+  announcement: "公告通知",
+  reminder: "提醒通知",
+  warning: "警告通知",
+};
+
+export const NOTIFICATION_TYPE_COLORS: Record<string, string> = {
+  system: "secondary",
+  announcement: "default",
+  reminder: "info",
+  warning: "destructive",
+} as const;

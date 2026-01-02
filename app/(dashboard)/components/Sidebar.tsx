@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -20,6 +20,7 @@ import {
   Home,
   KeyRound,
   ChevronUp,
+  Bell,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -28,6 +29,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
 import { ROLE_NAMES } from "@/lib/constants";
 import { ChangePasswordDialog } from "@/components/auth/ChangePasswordDialog";
 
@@ -44,6 +46,7 @@ const navigation = [
       { name: "班级学生", href: "/class-teacher/students", icon: Users, roles: ["class_teacher"] },
       { name: "请假管理", href: "/class-teacher/leaves", icon: ClipboardList, roles: ["class_teacher"] },
       { name: "退费记录", href: "/class-teacher/refunds", icon: Receipt, roles: ["class_teacher"] },
+      { name: "通知中心", href: "/class-teacher/notifications", icon: Bell, roles: ["class_teacher"], showBadge: true },
     ],
   },
   {
@@ -72,6 +75,12 @@ const navigation = [
     ],
   },
   {
+    category: "通知管理",
+    items: [
+      { name: "发送通知", href: "/admin/notifications", icon: Bell, roles: ["admin"] },
+    ],
+  },
+  {
     category: "系统功能",
     items: [
       { name: "数据备份", href: "/admin/backup", icon: Database, roles: ["admin"] },
@@ -88,6 +97,28 @@ interface SidebarProps {
 export function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname();
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // 获取未读通知数量
+  useEffect(() => {
+    const fetchUnreadCount = async () => {
+      try {
+        const response = await fetch("/api/notifications/stats");
+        if (response.ok) {
+          const data = await response.json();
+          setUnreadCount(data.data?.unread || 0);
+        }
+      } catch (error) {
+        console.error("Fetch unread count error:", error);
+      }
+    };
+
+    fetchUnreadCount();
+
+    // 每30秒刷新一次未读数量
+    const interval = setInterval(fetchUnreadCount, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
   const handleLogout = async () => {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -130,6 +161,7 @@ export function Sidebar({ user }: SidebarProps) {
                   );
                   const isActive = (pathname === item.href || pathname.startsWith(item.href + "/")) && !hasMoreSpecificMatch;
                   const Icon = item.icon;
+                  const showBadge = (item as any).showBadge && unreadCount > 0;
 
                   return (
                     <Link
@@ -143,8 +175,21 @@ export function Sidebar({ user }: SidebarProps) {
                           : "text-muted-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:scale-[1.01]"
                       )}
                     >
-                      <Icon className="h-4 w-4" />
-                      {item.name}
+                      <div className="relative">
+                        <Icon className="h-4 w-4" />
+                        {showBadge && (
+                          <span className="absolute -top-1 -right-1 h-2 w-2 rounded-full bg-red-500 animate-pulse"></span>
+                        )}
+                      </div>
+                      <span className="flex-1">{item.name}</span>
+                      {showBadge && (
+                        <Badge
+                          variant="destructive"
+                          className="h-5 min-w-5 px-1 text-xs flex items-center justify-center"
+                        >
+                          {unreadCount > 99 ? "99+" : unreadCount}
+                        </Badge>
+                      )}
                     </Link>
                   );
                 })}

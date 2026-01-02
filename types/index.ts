@@ -604,6 +604,8 @@ export interface UpgradePreview {
 // ============================================
 
 export type DatabaseEnvironment = "production" | "staging" | "development";
+
+export type DatabaseEnvironment = "production" | "staging" | "development";
 export type DatabaseConnectionTestStatus = "success" | "failed" | "pending";
 export type DatabaseSwitchType = "switch" | "rollback";
 export type DatabaseSwitchStatus = "success" | "failed" | "rollback";
@@ -705,4 +707,56 @@ export interface DatabaseMigrationResult {
     validationPassed: boolean;
   };
   error?: string;
+}
+
+// ============================================
+// 通知相关类型
+// ============================================
+
+export type NotificationType = "system" | "announcement" | "reminder" | "warning";
+
+export interface Notification {
+  id: number;
+  sender_id: number;
+  receiver_id: number;
+  title: string;
+  content: string;
+  type: NotificationType;
+  is_read: boolean;
+  read_at?: string;
+  created_at: string;
+}
+
+export interface NotificationInput {
+  receiver_id: number;
+  title: string;
+  content: string;
+  type?: NotificationType;
+}
+
+export interface NotificationCreateBatch {
+  receiver_ids: number[];
+  title: string;
+  content: string;
+  type?: NotificationType;
+}
+
+export interface NotificationWithDetails extends Notification {
+  sender_name?: string;
+  sender_real_name?: string;
+  receiver_name?: string;
+  receiver_real_name?: string;
+}
+
+export interface NotificationStats {
+  total: number;
+  unread: number;
+  byType: Record<NotificationType, number>;
+}
+
+export interface NotificationClassTeacher {
+  id: number;
+  real_name: string;
+  username: string;
+  class_name?: string;
 }

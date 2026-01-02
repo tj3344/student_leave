@@ -13,6 +13,7 @@ export { backupRecords } from "./backup-records";
 export { backupConfig } from "./backup-config";
 export { databaseConnections } from "./database-connections";
 export { databaseSwitchHistory } from "./database-switch-history";
+export { notifications } from "./notifications";
 
 // Type exports
 export type { User, NewUser } from "./users";
@@ -28,3 +29,4 @@ export type { BackupRecord, NewBackupRecord } from "./backup-records";
 export type { BackupConfig, NewBackupConfig } from "./backup-config";
 export type { DatabaseConnection, NewDatabaseConnection } from "./database-connections";
 export type { DatabaseSwitchHistory, NewDatabaseSwitchHistory } from "./database-switch-history";
+export type { Notification, NewNotification } from "./notifications";

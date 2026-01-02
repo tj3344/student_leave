@@ -172,6 +172,7 @@ export async function initializeDatabaseSchema(connectionString: string): Promis
  */
 async function dropAllTables(client: postgres.Sql): Promise<void> {
   const tablesToDrop = [
+    "notifications",
     "database_switch_history",
     "database_connections",
     "backup_config",
@@ -306,6 +307,19 @@ async function createAllTables(client: postgres.Sql): Promise<void> {
       module TEXT NOT NULL,
       description TEXT,
       ip_address TEXT,
+      created_at TIMESTAMP NOT NULL
+    )`,
+
+    // 通知表
+    `CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      sender_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+      receiver_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      type TEXT NOT NULL,
+      is_read BOOLEAN NOT NULL DEFAULT false,
+      read_at TIMESTAMP,
       created_at TIMESTAMP NOT NULL
     )`,
 
