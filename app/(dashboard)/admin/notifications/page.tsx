@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { Plus, RefreshCw, Search, Bell } from "lucide-react";
 import dynamic from "next/dynamic";
-import type { NotificationWithDetails } from "@/types";
+import type { NotificationBatch, PaginatedResponse } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,26 +24,49 @@ const NotificationSendDialog = dynamic(
   { ssr: false }
 );
 
+const NotificationBatchCard = dynamic(
+  () =>
+    import("@/components/admin/NotificationBatchCard").then(
+      (m) => ({ default: m.NotificationBatchCard })
+    ),
+  { ssr: false }
+);
+
 export default function NotificationsPage() {
-  const [notifications, setNotifications] = useState<NotificationWithDetails[]>([]);
+  const [batches, setBatches] = useState<NotificationBatch[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+  });
 
-  const fetchNotifications = async () => {
+  const fetchNotifications = async (page = 1) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (searchQuery) params.append("search", searchQuery);
       if (typeFilter) params.append("type", typeFilter);
+      params.append("page", page.toString());
+      params.append("limit", pagination.limit.toString());
       params.append("sort", "created_at");
       params.append("order", "desc");
 
-      // 使用管理员发送通知列表 API
+      // 使用管理员发送通知批次列表 API
       const response = await fetch(`/api/admin/sent-notifications?${params.toString()}`);
-      const data = await response.json();
-      setNotifications(data.data || []);
+      const data: PaginatedResponse<NotificationBatch> = await response.json();
+
+      setBatches(data.data || []);
+      setPagination({
+        page: data.page || 1,
+        limit: data.limit || 20,
+        total: data.total || 0,
+        totalPages: data.totalPages || 0,
+      });
     } catch (error) {
       console.error("Fetch notifications error:", error);
     } finally {
@@ -52,7 +75,7 @@ export default function NotificationsPage() {
   };
 
   useEffect(() => {
-    fetchNotifications();
+    fetchNotifications(1);
   }, [searchQuery, typeFilter]);
 
   const handleDialogClose = () => {
@@ -60,22 +83,13 @@ export default function NotificationsPage() {
   };
 
   const handleDialogSuccess = () => {
-    fetchNotifications();
+    fetchNotifications(1);
   };
 
-  const getNotificationTypeName = (type: string) => {
-    return NOTIFICATION_TYPE_NAMES[type] || type;
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleString("zh-CN", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      fetchNotifications(newPage);
+    }
   };
 
   return (
@@ -87,7 +101,9 @@ export default function NotificationsPage() {
             <Bell className="h-6 w-6" />
             通知管理
           </h1>
-          <p className="text-muted-foreground mt-1">管理发送给班主任的通知</p>
+          <p className="text-muted-foreground mt-1">
+            查看和管理发送给班主任的通知 · 共 {pagination.total} 条批次
+          </p>
         </div>
         <Button onClick={() => setDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
@@ -121,17 +137,17 @@ export default function NotificationsPage() {
             ))}
           </SelectContent>
         </Select>
-        <Button variant="outline" size="icon" onClick={fetchNotifications}>
+        <Button variant="outline" size="icon" onClick={() => fetchNotifications(1)}>
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
         </Button>
       </div>
 
-      {/* 通知列表 */}
+      {/* 通知批次列表 */}
       {loading ? (
         <div className="flex items-center justify-center py-12">
           <RefreshCw className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      ) : notifications.length === 0 ? (
+      ) : batches.length === 0 ? (
         <div className="text-center py-12">
           <Bell className="mx-auto h-12 w-12 text-muted-foreground/50" />
           <h3 className="mt-4 text-lg font-medium">暂无通知</h3>
@@ -140,37 +156,39 @@ export default function NotificationsPage() {
           </p>
         </div>
       ) : (
-        <div className="border rounded-lg divide-y">
-          {notifications.map((notification) => (
-            <div key={notification.id} className="p-4 hover:bg-muted/50 transition-colors">
-              <div className="flex items-start justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium">{notification.title}</span>
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-secondary text-secondary-foreground">
-                      {getNotificationTypeName(notification.type)}
-                    </span>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-2 line-clamp-2">
-                    {notification.content}
-                  </p>
-                  <div className="text-xs text-muted-foreground space-x-2">
-                    <span>接收人：{notification.receiver_real_name || notification.receiver_name}</span>
-                    <span>|</span>
-                    <span>{formatDate(notification.created_at)}</span>
-                    <span>|</span>
-                    <span
-                      className={
-                        notification.is_read ? "text-green-600" : "text-orange-600 font-medium"
-                      }
-                    >
-                      {notification.is_read ? "已读" : "未读"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
+        <div className="space-y-3">
+          {batches.map((batch) => (
+            <NotificationBatchCard
+              key={batch.batch_id}
+              batch={batch}
+              onRefresh={() => fetchNotifications(pagination.page)}
+            />
           ))}
+        </div>
+      )}
+
+      {/* 分页 */}
+      {pagination.totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(pagination.page - 1)}
+            disabled={pagination.page === 1}
+          >
+            上一页
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            第 {pagination.page} / {pagination.totalPages} 页
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(pagination.page + 1)}
+            disabled={pagination.page === pagination.totalPages}
+          >
+            下一页
+          </Button>
         </div>
       )}
 

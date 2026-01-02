@@ -12,6 +12,7 @@ import type {
   NotificationWithDetails,
   NotificationStats,
   NotificationClassTeacher,
+  NotificationBatch,
   PaginationParams,
   PaginatedResponse,
 } from "@/types";
@@ -384,4 +385,161 @@ export async function getAllClassTeachersForNotification(): Promise<
      ORDER BY u.real_name`
   );
   return result;
+}
+
+/**
+ * 获取管理员发送的聚合通知批次（分页）
+ * 将批量发送给多个班主任的通知聚合为一条记录
+ */
+export async function getSentNotificationBatches(
+  senderId: number,
+  params: PaginationParams & {
+    type?: string;
+  }
+): Promise<PaginatedResponse<NotificationBatch>> {
+  const pgClient = getRawPostgres();
+  const page = params.page || 1;
+  const limit = params.limit || 20;
+  const offset = (page - 1) * limit;
+
+  // 构建查询条件
+  let whereClause = "WHERE n.sender_id = $1";
+  const queryParams: (string | number)[] = [senderId];
+  let paramIndex = 2;
+
+  if (params.search) {
+    whereClause +=
+      " AND (n.title ILIKE $" +
+      (paramIndex++) +
+      " OR n.content ILIKE $" +
+      (paramIndex++) +
+      ")";
+    const searchTerm = `%${params.search}%`;
+    queryParams.push(searchTerm, searchTerm);
+  }
+
+  if (params.type) {
+    whereClause += " AND n.type = $" + paramIndex++;
+    queryParams.push(params.type);
+  }
+
+  // 获取批次总数（按内容分组后计数）
+  const countQuery = `
+    SELECT COUNT(*) as count
+    FROM (
+      SELECT title, content, type, DATE_TRUNC('minute', created_at) as batch_time
+      FROM notifications n
+      ${whereClause}
+      GROUP BY title, content, type, DATE_TRUNC('minute', created_at)
+    ) as batches
+  `;
+  const countResult = (await pgClient.unsafe(countQuery, queryParams)) as {
+    count: number;
+  }[];
+  const total = countResult[0]?.count || 0;
+
+  // 获取批次列表
+  const batchesQuery = `
+    SELECT
+      title,
+      content,
+      type,
+      DATE_TRUNC('minute', created_at) as batch_time,
+      MAX(created_at) as created_at,
+      COUNT(*) as receiver_count,
+      SUM(CASE WHEN is_read = true THEN 1 ELSE 0 END) as read_count
+    FROM notifications n
+    ${whereClause}
+    GROUP BY title, content, type, DATE_TRUNC('minute', created_at)
+    ORDER BY MAX(created_at) DESC
+    LIMIT $${paramIndex++} OFFSET $${paramIndex++}
+  `;
+  queryParams.push(limit, offset);
+  const batches = (await pgClient.unsafe(batchesQuery, queryParams)) as Array<{
+    title: string;
+    content: string;
+    type: string;
+    batch_time: Date;
+    created_at: Date;
+    receiver_count: number;
+    read_count: number;
+  }>;
+
+  // 为每个批次获取接收者详细信息
+  const result: NotificationBatch[] = [];
+  for (const batch of batches) {
+    // 生成批次 ID（使用内容哈希 + 时间戳）
+    // batch_time 可能是 Date 对象或字符串，需要安全处理
+    const batchTime = batch.batch_time instanceof Date
+      ? batch.batch_time
+      : new Date(batch.batch_time);
+    const batchId = `${batch.title}-${batch.content}-${batch.type}-${batchTime.getTime()}`;
+
+    // 获取该批次的所有接收者信息
+    const receiversQuery = `
+      SELECT
+        n.receiver_id as id,
+        u.real_name,
+        u.username,
+        c.name as class_name,
+        n.is_read,
+        n.read_at
+      FROM notifications n
+      LEFT JOIN users u ON n.receiver_id = u.id
+      LEFT JOIN classes c ON u.id = c.class_teacher_id
+      WHERE n.sender_id = $1
+        AND n.title = $2
+        AND n.content = $3
+        AND n.type = $4
+        AND DATE_TRUNC('minute', n.created_at) = $5
+      ORDER BY n.is_read DESC, n.read_at DESC NULLS LAST, u.real_name
+    `;
+    const receivers = (await pgClient.unsafe(receiversQuery, [
+      senderId,
+      batch.title,
+      batch.content,
+      batch.type,
+      batch.batch_time,
+    ])) as Array<{
+      id: number;
+      real_name: string;
+      username: string;
+      class_name?: string;
+      is_read: boolean;
+      read_at?: Date;
+    }>;
+
+    result.push({
+      batch_id: batchId,
+      sender_id: senderId,
+      title: batch.title,
+      content: batch.content,
+      type: batch.type as any,
+      created_at: batch.created_at instanceof Date
+        ? batch.created_at.toISOString()
+        : new Date(batch.created_at).toISOString(),
+      receiver_count: batch.receiver_count,
+      read_count: batch.read_count,
+      receivers: receivers.map((r) => ({
+        id: r.id,
+        real_name: r.real_name,
+        username: r.username,
+        class_name: r.class_name,
+        is_read: r.is_read,
+        read_at: r.read_at instanceof Date
+          ? r.read_at.toISOString()
+          : r.read_at
+          ? new Date(r.read_at).toISOString()
+          : undefined,
+      })),
+    });
+  }
+
+  return {
+    data: result,
+    total,
+    page,
+    limit,
+    totalPages: Math.ceil(total / limit),
+  };
 }

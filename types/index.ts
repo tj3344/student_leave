@@ -760,3 +760,23 @@ export interface NotificationClassTeacher {
   username: string;
   class_name?: string;
 }
+
+// 管理员查看的聚合通知类型（批量发送的通知合并显示）
+export interface NotificationBatch {
+  batch_id: string;  // 标识一组通知
+  sender_id: number;
+  title: string;
+  content: string;
+  type: NotificationType;
+  created_at: string;
+  receiver_count: number;
+  read_count: number;
+  receivers: Array<{
+    id: number;
+    real_name: string;
+    username: string;
+    class_name?: string;
+    is_read: boolean;
+    read_at?: string;
+  }>;
+}
