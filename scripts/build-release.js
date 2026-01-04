@@ -83,6 +83,11 @@ async function main() {
       throw new Error('standalone 输出不存在，请检查 next.config.ts 中的 output 配置');
     }
     copyDir(standalonePath, DIST);
+    // 删除自动复制的 .env 文件（包含敏感信息）
+    const distEnv = path.join(DIST, '.env');
+    if (fs.existsSync(distEnv)) {
+      fs.unlinkSync(distEnv);
+    }
     log.success('已复制 standalone 运行时');
 
     // 修正 dist/package.json 的启动脚本为 standalone 模式
@@ -132,9 +137,6 @@ echo "启动学生请假管理系统..."
 echo "环境: \$NODE_ENV"
 echo "端口: \$PORT"
 
-# 创建数据目录
-mkdir -p data
-
 # 启动服务器
 node server.js
 `;
@@ -157,9 +159,6 @@ echo 启动学生请假管理系统...
 echo 环境: %NODE_ENV%
 echo 端口: %PORT%
 
-REM 创建数据目录
-if not exist data mkdir data
-
 REM 启动服务器
 node server.js
 `;
@@ -172,11 +171,17 @@ NODE_ENV=production
 # 服务端口
 PORT=3000
 
-# 数据库配置
-DATABASE_PATH=./data/student_leave.db
+# PostgreSQL 数据库连接（必需）
+POSTGRES_URL=postgresql://postgres:password@localhost:5432/student_leave
 
-# 可选：会话密钥 (生产环境请修改为随机字符串)
-# SESSION_SECRET=your-secret-key-here
+# 数据库加密密钥（必需）
+DB_ENCRYPTION_KEY=your-32-character-hex-key-here
+
+# 会话密钥（生产环境请修改为随机字符串）
+SESSION_SECRET=your-secret-key-change-this-in-production
+
+# 应用 URL
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 `;
     fs.writeFileSync(path.join(DIST, '.env.example'), envExample);
 
@@ -232,7 +237,6 @@ dist/
 │   └── static/        # 静态资源
 ├── lib/db/            # 数据库层
 ├── public/            # 公共静态资源
-├── data/              # 数据库目录（运行时创建）
 ├── start.sh           # Linux/Mac 启动脚本
 ├── start.bat          # Windows 启动脚本
 └── .env.example       # 环境变量模板
@@ -244,12 +248,15 @@ dist/
 |------|------|--------|
 | \`NODE_ENV\` | 运行环境 | production |
 | \`PORT\` | 服务端口 | 3000 |
-| \`DATABASE_PATH\` | SQLite 数据库路径 | ./data/student_leave.db |
+| \`POSTGRES_URL\` | PostgreSQL 数据库连接 | - |
+| \`DB_ENCRYPTION_KEY\` | 数据库加密密钥 | - |
+| \`SESSION_SECRET\` | 会话密钥 | - |
+| \`NEXT_PUBLIC_APP_URL\` | 应用 URL | http://localhost:3000 |
 
 ## 注意事项
 
 1. **Node.js 版本**: 需要 Node.js >= 18
-2. **数据库**: SQLite 数据库会在首次运行时自动创建
+2. **数据库**: 需要预先配置好 PostgreSQL 数据库
 3. **端口**: 确保配置的端口未被占用
 4. **权限**: Linux/Mac 确保 \`start.sh\` 有执行权限
 
@@ -265,11 +272,11 @@ dist/
 lsof -i :3000
 \`\`\`
 
-### 数据库错误
-\`\`\`bash
-# 删除旧数据库重新初始化
-rm -f data/student_leave.db
-\`\`\`
+### 数据库连接错误
+请检查：
+1. PostgreSQL 服务是否正在运行
+2. \`POSTGRES_URL\` 配置是否正确
+3. 数据库是否已创建
 
 ### 日志查看
 服务器日志会直接输出到终端，包含启动信息和错误提示。
