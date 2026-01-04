@@ -12,16 +12,19 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      - DATABASE_PATH=/app/data/student_leave.db
+      # PostgreSQL 连接（使用宿主机地址）
+      - POSTGRES_URL=${POSTGRES_URL}
+      - DB_ENCRYPTION_KEY=${DB_ENCRYPTION_KEY}
       - SESSION_SECRET=${SESSION_SECRET:-change-this-secret-key-in-production}
-      - BACKUP_DIR=/app/data/backups
       - MAX_FILE_SIZE=10485760
       - NEXT_PUBLIC_APP_URL=${APP_URL:-http://localhost:3000}
     volumes:
-      # 持久化数据库和备份文件
-      - ./data:/app/data
       # 日志目录
       - ./logs:/app/logs
+    # 使用 host 网络模式访问宿主机 PostgreSQL
+    # 如果使用独立 PostgreSQL 容器，请注释掉下面这行
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - student-leave-network
     healthcheck:
@@ -39,6 +42,30 @@ services:
         reservations:
           cpus: '0.5'
           memory: 512M
+
+  # PostgreSQL 数据库（可选，如果不使用宿主机 PostgreSQL）
+  postgres:
+    image: postgres:16-alpine
+    container_name: student-leave-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-student_leave}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB:-student_leave}
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - student-leave-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-student_leave} -d ${POSTGRES_DB:-student_leave}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - with-postgres
 
   # Nginx 反向代理（可选）
   nginx:
@@ -64,4 +91,4 @@ networks:
     driver: bridge
 
 volumes:
-  student-leave-data:
+  postgres-data:
