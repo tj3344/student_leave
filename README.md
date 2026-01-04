@@ -16,6 +16,8 @@
 - ✅ 自动计算退费金额
 - ✅ 营养餐学生管理
 - ✅ 学期/年级/班级管理
+- ✅ 通知系统（批量发送、聚合显示、自动已读）
+- ✅ 多数据库连接管理
 - ✅ 数据备份与恢复
 - ✅ 操作日志记录
 - ✅ 统计报表
@@ -160,10 +162,16 @@ lsof -i :3000
 PORT=3001 npm start
 ```
 
-### 数据库锁定
+### PostgreSQL 连接问题
 ```bash
-# 删除 WAL 文件（确保没有进程在使用数据库）
-rm data/student_leave.db-wal data/student_leave.db-shm
+# 检查 PostgreSQL 服务状态
+sudo systemctl status postgresql
+
+# 检查数据库连接
+psql -h localhost -U postgres -d student_leave
+
+# 查看表是否存在
+psql -U postgres -d student_leave -c "\dt"
 ```
 
 ## 许可证

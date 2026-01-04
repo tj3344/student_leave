@@ -459,6 +459,63 @@ pg_dump -h localhost -U postgres -d student_leave > backups/student-leave-$(date
 pg_dump -h localhost -U postgres -d student_leave -F c -f backups/student-leave-$(date +%Y%m%d-%H%M%S).dump
 ```
 
+#### 多数据库备份
+
+如果系统配置了多个数据库连接，需要分别备份：
+
+##### 使用系统备份功能
+1. 进入"数据库管理"页面
+2. 切换到目标数据库
+3. 进入"数据备份"页面
+4. 创建备份
+
+##### 手动备份多个数据库
+```bash
+# 备份不同的数据库
+pg_dump -h host1 -U postgres -d student_leave_db1 > backups/db1-$(date +%Y%m%d).sql
+pg_dump -h host2 -U postgres -d student_leave_db2 > backups/db2-$(date +%Y%m%d).sql
+
+# 或使用自定义格式
+pg_dump -h host1 -U postgres -d student_leave_db1 -F c -f backups/db1-$(date +%Y%m%d).dump
+pg_dump -h host2 -U postgres -d student_leave_db2 -F c -f backups/db2-$(date +%Y%m%d).dump
+```
+
+##### 多数据库备份脚本
+```bash
+#!/bin/bash
+# 多数据库备份脚本
+BACKUP_DIR="/opt/backups/student-leave"
+DATE=$(date +%Y%m%d-%H%M%S)
+
+# 定义多个数据库连接
+declare -A DB_CONNECTIONS=(
+    ["production"]="host1:5432:student_leave_prod:postgres"
+    ["staging"]="host2:5432:student_leave_staging:postgres"
+    ["development"]="localhost:5432:student_leave_dev:postgres"
+)
+
+mkdir -p $BACKUP_DIR
+
+for NAME in "${!DB_CONNECTIONS[@]}"; do
+    IFS=':' read -r HOST PORT DB USER <<< "${DB_CONNECTIONS[$NAME]}"
+    echo "Backing up $NAME..."
+
+    pg_dump -h $HOST -p $PORT -U $USER -d $DB -F c \
+        -f "$BACKUP_DIR/$NAME-$DATE.dump"
+
+    if [ $? -eq 0 ]; then
+        echo "Backup successful: $NAME-$DATE.dump"
+    else
+        echo "Backup failed: $NAME"
+    fi
+done
+
+# 保留最近 30 天的备份
+find $BACKUP_DIR -name "*.dump" -mtime +30 -delete
+
+echo "All backups completed!"
+```
+
 #### 数据库恢复
 ```bash
 # 方式一：使用系统恢复页面
