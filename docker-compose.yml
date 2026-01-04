@@ -12,7 +12,7 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      # PostgreSQL 连接（使用宿主机地址）
+      # PostgreSQL 连接
       - POSTGRES_URL=${POSTGRES_URL}
       - DB_ENCRYPTION_KEY=${DB_ENCRYPTION_KEY}
       - SESSION_SECRET=${SESSION_SECRET:-change-this-secret-key-in-production}
@@ -21,12 +21,10 @@ services:
     volumes:
       # 日志目录
       - ./logs:/app/logs
-    # 使用 host 网络模式访问宿主机 PostgreSQL
-    # 如果使用独立 PostgreSQL 容器，请注释掉下面这行
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     networks:
       - student-leave-network
+      # 加入外部网络以访问独立 PostgreSQL 容器
+      - ${POSTGRES_NETWORK_NAME:-postgres-network}
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
       interval: 30s
@@ -43,7 +41,7 @@ services:
           cpus: '0.5'
           memory: 512M
 
-  # PostgreSQL 数据库（可选，如果不使用宿主机 PostgreSQL）
+  # PostgreSQL 数据库（可选，如果不使用外部 PostgreSQL）
   postgres:
     image: postgres:16-alpine
     container_name: student-leave-postgres
@@ -89,6 +87,10 @@ services:
 networks:
   student-leave-network:
     driver: bridge
+  # 外部 PostgreSQL 网络（如果使用独立 PostgreSQL 容器）
+  ${POSTGRES_NETWORK_NAME:-postgres-network}:
+    external: true
+    name: ${POSTGRES_NETWORK_NAME:-postgres-network}
 
 volumes:
   postgres-data:
