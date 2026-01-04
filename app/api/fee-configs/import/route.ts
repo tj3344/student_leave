@@ -5,6 +5,7 @@ import {
   getClassIdByNames,
 } from "@/lib/api/fees";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
+import { checkImportRateLimit, getClientIp } from "@/lib/utils/rate-limit";
 import type { FeeConfigImportRow, FeeConfigInput } from "@/types";
 
 /**
@@ -22,12 +23,60 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
+    // 检查速率限制
+    const clientIp = getClientIp(request);
+    const rateLimitCheck = checkImportRateLimit(currentUser.id, clientIp);
+    if (!rateLimitCheck.allowed) {
+      return NextResponse.json(
+        { error: rateLimitCheck.error || "请求过于频繁，请稍后重试" },
+        { status: 429 }
+      );
+    }
+
     // 解析请求体
     const body = await request.json();
     const { feeConfigs } = body as { feeConfigs: FeeConfigImportRow[] };
 
     if (!Array.isArray(feeConfigs) || feeConfigs.length === 0) {
       return NextResponse.json({ error: "费用配置数据不能为空" }, { status: 400 });
+    }
+
+    // 检测 Excel 内部的重复数据（学期+年级+班级组合）
+    const classKeyMap = new Map<string, number>();
+    const duplicateErrors: Array<{ row: number; message: string }> = [];
+
+    for (let i = 0; i < feeConfigs.length; i++) {
+      const row = feeConfigs[i];
+      const rowNum = i + 1;
+      const semesterName = row.semester_name?.trim();
+      const gradeName = row.grade_name?.trim();
+      const className = row.class_name?.trim();
+
+      if (semesterName && gradeName && className) {
+        // 创建唯一键：学期+年级+班级
+        const uniqueKey = `${semesterName}_${gradeName}_${className}`;
+
+        if (classKeyMap.has(uniqueKey)) {
+          const firstRow = classKeyMap.get(uniqueKey);
+          duplicateErrors.push({
+            row: rowNum,
+            message: `费用配置 "${semesterName}-${gradeName}-${className}" 与第 ${firstRow} 行重复`
+          });
+        } else {
+          classKeyMap.set(uniqueKey, rowNum);
+        }
+      }
+    }
+
+    // 如果有重复数据，返回错误
+    if (duplicateErrors.length > 0) {
+      return NextResponse.json(
+        {
+          error: "检测到重复数据",
+          validationErrors: duplicateErrors,
+        },
+        { status: 400 }
+      );
     }
 
     // 转换和验证数据

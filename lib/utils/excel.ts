@@ -3,6 +3,229 @@ import type { ClassImportRow, StudentImportRow, UserImportRow, FeeConfigImportRo
 import { toFixedNumber } from './refund';
 
 /**
+ * Excel 安全配置
+ */
+const EXCEL_SECURITY = {
+  /** 最大文件大小（10MB） */
+  MAX_FILE_SIZE: 10 * 1024 * 1024,
+  /** 最大行数 */
+  MAX_ROWS: 10000,
+  /** 最大列数 */
+  MAX_COLUMNS: 50,
+  /** 是否允许公式（默认不允许） */
+  ALLOW_FORMULAS: false,
+} as const;
+
+/**
+ * Excel 文件魔数（Magic Number）
+ */
+const EXCEL_MAGIC_NUMBERS = {
+  /** xlsx 文件魔数（ZIP 格式） */
+  XLSX: [0x50, 0x4B, 0x03, 0x04],
+  /** xls 文件魔数（OLE 格式） */
+  XLS: [0xD0, 0xCF, 0x11, 0xE0],
+} as const;
+
+/**
+ * 检查单元格值是否包含公式
+ * @param value - 单元格值
+ * @returns 如果是公式返回 true
+ */
+export function isFormula(value: unknown): boolean {
+  if (typeof value !== 'string') {
+    return false;
+  }
+  // 检查是否以 = 开头（公式标识）
+  const trimmed = value.trim();
+  if (trimmed.startsWith('=')) {
+    return true;
+  }
+  // 检查其他可能的公式模式
+  // @ts-expect-error - 检查特殊对象类型
+  if (value && typeof value === 'object' && value.t === 'n' && value.f) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * 清理单元格值，移除潜在的恶意内容
+ * @param value - 单元格值
+ * @returns 清理后的值
+ */
+export function sanitizeCellValue(value: unknown): string {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  const strValue = String(value).trim();
+
+  // 如果是公式，移除公式前缀，只保留值
+  if (strValue.startsWith('=')) {
+    console.warn('[Excel Security] 检测到公式，已移除公式前缀:', strValue.substring(0, 20));
+    return '';
+  }
+
+  // 移除 HTML 标签（防止 XSS）
+  return strValue.replace(/<[^>]*>/g, '');
+}
+
+/**
+ * 验证 Excel 文件类型（通过魔数检查）
+ * @param file - 文件对象
+ * @returns 如果是有效的 Excel 文件返回 true
+ */
+export async function validateExcelFileType(file: File): Promise<{ valid: boolean; error?: string }> {
+  // 读取文件前几个字节
+  const buffer = await file.slice(0, 4).arrayBuffer();
+  const bytes = new Uint8Array(buffer);
+
+  // 检查是否是 xlsx 文件
+  const isXlsx = bytes[0] === EXCEL_MAGIC_NUMBERS.XLSX[0] &&
+                 bytes[1] === EXCEL_MAGIC_NUMBERS.XLSX[1] &&
+                 bytes[2] === EXCEL_MAGIC_NUMBERS.XLSX[2] &&
+                 bytes[3] === EXCEL_MAGIC_NUMBERS.XLSX[3];
+
+  // 检查是否是 xls 文件
+  const isXls = bytes[0] === EXCEL_MAGIC_NUMBERS.XLS[0] &&
+                bytes[1] === EXCEL_MAGIC_NUMBERS.XLS[1] &&
+                bytes[2] === EXCEL_MAGIC_NUMBERS.XLS[2] &&
+                bytes[3] === EXCEL_MAGIC_NUMBERS.XLS[3];
+
+  if (!isXlsx && !isXls) {
+    return {
+      valid: false,
+      error: '文件格式不正确，请上传有效的 Excel 文件（.xlsx 或 .xls）'
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * 安全地解析 Excel 行数据，过滤公式和清理数据
+ * @param rows - 原始行数据
+ * @returns 清理后的行数据
+ */
+export function sanitizeExcelRows<T extends Record<string, unknown>>(rows: T[]): T[] {
+  return rows.map(row => {
+    const sanitizedRow = {} as T;
+    for (const key in row) {
+      sanitizedRow[key] = sanitizeCellValue(row[key]) as T[keyof T];
+    }
+    return sanitizedRow;
+  });
+}
+
+/**
+ * 检查文件大小是否超过限制
+ * @param file - 文件对象
+ * @param maxSize - 最大文件大小（字节），默认 10MB
+ * @returns 如果文件大小合法返回 true
+ */
+export function validateFileSize(file: File, maxSize: number = EXCEL_SECURITY.MAX_FILE_SIZE): { valid: boolean; error?: string } {
+  if (file.size > maxSize) {
+    const maxSizeMB = (maxSize / 1024 / 1024).toFixed(0);
+    const fileSizeMB = (file.size / 1024 / 1024).toFixed(2);
+    return {
+      valid: false,
+      error: `文件大小（${fileSizeMB}MB）超过限制（${maxSizeMB}MB）`
+    };
+  }
+  return { valid: true };
+}
+
+/**
+ * 表头定义（用于验证）
+ */
+const HEADERS = {
+  /** 学生导入表头 */
+  STUDENT: ['学号*', '学生姓名*', '性别', '学期名称*', '年级名称*', '班级名称*', '出生日期', '家长姓名', '家长电话', '家庭住址', '是否营养餐', '入学日期'],
+  /** 班级导入表头 */
+  CLASS: ['学期名称*', '年级名称*', '班级名称*', '班主任姓名'],
+  /** 用户导入表头 */
+  USER: ['用户名*', '密码', '真实姓名*', '角色*', '电话', '邮箱'],
+  /** 费用配置导入表头 */
+  FEE_CONFIG: ['学期名称*', '年级名称*', '班级名称*', '餐费标准*', '预收天数*', '实收天数*', '停课天数*'],
+  /** 请假导入表头 */
+  LEAVE: ['学号*', '学生姓名*', '学期名称*', '年级名称*', '班级名称*', '开始日期*', '结束日期*', '请假天数*', '请假事由*'],
+} as const;
+
+/**
+ * 验证表头是否匹配
+ * @param actualHeaders - 实际的表头数组
+ * @param expectedHeaders - 预期的表头数组
+ * @param tolerance - 容忍度（允许不匹配的字段数量），默认 0
+ * @returns 验证结果
+ */
+export function validateHeaders(
+  actualHeaders: string[],
+  expectedHeaders: readonly string[],
+  tolerance: number = 0
+): { valid: boolean; missing?: string[]; extra?: string[] } {
+  const missing: string[] = [];
+  const extra: string[] = [];
+
+  // 检查缺失的必填字段（带*的）
+  const requiredFields = expectedHeaders.filter(h => h.endsWith('*'));
+  for (const required of requiredFields) {
+    if (!actualHeaders.includes(required)) {
+      missing.push(required);
+    }
+  }
+
+  // 检查额外的字段
+  for (const actual of actualHeaders) {
+    if (!expectedHeaders.includes(actual)) {
+      extra.push(actual);
+    }
+  }
+
+  // 计算不匹配的字段数量
+  const mismatchCount = missing.length + extra.length;
+
+  if (mismatchCount > tolerance) {
+    return {
+      valid: false,
+      missing: missing.length > 0 ? missing : undefined,
+      extra: extra.length > 0 ? extra : undefined,
+    };
+  }
+
+  return { valid: true };
+}
+
+/**
+ * 检测并跳过表头行
+ * @param rows - 原始行数据
+ * @param expectedHeaders - 预期的表头数组
+ * @returns 过滤后的数据行（不包含表头）
+ */
+export function skipHeaderRows<T extends Record<string, unknown>>(
+  rows: T[],
+  expectedHeaders: readonly string[]
+): T[] {
+  if (rows.length === 0) {
+    return rows;
+  }
+
+  // 获取第一行的键（表头）
+  const firstRowKeys = Object.keys(rows[0]);
+
+  // 检查第一行是否包含预期的表头
+  const headerMatchCount = expectedHeaders.filter(h => firstRowKeys.includes(h)).length;
+
+  // 如果匹配的字段数量超过预期字段数量的一半，认为是表头行
+  if (headerMatchCount >= expectedHeaders.length / 2) {
+    // 跳过第一行
+    return rows.slice(1);
+  }
+
+  // 如果不是表头行，返回所有行
+  return rows;
+}
+
+/**
  * 生成班级导入模板（包含示例数据）
  */
 export function generateClassTemplate(): XLSX.WorkBook {
@@ -21,9 +244,22 @@ export function generateClassTemplate(): XLSX.WorkBook {
 }
 
 /**
- * 解析上传的 Excel 文件
+ * 解析上传的班级 Excel 文件（带安全检查）
  */
 export async function parseClassExcel(file: File): Promise<ClassImportRow[]> {
+  // 验证文件大小
+  const sizeCheck = validateFileSize(file);
+  if (!sizeCheck.valid) {
+    throw new Error(sizeCheck.error);
+  }
+
+  // 验证文件类型（魔数检查）
+  const typeCheck = await validateExcelFileType(file);
+  if (!typeCheck.valid) {
+    throw new Error(typeCheck.error);
+  }
+
+  // 解析 Excel 文件
   const arrayBuffer = await file.arrayBuffer();
   const workbook = XLSX.read(arrayBuffer, { type: 'array' });
   const worksheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -31,14 +267,41 @@ export async function parseClassExcel(file: File): Promise<ClassImportRow[]> {
     defval: '',
   });
 
-  // 跳过表头行（如果第一列是"学期名称*"）
-  const filteredData = data.filter((row) => {
+  // 检查数据行数限制
+  if (data.length > EXCEL_SECURITY.MAX_ROWS) {
+    throw new Error(`数据行数（${data.length}）超过系统限制（${EXCEL_SECURITY.MAX_ROWS}行）`);
+  }
+
+  // 清理数据，过滤公式和 XSS
+  const sanitizedData = sanitizeExcelRows(data);
+
+  // 使用改进的表头检测逻辑
+  const filteredData = skipHeaderRows(sanitizedData, HEADERS.CLASS);
+
+  // 进一步过滤空行
+  const nonEmptyData = filteredData.filter((row) => {
     const firstKey = Object.keys(row)[0];
     const firstValue = String(row[firstKey as keyof ClassImportRow] || '');
-    return firstValue !== '学期名称*' && firstValue.trim() !== '';
+    return firstValue.trim() !== '';
   });
 
-  return filteredData;
+  // 验证表头（如果数据不为空）
+  if (nonEmptyData.length > 0) {
+    const actualHeaders = Object.keys(nonEmptyData[0]);
+    const headerValidation = validateHeaders(actualHeaders, HEADERS.CLASS, 1);
+    if (!headerValidation.valid) {
+      const errors: string[] = [];
+      if (headerValidation.missing) {
+        errors.push(`缺失必填字段: ${headerValidation.missing.join(', ')}`);
+      }
+      if (headerValidation.extra) {
+        errors.push(`多余字段: ${headerValidation.extra.join(', ')}`);
+      }
+      throw new Error(`表头验证失败: ${errors.join('; ')}`);
+    }
+  }
+
+  return nonEmptyData;
 }
 
 /**
@@ -128,9 +391,22 @@ export function generateStudentTemplate(): XLSX.WorkBook {
 }
 
 /**
- * 解析学生上传的 Excel 文件
+ * 解析学生上传的 Excel 文件（带安全检查）
  */
 export async function parseStudentExcel(file: File): Promise<StudentImportRow[]> {
+  // 验证文件大小
+  const sizeCheck = validateFileSize(file);
+  if (!sizeCheck.valid) {
+    throw new Error(sizeCheck.error);
+  }
+
+  // 验证文件类型（魔数检查）
+  const typeCheck = await validateExcelFileType(file);
+  if (!typeCheck.valid) {
+    throw new Error(typeCheck.error);
+  }
+
+  // 解析 Excel 文件
   const arrayBuffer = await file.arrayBuffer();
   const workbook = XLSX.read(arrayBuffer, { type: 'array' });
   const worksheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -138,8 +414,16 @@ export async function parseStudentExcel(file: File): Promise<StudentImportRow[]>
     defval: '',
   });
 
+  // 检查数据行数限制
+  if (data.length > EXCEL_SECURITY.MAX_ROWS) {
+    throw new Error(`数据行数（${data.length}）超过系统限制（${EXCEL_SECURITY.MAX_ROWS}行）`);
+  }
+
+  // 清理数据，过滤公式和 XSS
+  const sanitizedData = sanitizeExcelRows(data);
+
   // 跳过表头行（如果第一列是"学号*"）
-  const filteredData = data.filter((row) => {
+  const filteredData = sanitizedData.filter((row) => {
     const firstKey = Object.keys(row)[0];
     const firstValue = String(row[firstKey as keyof StudentImportRow] || '');
     return firstValue !== '学号*' && firstValue.trim() !== '';
@@ -222,9 +506,22 @@ export function generateUserTemplate(): XLSX.WorkBook {
 }
 
 /**
- * 解析用户上传的 Excel 文件
+ * 解析用户上传的 Excel 文件（带安全检查）
  */
 export async function parseUserExcel(file: File): Promise<UserImportRow[]> {
+  // 验证文件大小
+  const sizeCheck = validateFileSize(file);
+  if (!sizeCheck.valid) {
+    throw new Error(sizeCheck.error);
+  }
+
+  // 验证文件类型（魔数检查）
+  const typeCheck = await validateExcelFileType(file);
+  if (!typeCheck.valid) {
+    throw new Error(typeCheck.error);
+  }
+
+  // 解析 Excel 文件
   const arrayBuffer = await file.arrayBuffer();
   const workbook = XLSX.read(arrayBuffer, { type: 'array' });
   const worksheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -232,8 +529,16 @@ export async function parseUserExcel(file: File): Promise<UserImportRow[]> {
     defval: '',
   });
 
+  // 检查数据行数限制
+  if (data.length > EXCEL_SECURITY.MAX_ROWS) {
+    throw new Error(`数据行数（${data.length}）超过系统限制（${EXCEL_SECURITY.MAX_ROWS}行）`);
+  }
+
+  // 清理数据，过滤公式和 XSS
+  const sanitizedData = sanitizeExcelRows(data);
+
   // 跳过表头行（如果第一列是"用户名*"）
-  const filteredData = data.filter((row) => {
+  const filteredData = sanitizedData.filter((row) => {
     const firstKey = Object.keys(row)[0];
     const firstValue = String(row[firstKey as keyof UserImportRow] || '');
     return firstValue !== '用户名*' && firstValue.trim() !== '';
@@ -316,9 +621,22 @@ export function generateFeeConfigTemplate(): XLSX.WorkBook {
 }
 
 /**
- * 解析费用配置上传的 Excel 文件
+ * 解析费用配置上传的 Excel 文件（带安全检查）
  */
 export async function parseFeeConfigExcel(file: File): Promise<FeeConfigImportRow[]> {
+  // 验证文件大小
+  const sizeCheck = validateFileSize(file);
+  if (!sizeCheck.valid) {
+    throw new Error(sizeCheck.error);
+  }
+
+  // 验证文件类型（魔数检查）
+  const typeCheck = await validateExcelFileType(file);
+  if (!typeCheck.valid) {
+    throw new Error(typeCheck.error);
+  }
+
+  // 解析 Excel 文件
   const arrayBuffer = await file.arrayBuffer();
   const workbook = XLSX.read(arrayBuffer, { type: 'array' });
   const worksheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -326,8 +644,16 @@ export async function parseFeeConfigExcel(file: File): Promise<FeeConfigImportRo
     defval: '',
   });
 
+  // 检查数据行数限制
+  if (data.length > EXCEL_SECURITY.MAX_ROWS) {
+    throw new Error(`数据行数（${data.length}）超过系统限制（${EXCEL_SECURITY.MAX_ROWS}行）`);
+  }
+
+  // 清理数据，过滤公式和 XSS
+  const sanitizedData = sanitizeExcelRows(data);
+
   // 跳过表头行（如果第一列是"学期名称*"）
-  const filteredData = data.filter((row) => {
+  const filteredData = sanitizedData.filter((row) => {
     const firstKey = Object.keys(row)[0];
     const firstValue = String(row[firstKey as keyof FeeConfigImportRow] || '');
     return firstValue !== '学期名称*' && firstValue.trim() !== '';
@@ -514,9 +840,22 @@ export function generateLeaveTemplate(): XLSX.WorkBook {
 }
 
 /**
- * 解析请假上传的 Excel 文件
+ * 解析请假上传的 Excel 文件（带安全检查）
  */
 export async function parseLeaveExcel(file: File): Promise<LeaveImportRow[]> {
+  // 验证文件大小
+  const sizeCheck = validateFileSize(file);
+  if (!sizeCheck.valid) {
+    throw new Error(sizeCheck.error);
+  }
+
+  // 验证文件类型（魔数检查）
+  const typeCheck = await validateExcelFileType(file);
+  if (!typeCheck.valid) {
+    throw new Error(typeCheck.error);
+  }
+
+  // 解析 Excel 文件
   const arrayBuffer = await file.arrayBuffer();
   const workbook = XLSX.read(arrayBuffer, { type: 'array' });
   const worksheet = workbook.Sheets[workbook.SheetNames[0]];
@@ -524,8 +863,16 @@ export async function parseLeaveExcel(file: File): Promise<LeaveImportRow[]> {
     defval: '',
   });
 
+  // 检查数据行数限制
+  if (data.length > EXCEL_SECURITY.MAX_ROWS) {
+    throw new Error(`数据行数（${data.length}）超过系统限制（${EXCEL_SECURITY.MAX_ROWS}行）`);
+  }
+
+  // 清理数据，过滤公式和 XSS
+  const sanitizedData = sanitizeExcelRows(data);
+
   // 跳过表头行（如果第一列是"学号*"）
-  const filteredData = data.filter((row) => {
+  const filteredData = sanitizedData.filter((row) => {
     const firstKey = Object.keys(row)[0];
     const firstValue = String(row[firstKey as keyof LeaveImportRow] || '');
     return firstValue !== '学号*' && firstValue.trim() !== '';

@@ -449,7 +449,7 @@ export async function getClassIdByNames(
 }
 
 /**
- * 批量创建/更新学生
+ * 批量创建/更新学生（优化版：减少数据库查询）
  */
 export async function batchCreateOrUpdateStudents(
   inputs: StudentInput[]
@@ -464,52 +464,205 @@ export async function batchCreateOrUpdateStudents(
   let created = 0;
   let updated = 0;
 
-  for (let i = 0; i < inputs.length; i++) {
-    const input = inputs[i];
-    const rowNum = i + 1;
+  // 复用数据库连接
+  const pgClient = getRawPostgres();
 
-    // 检查班级是否存在
-    const classExists = await getRawPostgres().unsafe("SELECT id FROM classes WHERE id = $1", [input.class_id]);
-    if (classExists.length === 0) {
-      errors.push({ row: rowNum, input, message: "班级不存在" });
-      continue;
+  try {
+    // 批量验证班级是否存在（减少查询次数）
+    const uniqueClassIds = [...new Set(inputs.map(i => i.class_id))];
+    const classIdsStr = uniqueClassIds.join(',');
+    const existingClasses = await pgClient.unsafe(
+      `SELECT id FROM classes WHERE id = ANY($1::int[])`,
+      [uniqueClassIds]
+    ) as { id: number }[];
+    const validClassIds = new Set(existingClasses.map(c => c.id));
+
+    // 批量检查学号是否存在（减少查询次数）
+    const uniqueStudentNos = [...new Set(inputs.map(i => i.student_no))];
+    const existingStudentsMap = new Map<string, number>();
+
+    if (uniqueStudentNos.length > 0) {
+      const existingStudents = await pgClient.unsafe(
+        `SELECT id, student_no FROM students WHERE student_no = ANY($1::text[])`,
+        [uniqueStudentNos]
+      ) as { id: number; student_no: string }[];
+
+      for (const student of existingStudents) {
+        existingStudentsMap.set(student.student_no, student.id);
+      }
     }
 
-    // 检查学号是否已存在
-    const existingStudent = await getRawPostgres().unsafe("SELECT id FROM students WHERE student_no = $1", [input.student_no]);
+    // 分离需要创建和更新的学生
+    const toCreate: StudentInput[] = [];
+    const toUpdate: Array<{ id: number; input: StudentInput; rowNum: number }> = [];
 
-    if (existingStudent.length > 0) {
-      // 更新现有学生
-      try {
-        const updateResult = await updateStudent((existingStudent[0] as { id: number }).id, input);
-        if (updateResult.success) {
-          updated++;
-        } else {
-          errors.push({ row: rowNum, input, message: updateResult.message || "更新失败" });
-        }
-      } catch {
-        errors.push({ row: rowNum, input, message: "更新失败" });
+    for (let i = 0; i < inputs.length; i++) {
+      const input = inputs[i];
+      const rowNum = i + 1;
+
+      // 检查班级是否存在
+      if (!validClassIds.has(input.class_id)) {
+        errors.push({ row: rowNum, input, message: "班级不存在" });
+        continue;
       }
-    } else {
-      // 创建新学生
-      try {
-        const createResult = await createStudent(input);
-        if (createResult.success) {
+
+      // 检查学号是否已存在
+      const existingId = existingStudentsMap.get(input.student_no);
+
+      if (existingId) {
+        toUpdate.push({ id: existingId, input, rowNum });
+      } else {
+        toCreate.push({ ...input, rowNum });
+      }
+    }
+
+    // 批量创建学生
+    if (toCreate.length > 0) {
+      for (const { rowNum, ...input } of toCreate) {
+        try {
+          const result = await pgClient.unsafe(
+            `INSERT INTO students (
+              student_no, name, gender, class_id, birth_date,
+              parent_name, parent_phone, address, is_nutrition_meal,
+              enrollment_date, is_active
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+            [
+              input.student_no,
+              input.name,
+              input.gender || null,
+              input.class_id,
+              input.birth_date || null,
+              input.parent_name || null,
+              input.parent_phone || null,
+              input.address || null,
+              input.is_nutrition_meal || false,
+              input.enrollment_date || null,
+              true
+            ]
+          );
           created++;
-        } else {
-          errors.push({ row: rowNum, input, message: createResult.message || "创建失败" });
+        } catch (err) {
+          errors.push({ row: rowNum, input, message: err instanceof Error ? err.message : "创建失败" });
         }
-      } catch {
-        errors.push({ row: rowNum, input, message: "创建失败" });
       }
     }
-  }
 
-  return {
-    success: true,
-    created,
-    updated,
-    failed: errors.length,
-    errors,
-  };
+    // 批量更新学生
+    if (toUpdate.length > 0) {
+      for (const { id, input, rowNum } of toUpdate) {
+        try {
+          // 构建更新语句
+          const updates: string[] = [];
+          const params: (string | number | boolean)[] = [];
+          let paramIndex = 1;
+
+          if (input.name !== undefined) {
+            updates.push(`name = $${paramIndex++}`);
+            params.push(input.name);
+          }
+          if (input.gender !== undefined) {
+            updates.push(`gender = $${paramIndex++}`);
+            params.push(input.gender);
+          }
+          if (input.class_id !== undefined) {
+            updates.push(`class_id = $${paramIndex++}`);
+            params.push(input.class_id);
+          }
+          if (input.birth_date !== undefined) {
+            updates.push(`birth_date = $${paramIndex++}`);
+            params.push(input.birth_date);
+          }
+          if (input.parent_name !== undefined) {
+            updates.push(`parent_name = $${paramIndex++}`);
+            params.push(input.parent_name);
+          }
+          if (input.parent_phone !== undefined) {
+            updates.push(`parent_phone = $${paramIndex++}`);
+            params.push(input.parent_phone);
+          }
+          if (input.address !== undefined) {
+            updates.push(`address = $${paramIndex++}`);
+            params.push(input.address);
+          }
+          if (input.is_nutrition_meal !== undefined) {
+            updates.push(`is_nutrition_meal = $${paramIndex++}`);
+            params.push(input.is_nutrition_meal);
+          }
+          if (input.enrollment_date !== undefined) {
+            updates.push(`enrollment_date = $${paramIndex++}`);
+            params.push(input.enrollment_date);
+          }
+
+          if (updates.length > 0) {
+            updates.push(`updated_at = CURRENT_TIMESTAMP`);
+            params.push(id);
+
+            await pgClient.unsafe(
+              `UPDATE students SET ${updates.join(', ')} WHERE id = $${paramIndex}`,
+              params
+            );
+            updated++;
+          }
+        } catch (err) {
+          errors.push({ row: rowNum, input, message: err instanceof Error ? err.message : "更新失败" });
+        }
+      }
+    }
+
+    return {
+      success: true,
+      created,
+      updated,
+      failed: errors.length,
+      errors,
+    };
+  } catch (err) {
+    // 如果发生错误，回退到逐个处理的方式
+    console.error('批量操作失败，回退到逐个处理:', err);
+
+    for (let i = 0; i < inputs.length; i++) {
+      const input = inputs[i];
+      const rowNum = i + 1;
+
+      try {
+        // 检查班级是否存在
+        const classExists = await pgClient.unsafe("SELECT id FROM classes WHERE id = $1", [input.class_id]);
+        if (classExists.length === 0) {
+          errors.push({ row: rowNum, input, message: "班级不存在" });
+          continue;
+        }
+
+        // 检查学号是否已存在
+        const existingStudent = await pgClient.unsafe("SELECT id FROM students WHERE student_no = $1", [input.student_no]);
+
+        if (existingStudent.length > 0) {
+          // 更新现有学生
+          const updateResult = await updateStudent((existingStudent[0] as { id: number }).id, input);
+          if (updateResult.success) {
+            updated++;
+          } else {
+            errors.push({ row: rowNum, input, message: updateResult.message || "更新失败" });
+          }
+        } else {
+          // 创建新学生
+          const createResult = await createStudent(input);
+          if (createResult.success) {
+            created++;
+          } else {
+            errors.push({ row: rowNum, input, message: createResult.message || "创建失败" });
+          }
+        }
+      } catch {
+        errors.push({ row: rowNum, input, message: "处理失败" });
+      }
+    }
+
+    return {
+      success: true,
+      created,
+      updated,
+      failed: errors.length,
+      errors,
+    };
+  }
 }

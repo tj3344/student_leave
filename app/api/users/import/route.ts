@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { batchCreateOrUpdateUsers } from "@/lib/api/users";
 import { hasPermission, PERMISSIONS, ROLES } from "@/lib/constants";
+import { checkImportRateLimit, getClientIp } from "@/lib/utils/rate-limit";
 import type { UserImportRow } from "@/types";
 
 /**
@@ -19,12 +20,55 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
+    // 检查速率限制
+    const clientIp = getClientIp(request);
+    const rateLimitCheck = checkImportRateLimit(currentUser.id, clientIp);
+    if (!rateLimitCheck.allowed) {
+      return NextResponse.json(
+        { error: rateLimitCheck.error || "请求过于频繁，请稍后重试" },
+        { status: 429 }
+      );
+    }
+
     // 解析请求体
     const body = await request.json();
     const { users } = body as { users: UserImportRow[] };
 
     if (!Array.isArray(users) || users.length === 0) {
       return NextResponse.json({ error: "用户数据不能为空" }, { status: 400 });
+    }
+
+    // 检测 Excel 内部的重复数据（按用户名）
+    const usernameMap = new Map<string, number>();
+    const duplicateErrors: Array<{ row: number; message: string }> = [];
+
+    for (let i = 0; i < users.length; i++) {
+      const row = users[i];
+      const rowNum = i + 1;
+      const username = row.username?.trim();
+
+      if (username) {
+        if (usernameMap.has(username)) {
+          const firstRow = usernameMap.get(username);
+          duplicateErrors.push({
+            row: rowNum,
+            message: `用户名 "${username}" 与第 ${firstRow} 行重复，请确保用户名唯一`
+          });
+        } else {
+          usernameMap.set(username, rowNum);
+        }
+      }
+    }
+
+    // 如果有重复数据，返回错误
+    if (duplicateErrors.length > 0) {
+      return NextResponse.json(
+        {
+          error: "检测到重复数据",
+          validationErrors: duplicateErrors,
+        },
+        { status: 400 }
+      );
     }
 
     // 转换和验证数据

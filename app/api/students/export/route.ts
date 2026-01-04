@@ -5,11 +5,14 @@ import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { exportStudentsToExcel, workbookToBlob } from "@/lib/utils/excel";
 import { logExport } from "@/lib/utils/logger";
 import { checkExportLimit } from "@/lib/utils/export";
+import { checkExportConcurrency, releaseExportSlot } from "@/lib/utils/concurrency";
 
 /**
  * GET /api/students/export - 导出学生列表
  */
 export async function GET(request: NextRequest) {
+  let slotId: string | null = null;
+
   try {
     // 验证权限
     const currentUser = await getCurrentUser();
@@ -20,6 +23,16 @@ export async function GET(request: NextRequest) {
     if (!hasPermission(currentUser.role, PERMISSIONS.STUDENT_EXPORT)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
+
+    // 检查并发限制
+    const concurrencyCheck = checkExportConcurrency(currentUser.id);
+    if (!concurrencyCheck.allowed) {
+      return NextResponse.json(
+        { error: concurrencyCheck.message || "系统繁忙，请稍后重试" },
+        { status: 429 }
+      );
+    }
+    slotId = concurrencyCheck.slotId || null;
 
     // 获取查询参数
     const searchParams = request.nextUrl.searchParams;
@@ -83,5 +96,10 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error("导出学生列表失败:", error);
     return NextResponse.json({ error: "导出学生列表失败" }, { status: 500 });
+  } finally {
+    // 释放并发槽位
+    if (slotId) {
+      releaseExportSlot(slotId);
+    }
   }
 }

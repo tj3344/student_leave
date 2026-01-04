@@ -4,6 +4,7 @@ import { batchCreateLeaves, getStudentIdByInfo } from "@/lib/api/leaves";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { logImport } from "@/lib/utils/logger";
 import { getNumberConfig } from "@/lib/api/system-config";
+import { checkImportRateLimit, getClientIp } from "@/lib/utils/rate-limit";
 import type { LeaveImportRow, LeaveInput } from "@/types";
 
 /**
@@ -21,12 +22,60 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
+    // 检查速率限制
+    const clientIp = getClientIp(request);
+    const rateLimitCheck = checkImportRateLimit(currentUser.id, clientIp);
+    if (!rateLimitCheck.allowed) {
+      return NextResponse.json(
+        { error: rateLimitCheck.error || "请求过于频繁，请稍后重试" },
+        { status: 429 }
+      );
+    }
+
     // 解析请求体
     const body = await request.json();
     const { leaves } = body as { leaves: LeaveImportRow[] };
 
     if (!Array.isArray(leaves) || leaves.length === 0) {
       return NextResponse.json({ error: "请假数据不能为空" }, { status: 400 });
+    }
+
+    // 检测 Excel 内部的重复数据（同一学生同一时间段）
+    const leaveKeyMap = new Map<string, number>();
+    const duplicateErrors: Array<{ row: number; message: string }> = [];
+
+    for (let i = 0; i < leaves.length; i++) {
+      const row = leaves[i];
+      const rowNum = i + 1;
+      const studentNo = row.student_no?.trim();
+      const startDate = row.start_date?.trim();
+      const endDate = row.end_date?.trim();
+
+      if (studentNo && startDate && endDate) {
+        // 创建唯一键：学号 + 开始日期 + 结束日期
+        const uniqueKey = `${studentNo}_${startDate}_${endDate}`;
+
+        if (leaveKeyMap.has(uniqueKey)) {
+          const firstRow = leaveKeyMap.get(uniqueKey);
+          duplicateErrors.push({
+            row: rowNum,
+            message: `学生 "${studentNo}" 在 ${startDate} 至 ${endDate} 期间已存在请假记录（第 ${firstRow} 行）`
+          });
+        } else {
+          leaveKeyMap.set(uniqueKey, rowNum);
+        }
+      }
+    }
+
+    // 如果有重复数据，返回错误
+    if (duplicateErrors.length > 0) {
+      return NextResponse.json(
+        {
+          error: "检测到重复数据",
+          validationErrors: duplicateErrors,
+        },
+        { status: 400 }
+      );
     }
 
     // 转换和验证数据

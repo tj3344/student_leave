@@ -38,6 +38,10 @@ export function UserImportDialog({ open, onClose, onSuccess }: UserImportDialogP
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  /** 文件大小限制（10MB） */
+  const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
   // 重置状态
   const resetState = useCallback(() => {
@@ -48,12 +52,24 @@ export function UserImportDialog({ open, onClose, onSuccess }: UserImportDialogP
     setImportResult(null);
     setLoading(false);
     setDragActive(false);
+    setError(null);
   }, []);
 
   // 处理文件选择
   const handleFileSelect = useCallback(
     async (selectedFile: File) => {
       if (!selectedFile) return;
+
+      // 清除之前的错误
+      setError(null);
+
+      // 检查文件大小
+      if (selectedFile.size > MAX_FILE_SIZE) {
+        const fileSizeMB = (selectedFile.size / 1024 / 1024).toFixed(2);
+        const maxSizeMB = (MAX_FILE_SIZE / 1024 / 1024).toFixed(0);
+        setError(`文件大小（${fileSizeMB}MB）超过限制（${maxSizeMB}MB）`);
+        return;
+      }
 
       // 验证文件类型
       const validTypes = [
@@ -62,7 +78,7 @@ export function UserImportDialog({ open, onClose, onSuccess }: UserImportDialogP
       ];
       const fileExtension = selectedFile.name.split(".").pop()?.toLowerCase();
       if (!validTypes.includes(selectedFile.type) && !["xlsx", "xls"].includes(fileExtension || "")) {
-        alert("请选择 Excel 文件（.xlsx 或 .xls）");
+        setError("请选择 Excel 文件（.xlsx 或 .xls）");
         return;
       }
 
@@ -74,7 +90,7 @@ export function UserImportDialog({ open, onClose, onSuccess }: UserImportDialogP
         const parsedData = await parseUserExcel(selectedFile);
 
         if (parsedData.length === 0) {
-          alert("文件中没有找到有效数据");
+          setError("文件中没有找到有效数据");
           setLoading(false);
           return;
         }
@@ -87,7 +103,8 @@ export function UserImportDialog({ open, onClose, onSuccess }: UserImportDialogP
         setStep("preview");
       } catch (error) {
         console.error("解析文件失败:", error);
-        alert("解析文件失败，请检查文件格式是否正确");
+        const errorMessage = error instanceof Error ? error.message : "解析文件失败，请检查文件格式是否正确";
+        setError(errorMessage);
       } finally {
         setLoading(false);
       }
@@ -114,6 +131,14 @@ export function UserImportDialog({ open, onClose, onSuccess }: UserImportDialogP
 
       if (!response.ok) {
         const errorData = await response.json();
+
+        // 处理速率限制错误
+        if (response.status === 429) {
+          const rateLimitMessage = errorData.error || "请求过于频繁，请稍后重试";
+          setError(rateLimitMessage);
+          throw new Error(rateLimitMessage);
+        }
+
         // 如果是验证错误，返回验证错误
         if (errorData.validationErrors) {
           return rows.map((row, index) => ({
@@ -124,7 +149,11 @@ export function UserImportDialog({ open, onClose, onSuccess }: UserImportDialogP
             )?.message || "验证失败",
           }));
         }
-        throw new Error(errorData.error || "验证失败");
+
+        // 其他错误
+        const errorMessage = errorData.error || "验证失败";
+        setError(errorMessage);
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
@@ -136,11 +165,16 @@ export function UserImportDialog({ open, onClose, onSuccess }: UserImportDialogP
         message: "验证通过",
         data: result.errors?.find((e: { row: number }) => e.row === index + 1)?.data,
       }));
-    } catch {
+    } catch (err) {
+      // 确保错误被设置
+      const errorMessage = err instanceof Error ? err.message : "验证失败，请稍后重试";
+      if (!error) {
+        setError(errorMessage);
+      }
       return rows.map((row, index) => ({
         row: index + 1,
         success: false,
-        message: "验证失败",
+        message: errorMessage,
       }));
     }
   };
@@ -228,6 +262,15 @@ export function UserImportDialog({ open, onClose, onSuccess }: UserImportDialogP
   // 渲染上传步骤
   const renderUploadStep = () => (
     <div className="space-y-4">
+      {error && (
+        <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-lg">
+          <p className="text-sm text-destructive flex items-center gap-2">
+            <XCircle className="h-4 w-4" />
+            {error}
+          </p>
+        </div>
+      )}
+
       <div
         className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
           dragActive
@@ -242,6 +285,9 @@ export function UserImportDialog({ open, onClose, onSuccess }: UserImportDialogP
         <FileSpreadsheet className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
         <p className="text-sm text-muted-foreground mb-4">
           拖拽 Excel 文件到这里，或点击选择文件
+        </p>
+        <p className="text-xs text-muted-foreground mb-4">
+          文件大小限制：{(MAX_FILE_SIZE / 1024 / 1024).toFixed(0)}MB
         </p>
         <input
           type="file"
