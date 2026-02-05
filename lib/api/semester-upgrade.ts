@@ -168,8 +168,8 @@ export async function upgradeSemester(
       } else {
         // 创建新年级
         const newGradeResult = await pgClient.unsafe(
-          `INSERT INTO grades (semester_id, name, sort_order)
-           VALUES ($1, $2, $3)
+          `INSERT INTO grades (semester_id, name, sort_order, created_at)
+           VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
            RETURNING id`,
           [request.target_semester_id, newGradeName, grade.sort_order]
         ) as { id: number }[];
@@ -196,8 +196,8 @@ export async function upgradeSemester(
 
       for (const cls of classesResult) {
         const newClassResult = await pgClient.unsafe(
-          `INSERT INTO classes (semester_id, grade_id, name, class_teacher_id, meal_fee, student_count)
-           VALUES ($1, $2, $3, NULL, $4, 0)
+          `INSERT INTO classes (semester_id, grade_id, name, class_teacher_id, meal_fee, student_count, created_at, updated_at)
+           VALUES ($1, $2, $3, NULL, $4, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
            RETURNING id`,
           [
             request.target_semester_id,
@@ -239,8 +239,8 @@ export async function upgradeSemester(
           await pgClient.unsafe(
             `INSERT INTO students (student_no, name, gender, class_id, birth_date,
                                   parent_name, parent_phone, address, is_nutrition_meal,
-                                  enrollment_date, is_active)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+                                  enrollment_date, is_active, created_at, updated_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
             [
               student.student_no,
               student.name,

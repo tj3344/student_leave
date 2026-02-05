@@ -111,7 +111,7 @@ export async function setConfig(
     );
   } else {
     await pgClient.unsafe(
-      "INSERT INTO system_config (config_key, config_value, description) VALUES ($1, $2, $3)",
+      "INSERT INTO system_config (config_key, config_value, description, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP)",
       [key, value, description || null]
     );
   }

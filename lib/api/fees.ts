@@ -170,8 +170,8 @@ export async function createFeeConfig(
 
   // 插入费用配置
   const result = await pgClient.unsafe(
-    `INSERT INTO fee_configs (class_id, semester_id, meal_fee_standard, prepaid_days, actual_days, suspension_days)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO fee_configs (class_id, semester_id, meal_fee_standard, prepaid_days, actual_days, suspension_days, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
      RETURNING id`,
     [input.class_id, input.semester_id, input.meal_fee_standard, input.prepaid_days, input.actual_days, input.suspension_days]
   );
