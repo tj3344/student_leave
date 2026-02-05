@@ -19,7 +19,6 @@ export default function RefundsPage() {
   const [classes, setClasses] = useState<ClassWithDetails[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
-  const [currentSemesterName, setCurrentSemesterName] = useState<string>("");
   const [semesterLoading, setSemesterLoading] = useState(true);
   const [classFilter, setClassFilter] = useState<number>(0);
   const [exporting, setExporting] = useState(false);
@@ -52,7 +51,6 @@ export default function RefundsPage() {
       const currentSemester = data.data?.find((s: { is_current: boolean }) => s.is_current === true);
       if (currentSemester) {
         setCurrentSemesterId(currentSemester.id);
-        setCurrentSemesterName(currentSemester.name);
       }
     } catch (error) {
       console.error("获取当前学期失败:", error);
@@ -159,14 +157,6 @@ export default function RefundsPage() {
             请先在学期管理中设置一个当前学期。
           </AlertDescription>
         </Alert>
-      )}
-
-      {/* 当前学期显示 */}
-      {currentSemesterId && (
-        <div className="rounded-md bg-muted p-3">
-          <div className="text-sm font-medium">当前学期</div>
-          <div className="text-sm text-muted-foreground">{currentSemesterName}</div>
-        </div>
       )}
 
       <div className="flex gap-4">

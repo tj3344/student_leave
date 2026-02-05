@@ -105,7 +105,6 @@ function LeaveTableInternal({
           <TableRow>
             <TableHead>学生</TableHead>
             <TableHead>班级</TableHead>
-            <TableHead>学期</TableHead>
             <TableHead>请假时间</TableHead>
             <TableHead>天数</TableHead>
             <TableHead>事由</TableHead>
@@ -155,7 +154,6 @@ const LeaveRow = memo(function LeaveRow({
         </div>
       </TableCell>
       <TableCell>{leave.class_name}</TableCell>
-      <TableCell>{leave.semester_name}</TableCell>
       <TableCell>
         <div className="text-sm">
           <div>{formatDate(leave.start_date)}</div>

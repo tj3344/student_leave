@@ -83,7 +83,7 @@ function FeeConfigTableInternal({ data, onEdit, onRefresh }: FeeConfigTableProps
     if (data.length === 0) {
       return (
         <TableRow>
-          <TableCell colSpan={8} className="h-24 text-center">
+          <TableCell colSpan={7} className="h-24 text-center">
             暂无数据
           </TableCell>
         </TableRow>
@@ -107,7 +107,6 @@ function FeeConfigTableInternal({ data, onEdit, onRefresh }: FeeConfigTableProps
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>学期</TableHead>
               <TableHead>班级</TableHead>
               <TableHead>班主任</TableHead>
               <TableHead className="text-right">餐费标准</TableHead>
@@ -154,7 +153,6 @@ interface FeeConfigRowProps {
 const FeeConfigRow = memo(function FeeConfigRow({ item, formatCurrency, onEdit, onOpenDeleteDialog }: FeeConfigRowProps) {
   return (
     <TableRow>
-      <TableCell>{item.semester_name}</TableCell>
       <TableCell>
         {item.grade_name} {item.class_name}
       </TableCell>
