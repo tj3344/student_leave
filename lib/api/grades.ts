@@ -109,7 +109,7 @@ export async function createGrade(
 
   // 插入年级
   const result = await pgClient.unsafe(
-    "INSERT INTO grades (semester_id, name, sort_order) VALUES ($1, $2, $3) RETURNING id",
+    "INSERT INTO grades (semester_id, name, sort_order, created_at) VALUES ($1, $2, $3, NOW()) RETURNING id",
     [input.semester_id, input.name, sortOrder]
   );
 

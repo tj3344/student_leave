@@ -135,8 +135,8 @@ export async function createUser(input: UserInput & { password?: string }): Prom
 
   // 插入用户
   const result = await pgClient.unsafe(
-    `INSERT INTO users (username, password_hash, real_name, role, phone, email)
-     VALUES ($1, $2, $3, $4, $5, $6)
+    `INSERT INTO users (username, password_hash, real_name, role, phone, email, is_active, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, $6, true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
      RETURNING id`,
     [
       input.username,

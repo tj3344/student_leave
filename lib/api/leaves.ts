@@ -249,8 +249,8 @@ export async function createLeave(
   const result = await pgClient.unsafe(
     `INSERT INTO leave_records (
       student_id, semester_id, applicant_id, start_date, end_date,
-      leave_days, reason, status, is_refund, refund_amount
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      leave_days, reason, status, is_refund, refund_amount, created_at, updated_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     RETURNING id`,
     [
       input.student_id,

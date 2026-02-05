@@ -219,8 +219,8 @@ export async function createClass(
 
   // 插入班级（meal_fee 默认为 0，实际餐费标准从 fee_configs 表获取）
   const result = await pgClient.unsafe(
-    `INSERT INTO classes (semester_id, grade_id, name, class_teacher_id, meal_fee)
-     VALUES ($1, $2, $3, $4, 0)
+    `INSERT INTO classes (semester_id, grade_id, name, class_teacher_id, meal_fee, student_count, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, 0, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
      RETURNING id`,
     [input.semester_id, input.grade_id, input.name, input.class_teacher_id || null]
   );

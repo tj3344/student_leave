@@ -152,8 +152,8 @@ export async function createStudent(input: StudentInput): Promise<{
     `INSERT INTO students (
       student_no, name, gender, class_id, birth_date,
       parent_name, parent_phone, address, is_nutrition_meal,
-      enrollment_date, is_active
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      enrollment_date, is_active, created_at, updated_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     RETURNING id`,
     [
       input.student_no,
@@ -361,8 +361,8 @@ export async function batchCreateStudents(
         `INSERT INTO students (
           student_no, name, gender, class_id, birth_date,
           parent_name, parent_phone, address, is_nutrition_meal,
-          enrollment_date, is_active
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+          enrollment_date, is_active, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [
           student.student_no,
           student.name,
@@ -524,8 +524,8 @@ export async function batchCreateOrUpdateStudents(
             `INSERT INTO students (
               student_no, name, gender, class_id, birth_date,
               parent_name, parent_phone, address, is_nutrition_meal,
-              enrollment_date, is_active
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+              enrollment_date, is_active, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
             [
               input.student_no,
               input.name,
