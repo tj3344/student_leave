@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Edit, Calendar, Phone, User, MapPin, School } from "lucide-react";
+import { ArrowLeft, Edit, Phone, User, MapPin, School } from "lucide-react";
 import type { StudentWithDetails } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -135,23 +135,6 @@ export default function StudentDetailPage() {
               <Badge variant={student.is_nutrition_meal ? "default" : "secondary"}>
                 {student.nutrition_meal_name}
               </Badge>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              日期信息
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">入学日期</span>
-              <span className="font-medium">
-                {student.enrollment_date ? new Date(student.enrollment_date).toLocaleDateString("zh-CN") : "-"}
-              </span>
             </div>
           </CardContent>
         </Card>

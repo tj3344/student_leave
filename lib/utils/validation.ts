@@ -70,7 +70,6 @@ export const studentCreateSchema = z.object({
     .or(z.literal("")),
   address: z.string().max(200, "地址最多200个字符").optional().or(z.literal("")),
   is_nutrition_meal: z.boolean().optional(),
-  enrollment_date: z.string().optional().or(z.literal("")),
 });
 
 export type StudentCreateInput = z.infer<typeof studentCreateSchema>;
@@ -88,7 +87,6 @@ export const studentUpdateSchema = z.object({
     .or(z.literal("")),
   address: z.string().max(200, "地址最多200个字符").optional().or(z.literal("")),
   is_nutrition_meal: z.boolean().optional(),
-  enrollment_date: z.string().optional().or(z.literal("")),
   is_active: z.number().int().min(0).max(1).optional(),
 });
 

@@ -150,7 +150,6 @@ export interface Student {
   parent_phone?: string;
   address?: string;
   is_nutrition_meal: boolean;
-  enrollment_date?: string;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -165,7 +164,6 @@ export interface StudentInput {
   parent_phone?: string;
   address?: string;
   is_nutrition_meal?: boolean;
-  enrollment_date?: string;
 }
 
 export interface StudentWithDetails extends Student {
@@ -186,7 +184,6 @@ export interface StudentImportRow {
   parent_phone?: string;       // 家长电话
   address?: string;            // 家庭住址
   is_nutrition_meal?: string;  // 是否营养餐（是/否）
-  enrollment_date?: string;    // 入学日期
 }
 
 // 学生导入结果类型

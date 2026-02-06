@@ -44,7 +44,6 @@ const studentSchema = z.object({
   parent_phone: z.string().regex(/^1[3-9]\d{9}$/, "请输入有效的手机号").optional().or(z.literal("")),
   address: z.string().max(200, "地址不能超过200个字符").optional(),
   is_nutrition_meal: z.boolean(),
-  enrollment_date: z.string().optional(),
 });
 
 type StudentFormValues = z.infer<typeof studentSchema>;
@@ -82,7 +81,6 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
       parent_phone: "",
       address: "",
       is_nutrition_meal: false,
-      enrollment_date: "",
     },
   });
 
@@ -97,7 +95,6 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
         parent_phone: student.parent_phone || "",
         address: student.address || "",
         is_nutrition_meal: student.is_nutrition_meal ?? false,
-        enrollment_date: student.enrollment_date || "",
       });
     } else {
       form.reset({
@@ -109,7 +106,6 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
         parent_phone: "",
         address: "",
         is_nutrition_meal: false,
-        enrollment_date: "",
       });
     }
   }, [student, form]);
@@ -323,20 +319,6 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
                 )}
               />
             </div>
-
-            <FormField
-              control={form.control}
-              name="enrollment_date"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>入学日期</FormLabel>
-                  <FormControl>
-                    <Input type="date" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
 
             <div className="grid grid-cols-2 gap-4">
               <FormField

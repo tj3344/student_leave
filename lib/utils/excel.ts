@@ -140,7 +140,7 @@ export function validateFileSize(file: File, maxSize: number = EXCEL_SECURITY.MA
  */
 const HEADERS = {
   /** 学生导入表头 */
-  STUDENT: ['学号*', '学生姓名*', '性别', '学期名称*', '年级名称*', '班级名称*', '家长姓名', '家长电话', '家庭住址', '是否营养餐', '入学日期'],
+  STUDENT: ['学号*', '学生姓名*', '性别', '学期名称*', '年级名称*', '班级名称*', '家长姓名', '家长电话', '家庭住址', '是否营养餐'],
   /** 班级导入表头 */
   CLASS: ['学期名称*', '年级名称*', '班级名称*', '班主任姓名'],
   /** 用户导入表头 */
@@ -428,10 +428,10 @@ export function downloadClassTemplate(): void {
  */
 export function generateStudentTemplate(): XLSX.WorkBook {
   const worksheetData = [
-    ['学号*', '学生姓名*', '性别', '学期名称*', '年级名称*', '班级名称*', '家长姓名', '家长电话', '家庭住址', '是否营养餐', '入学日期'],
-    ['202401001', '张三', '男', '2024-2025第一学期', '一年级', '1班', '张父', '13800138000', '北京市朝阳区', '是', '2024-09-01'],
-    ['202401002', '李四', '女', '2024-2025第一学期', '一年级', '1班', '李母', '13900139000', '北京市海淀区', '否', '2024-09-01'],
-    ['202401003', '王五', '男', '2024-2025第一学期', '一年级', '2班', '', '', '', '是', '2024-09-01'],
+    ['学号*', '学生姓名*', '性别', '学期名称*', '年级名称*', '班级名称*', '家长姓名', '家长电话', '家庭住址', '是否营养餐'],
+    ['202401001', '张三', '男', '2024-2025第一学期', '一年级', '1班', '张父', '13800138000', '北京市朝阳区', '是'],
+    ['202401002', '李四', '女', '2024-2025第一学期', '一年级', '1班', '李母', '13900139000', '北京市海淀区', '否'],
+    ['202401003', '王五', '男', '2024-2025第一学期', '一年级', '2班', '', '', '', '是'],
   ];
 
   const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
@@ -493,7 +493,6 @@ export async function parseStudentExcel(file: File): Promise<StudentImportRow[]>
     '家长电话': 'parent_phone',
     '家庭住址': 'address',
     '是否营养餐': 'is_nutrition_meal',
-    '入学日期': 'enrollment_date',
   };
 
   // 将中文列名映射为英文列名（使用学生专用映射）
@@ -523,11 +522,10 @@ export function exportStudentsToExcel(
     parent_phone?: string;
     address?: string;
     nutrition_meal_name?: string;
-    enrollment_date?: string;
   }>
 ): XLSX.WorkBook {
   const worksheetData = [
-    ['学号', '学生姓名', '性别', '年级', '班级', '家长姓名', '家长电话', '家庭住址', '是否营养餐', '入学日期'],
+    ['学号', '学生姓名', '性别', '年级', '班级', '家长姓名', '家长电话', '家庭住址', '是否营养餐'],
     ...students.map((s) => [
       s.student_no,
       s.name,
@@ -538,7 +536,6 @@ export function exportStudentsToExcel(
       s.parent_phone || '',
       s.address || '',
       s.nutrition_meal_name || '',
-      s.enrollment_date || '',
     ]),
   ];
 

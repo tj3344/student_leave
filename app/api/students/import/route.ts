@@ -165,7 +165,6 @@ export async function POST(request: NextRequest) {
         parent_phone: row.parent_phone?.trim() || undefined,
         address: row.address?.trim() || undefined,
         is_nutrition_meal: isNutritionMeal,
-        enrollment_date: row.enrollment_date?.trim() || undefined,
       });
     }
 

@@ -152,8 +152,8 @@ export async function createStudent(input: StudentInput): Promise<{
     `INSERT INTO students (
       student_no, name, gender, class_id,
       parent_name, parent_phone, address, is_nutrition_meal,
-      enrollment_date, is_active, created_at, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      is_active, created_at, updated_at
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     RETURNING id`,
     [
       input.student_no,
@@ -164,7 +164,6 @@ export async function createStudent(input: StudentInput): Promise<{
       input.parent_phone || null,
       input.address || null,
       input.is_nutrition_meal ?? false,
-      input.enrollment_date || null,
       true
     ]
   );
@@ -234,10 +233,6 @@ export async function updateStudent(
   if (input.is_nutrition_meal !== undefined) {
     updates.push(`is_nutrition_meal = $${paramIndex++}`);
     params.push(input.is_nutrition_meal);
-  }
-  if (input.enrollment_date !== undefined) {
-    updates.push(`enrollment_date = $${paramIndex++}`);
-    params.push(input.enrollment_date);
   }
   if (input.is_active !== undefined) {
     updates.push(`is_active = $${paramIndex++}`);
@@ -518,8 +513,8 @@ export async function batchCreateOrUpdateStudents(
             `INSERT INTO students (
               student_no, name, gender, class_id,
               parent_name, parent_phone, address, is_nutrition_meal,
-              enrollment_date, is_active, created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+              is_active, created_at, updated_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
             [
               input.student_no,
               input.name,
@@ -529,7 +524,6 @@ export async function batchCreateOrUpdateStudents(
               input.parent_phone || null,
               input.address || null,
               input.is_nutrition_meal ?? false,
-              input.enrollment_date || null,
               true
             ]
           );
@@ -576,10 +570,6 @@ export async function batchCreateOrUpdateStudents(
           if (input.is_nutrition_meal !== undefined) {
             updates.push(`is_nutrition_meal = $${paramIndex++}`);
             params.push(input.is_nutrition_meal);
-          }
-          if (input.enrollment_date !== undefined) {
-            updates.push(`enrollment_date = $${paramIndex++}`);
-            params.push(input.enrollment_date);
           }
 
           if (updates.length > 0) {
