@@ -34,6 +34,7 @@ export function ClassImportDialog({ open, onClose, onSuccess }: ClassImportDialo
     created: number;
     updated: number;
     failed: number;
+    errors?: Array<{ row: number; message: string }>;
   } | null>(null);
   const [loading, setLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -198,7 +199,16 @@ export function ClassImportDialog({ open, onClose, onSuccess }: ClassImportDialo
       const response = await fetch("/api/classes/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ classes: validData }),
+        body: JSON.stringify({
+          classes: validData.map((row) => ({
+            ...row,
+            // 确保所有字段都有值
+            semester_name: row.semester_name || "",
+            grade_name: row.grade_name || "",
+            name: row.name || "",
+            class_teacher_name: row.class_teacher_name || "",
+          })),
+        }),
       });
 
       if (!response.ok) {
@@ -210,6 +220,7 @@ export function ClassImportDialog({ open, onClose, onSuccess }: ClassImportDialo
         created: result.created,
         updated: result.updated,
         failed: result.failed,
+        errors: result.errors,
       });
       setStep("result");
     } catch (error) {
@@ -440,6 +451,23 @@ export function ClassImportDialog({ open, onClose, onSuccess }: ClassImportDialo
           <p className="text-sm text-muted-foreground">失败</p>
         </div>
       </div>
+
+      {/* 显示失败详情 */}
+      {(importResult?.failed ?? 0) > 0 && importResult?.errors && importResult.errors.length > 0 && (
+        <div className="max-h-[200px] overflow-y-auto">
+          <div className="text-left border rounded-lg p-4 bg-destructive/5">
+            <p className="text-sm font-medium mb-2 text-destructive">失败详情：</p>
+            <div className="space-y-1">
+              {importResult.errors.map((err, index) => (
+                <div key={index} className="text-xs flex gap-2">
+                  <span className="font-medium text-muted-foreground">第{err.row}行:</span>
+                  <span className="text-destructive">{err.message}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 

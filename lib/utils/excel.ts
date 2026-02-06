@@ -152,6 +152,58 @@ const HEADERS = {
 } as const;
 
 /**
+ * 中文列名到英文列名的映射
+ * 用于将 Excel 解析后的中文列名转换为 TypeScript 类型期望的英文列名
+ */
+const COLUMN_NAME_MAPPING: Record<string, string> = {
+  '学期名称*': 'semester_name',
+  '年级名称*': 'grade_name',
+  '班级名称*': 'name',
+  '班主任姓名': 'class_teacher_name',
+  '学号*': 'student_id',
+  '学生姓名*': 'name',
+  '性别': 'gender',
+  '出生日期': 'birth_date',
+  '家长姓名': 'parent_name',
+  '家长电话': 'parent_phone',
+  '家庭住址': 'address',
+  '是否营养餐': 'has_meal_subsidy',
+  '入学日期': 'enrollment_date',
+  '用户名*': 'username',
+  '密码': 'password',
+  '真实姓名*': 'real_name',
+  '角色*': 'role',
+  '电话': 'phone',
+  '邮箱': 'email',
+  '餐费标准*': 'meal_fee',
+  '预收天数*': 'prepaid_days',
+  '实收天数*': 'actual_days',
+  '停课天数*': 'suspended_days',
+  '开始日期*': 'start_date',
+  '结束日期*': 'end_date',
+  '请假天数*': 'days',
+  '请假事由*': 'reason',
+};
+
+/**
+ * 将中文列名映射为英文列名
+ * @param rows - 原始行数据（中文列名）
+ * @returns 映射后的数据（英文列名）
+ */
+function mapChineseColumnsToEnglish<T extends Record<string, unknown>>(rows: T[]): T[] {
+  if (rows.length === 0) return rows;
+
+  return rows.map((row) => {
+    const mappedRow: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) {
+      const newKey = COLUMN_NAME_MAPPING[key] || key;
+      mappedRow[newKey] = value;
+    }
+    return mappedRow as T;
+  });
+}
+
+/**
  * 验证表头是否匹配
  * @param actualHeaders - 实际的表头数组
  * @param expectedHeaders - 预期的表头数组
@@ -272,22 +324,12 @@ export async function parseClassExcel(file: File): Promise<ClassImportRow[]> {
     throw new Error(`数据行数（${data.length}）超过系统限制（${EXCEL_SECURITY.MAX_ROWS}行）`);
   }
 
-  // 清理数据，过滤公式和 XSS
+  // 清理数据，过滤公式和 XSS（此时还是中文列名）
   const sanitizedData = sanitizeExcelRows(data);
 
-  // 使用改进的表头检测逻辑
-  const filteredData = skipHeaderRows(sanitizedData, HEADERS.CLASS);
-
-  // 进一步过滤空行
-  const nonEmptyData = filteredData.filter((row) => {
-    const firstKey = Object.keys(row)[0];
-    const firstValue = String(row[firstKey as keyof ClassImportRow] || '');
-    return firstValue.trim() !== '';
-  });
-
-  // 验证表头（如果数据不为空）
-  if (nonEmptyData.length > 0) {
-    const actualHeaders = Object.keys(nonEmptyData[0]);
+  // 验证表头（XLSX 已自动将表头转换为键，无需再跳过）
+  if (sanitizedData.length > 0) {
+    const actualHeaders = Object.keys(sanitizedData[0]);
     const headerValidation = validateHeaders(actualHeaders, HEADERS.CLASS, 1);
     if (!headerValidation.valid) {
       const errors: string[] = [];
@@ -300,6 +342,16 @@ export async function parseClassExcel(file: File): Promise<ClassImportRow[]> {
       throw new Error(`表头验证失败: ${errors.join('; ')}`);
     }
   }
+
+  // 将中文列名映射为英文列名（在表头验证之后）
+  const mappedData = mapChineseColumnsToEnglish<ClassImportRow>(sanitizedData);
+
+  // 进一步过滤空行（此时已经是英文列名）
+  const nonEmptyData = mappedData.filter((row) => {
+    const firstKey = Object.keys(row)[0];
+    const firstValue = String(row[firstKey as keyof ClassImportRow] || '');
+    return firstValue.trim() !== '';
+  });
 
   return nonEmptyData;
 }

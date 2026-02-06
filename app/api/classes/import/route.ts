@@ -112,7 +112,7 @@ export async function POST(request: NextRequest) {
       }
 
       // 获取学期和年级 ID
-      const idsResult = getSemesterAndGradeIds(row.semester_name.trim(), row.grade_name.trim());
+      const idsResult = await getSemesterAndGradeIds(row.semester_name.trim(), row.grade_name.trim());
       if (idsResult.error) {
         validationErrors.push({ row: rowNum, message: idsResult.error });
         continue;
@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       // 获取班主任 ID（如果提供了班主任姓名）
       let classTeacherId: number | undefined = undefined;
       if (row.class_teacher_name?.trim()) {
-        const teacherResult = getClassTeacherId(row.class_teacher_name.trim());
+        const teacherResult = await getClassTeacherId(row.class_teacher_name.trim());
         if (teacherResult.error) {
           validationErrors.push({ row: rowNum, message: teacherResult.error });
           continue;
@@ -140,6 +140,7 @@ export async function POST(request: NextRequest) {
 
     // 如果有验证错误，返回错误信息
     if (validationErrors.length > 0) {
+      console.log("[班级导入验证失败] validationErrors:", JSON.stringify(validationErrors, null, 2));
       return NextResponse.json(
         {
           error: "数据验证失败",
@@ -150,7 +151,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 执行批量导入
-    const result = batchCreateOrUpdateClasses(validatedClasses);
+    const result = await batchCreateOrUpdateClasses(validatedClasses);
 
     return NextResponse.json({
       success: true,
