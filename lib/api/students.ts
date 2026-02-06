@@ -150,17 +150,16 @@ export async function createStudent(input: StudentInput): Promise<{
   // 插入学生
   const result = await pgClient.unsafe(
     `INSERT INTO students (
-      student_no, name, gender, class_id, birth_date,
+      student_no, name, gender, class_id,
       parent_name, parent_phone, address, is_nutrition_meal,
       enrollment_date, is_active, created_at, updated_at
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     RETURNING id`,
     [
       input.student_no,
       input.name,
       input.gender || null,
       input.class_id,
-      input.birth_date || null,
       input.parent_name || null,
       input.parent_phone || null,
       input.address || null,
@@ -219,10 +218,6 @@ export async function updateStudent(
   if (input.class_id !== undefined) {
     updates.push(`class_id = $${paramIndex++}`);
     params.push(input.class_id);
-  }
-  if (input.birth_date !== undefined) {
-    updates.push(`birth_date = $${paramIndex++}`);
-    params.push(input.birth_date);
   }
   if (input.parent_name !== undefined) {
     updates.push(`parent_name = $${paramIndex++}`);
@@ -359,16 +354,15 @@ export async function batchCreateStudents(
     try {
       await pgClient.unsafe(
         `INSERT INTO students (
-          student_no, name, gender, class_id, birth_date,
+          student_no, name, gender, class_id,
           parent_name, parent_phone, address, is_nutrition_meal,
           enrollment_date, is_active, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
         [
           student.student_no,
           student.name,
           student.gender || null,
           student.class_id,
-          student.birth_date || null,
           student.parent_name || null,
           student.parent_phone || null,
           student.address || null,
@@ -522,16 +516,15 @@ export async function batchCreateOrUpdateStudents(
         try {
           const result = await pgClient.unsafe(
             `INSERT INTO students (
-              student_no, name, gender, class_id, birth_date,
+              student_no, name, gender, class_id,
               parent_name, parent_phone, address, is_nutrition_meal,
               enrollment_date, is_active, created_at, updated_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
             [
               input.student_no,
               input.name,
               input.gender || null,
               input.class_id,
-              input.birth_date || null,
               input.parent_name || null,
               input.parent_phone || null,
               input.address || null,
@@ -567,10 +560,6 @@ export async function batchCreateOrUpdateStudents(
           if (input.class_id !== undefined) {
             updates.push(`class_id = $${paramIndex++}`);
             params.push(input.class_id);
-          }
-          if (input.birth_date !== undefined) {
-            updates.push(`birth_date = $${paramIndex++}`);
-            params.push(input.birth_date);
           }
           if (input.parent_name !== undefined) {
             updates.push(`parent_name = $${paramIndex++}`);

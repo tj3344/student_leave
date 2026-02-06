@@ -216,7 +216,7 @@ export async function upgradeSemester(
     // 触发器会自动维护 classes.student_count
     for (const [oldClassId, newClassId] of Object.entries(classIdMap)) {
       const studentsResult = await pgClient.unsafe(
-        `SELECT student_no, name, gender, birth_date, parent_name, parent_phone,
+        `SELECT student_no, name, gender, parent_name, parent_phone,
                 address, is_nutrition_meal, enrollment_date, is_active
          FROM students
          WHERE class_id = $1`,
@@ -225,7 +225,6 @@ export async function upgradeSemester(
           student_no: string;
           name: string;
           gender?: string;
-          birth_date?: string;
           parent_name?: string;
           parent_phone?: string;
           address?: string;
@@ -237,16 +236,15 @@ export async function upgradeSemester(
       for (const student of studentsResult) {
         try {
           await pgClient.unsafe(
-            `INSERT INTO students (student_no, name, gender, class_id, birth_date,
+            `INSERT INTO students (student_no, name, gender, class_id,
                                   parent_name, parent_phone, address, is_nutrition_meal,
                                   enrollment_date, is_active, created_at, updated_at)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
             [
               student.student_no,
               student.name,
               student.gender || null,
               newClassId,
-              student.birth_date || null,
               student.parent_name || null,
               student.parent_phone || null,
               student.address || null,

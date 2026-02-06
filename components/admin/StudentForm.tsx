@@ -40,7 +40,6 @@ const studentSchema = z.object({
   name: z.string().min(1, "姓名不能为空").max(50, "姓名不能超过50个字符"),
   gender: z.enum(["男", "女"]).optional(),
   class_id: z.coerce.number().int().positive("请选择班级"),
-  birth_date: z.string().optional(),
   parent_name: z.string().max(50, "家长姓名不能超过50个字符").optional(),
   parent_phone: z.string().regex(/^1[3-9]\d{9}$/, "请输入有效的手机号").optional().or(z.literal("")),
   address: z.string().max(200, "地址不能超过200个字符").optional(),
@@ -79,7 +78,6 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
       name: "",
       gender: undefined,
       class_id: 0,
-      birth_date: "",
       parent_name: "",
       parent_phone: "",
       address: "",
@@ -95,7 +93,6 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
         name: student.name,
         gender: (student.gender === "男" || student.gender === "女") ? student.gender : undefined,
         class_id: student.class_id,
-        birth_date: student.birth_date || "",
         parent_name: student.parent_name || "",
         parent_phone: student.parent_phone || "",
         address: student.address || "",
@@ -108,7 +105,6 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
         name: "",
         gender: undefined,
         class_id: 0,
-        birth_date: "",
         parent_name: "",
         parent_phone: "",
         address: "",
@@ -328,35 +324,19 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="birth_date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>出生日期</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="enrollment_date"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>入学日期</FormLabel>
-                    <FormControl>
-                      <Input type="date" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
+            <FormField
+              control={form.control}
+              name="enrollment_date"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>入学日期</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <div className="grid grid-cols-2 gap-4">
               <FormField

@@ -62,7 +62,6 @@ export const studentCreateSchema = z.object({
   name: z.string().min(1, "姓名不能为空").max(50, "姓名最多50个字符"),
   gender: z.enum(["男", "女"], { errorMap: () => ({ message: "性别只能是男或女" }) }).optional(),
   class_id: z.number().int().positive("请选择班级"),
-  birth_date: z.string().optional().or(z.literal("")),
   parent_name: z.string().max(50, "家长姓名最多50个字符").optional().or(z.literal("")),
   parent_phone: z
     .string()
@@ -81,7 +80,6 @@ export const studentUpdateSchema = z.object({
   name: z.string().min(1, "姓名不能为空").max(50, "姓名最多50个字符").optional(),
   gender: z.enum(["男", "女"], { errorMap: () => ({ message: "性别只能是男或女" }) }).optional(),
   class_id: z.number().int().positive("请选择班级").optional(),
-  birth_date: z.string().optional().or(z.literal("")),
   parent_name: z.string().max(50, "家长姓名最多50个字符").optional().or(z.literal("")),
   parent_phone: z
     .string()

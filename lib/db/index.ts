@@ -259,7 +259,6 @@ async function createAllTables(client: postgres.Sql): Promise<void> {
       name TEXT NOT NULL,
       gender TEXT,
       class_id INTEGER NOT NULL REFERENCES classes(id) ON DELETE RESTRICT,
-      birth_date TEXT,
       parent_name TEXT,
       parent_phone TEXT,
       address TEXT,

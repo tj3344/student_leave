@@ -148,7 +148,6 @@ export async function POST(request: NextRequest) {
         name: row.name.trim(),
         gender: row.gender?.trim(),
         class_id: classIdResult.class_id ?? 0,
-        birth_date: row.birth_date?.trim() || undefined,
         parent_name: row.parent_name?.trim() || undefined,
         parent_phone: row.parent_phone?.trim() || undefined,
         address: row.address?.trim() || undefined,
@@ -159,6 +158,7 @@ export async function POST(request: NextRequest) {
 
     // 如果有验证错误，返回错误信息
     if (validationErrors.length > 0) {
+      console.log("[学生导入验证失败] validationErrors:", JSON.stringify(validationErrors, null, 2));
       return NextResponse.json(
         {
           error: "数据验证失败",
@@ -169,7 +169,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 执行批量导入
-    const result = batchCreateOrUpdateStudents(validatedStudents);
+    const result = await batchCreateOrUpdateStudents(validatedStudents);
 
     // 记录导入日志
     await logImport(currentUser.id, "students", `导入学生数据：新增 ${result.created} 条，更新 ${result.updated} 条，失败 ${result.failed} 条`);

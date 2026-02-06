@@ -140,7 +140,7 @@ export function validateFileSize(file: File, maxSize: number = EXCEL_SECURITY.MA
  */
 const HEADERS = {
   /** 学生导入表头 */
-  STUDENT: ['学号*', '学生姓名*', '性别', '学期名称*', '年级名称*', '班级名称*', '出生日期', '家长姓名', '家长电话', '家庭住址', '是否营养餐', '入学日期'],
+  STUDENT: ['学号*', '学生姓名*', '性别', '学期名称*', '年级名称*', '班级名称*', '家长姓名', '家长电话', '家庭住址', '是否营养餐', '入学日期'],
   /** 班级导入表头 */
   CLASS: ['学期名称*', '年级名称*', '班级名称*', '班主任姓名'],
   /** 用户导入表头 */
@@ -160,14 +160,13 @@ const COLUMN_NAME_MAPPING: Record<string, string> = {
   '年级名称*': 'grade_name',
   '班级名称*': 'name',
   '班主任姓名': 'class_teacher_name',
-  '学号*': 'student_id',
+  '学号*': 'student_no',
   '学生姓名*': 'name',
   '性别': 'gender',
-  '出生日期': 'birth_date',
   '家长姓名': 'parent_name',
   '家长电话': 'parent_phone',
   '家庭住址': 'address',
-  '是否营养餐': 'has_meal_subsidy',
+  '是否营养餐': 'is_nutrition_meal',
   '入学日期': 'enrollment_date',
   '用户名*': 'username',
   '密码': 'password',
@@ -429,10 +428,10 @@ export function downloadClassTemplate(): void {
  */
 export function generateStudentTemplate(): XLSX.WorkBook {
   const worksheetData = [
-    ['学号*', '学生姓名*', '性别', '学期名称*', '年级名称*', '班级名称*', '出生日期', '家长姓名', '家长电话', '家庭住址', '是否营养餐', '入学日期'],
-    ['202401001', '张三', '男', '2024-2025第一学期', '一年级', '1班', '2018-01-15', '张父', '13800138000', '北京市朝阳区', '是', '2024-09-01'],
-    ['202401002', '李四', '女', '2024-2025第一学期', '一年级', '1班', '2018-03-20', '李母', '13900139000', '北京市海淀区', '否', '2024-09-01'],
-    ['202401003', '王五', '男', '2024-2025第一学期', '一年级', '2班', '2018-05-10', '', '', '', '是', '2024-09-01'],
+    ['学号*', '学生姓名*', '性别', '学期名称*', '年级名称*', '班级名称*', '家长姓名', '家长电话', '家庭住址', '是否营养餐', '入学日期'],
+    ['202401001', '张三', '男', '2024-2025第一学期', '一年级', '1班', '张父', '13800138000', '北京市朝阳区', '是', '2024-09-01'],
+    ['202401002', '李四', '女', '2024-2025第一学期', '一年级', '1班', '李母', '13900139000', '北京市海淀区', '否', '2024-09-01'],
+    ['202401003', '王五', '男', '2024-2025第一学期', '一年级', '2班', '', '', '', '是', '2024-09-01'],
   ];
 
   const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
@@ -481,7 +480,33 @@ export async function parseStudentExcel(file: File): Promise<StudentImportRow[]>
     return firstValue !== '学号*' && firstValue.trim() !== '';
   });
 
-  return filteredData;
+  // 学生专用的中文列名到英文列名的映射
+  // 注意：'班级名称*' 需要映射到 'class_name' 而不是 'name'（与班级导入不同）
+  const STUDENT_COLUMN_MAPPING: Record<string, string> = {
+    '学期名称*': 'semester_name',
+    '年级名称*': 'grade_name',
+    '班级名称*': 'class_name',  // 学生导入中映射到 class_name
+    '学号*': 'student_no',
+    '学生姓名*': 'name',
+    '性别': 'gender',
+    '家长姓名': 'parent_name',
+    '家长电话': 'parent_phone',
+    '家庭住址': 'address',
+    '是否营养餐': 'is_nutrition_meal',
+    '入学日期': 'enrollment_date',
+  };
+
+  // 将中文列名映射为英文列名（使用学生专用映射）
+  const mappedData = filteredData.map((row) => {
+    const mappedRow: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) {
+      const newKey = STUDENT_COLUMN_MAPPING[key] || key;
+      mappedRow[newKey] = value;
+    }
+    return mappedRow as StudentImportRow;
+  });
+
+  return mappedData;
 }
 
 /**
@@ -494,7 +519,6 @@ export function exportStudentsToExcel(
     gender?: string;
     class_name?: string;
     grade_name?: string;
-    birth_date?: string;
     parent_name?: string;
     parent_phone?: string;
     address?: string;
@@ -503,14 +527,13 @@ export function exportStudentsToExcel(
   }>
 ): XLSX.WorkBook {
   const worksheetData = [
-    ['学号', '学生姓名', '性别', '年级', '班级', '出生日期', '家长姓名', '家长电话', '家庭住址', '是否营养餐', '入学日期'],
+    ['学号', '学生姓名', '性别', '年级', '班级', '家长姓名', '家长电话', '家庭住址', '是否营养餐', '入学日期'],
     ...students.map((s) => [
       s.student_no,
       s.name,
       s.gender || '',
       s.grade_name || '',
       s.class_name || '',
-      s.birth_date || '',
       s.parent_name || '',
       s.parent_phone || '',
       s.address || '',

@@ -148,12 +148,6 @@ export default function StudentDetailPage() {
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex justify-between">
-              <span className="text-muted-foreground">出生日期</span>
-              <span className="font-medium">
-                {student.birth_date ? new Date(student.birth_date).toLocaleDateString("zh-CN") : "-"}
-              </span>
-            </div>
-            <div className="flex justify-between">
               <span className="text-muted-foreground">入学日期</span>
               <span className="font-medium">
                 {student.enrollment_date ? new Date(student.enrollment_date).toLocaleDateString("zh-CN") : "-"}

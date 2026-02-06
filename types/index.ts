@@ -146,7 +146,6 @@ export interface Student {
   name: string;
   gender?: string;
   class_id: number;
-  birth_date?: string;
   parent_name?: string;
   parent_phone?: string;
   address?: string;
@@ -162,7 +161,6 @@ export interface StudentInput {
   name: string;
   gender?: string;
   class_id: number;
-  birth_date?: string;
   parent_name?: string;
   parent_phone?: string;
   address?: string;
@@ -184,7 +182,6 @@ export interface StudentImportRow {
   semester_name: string;       // 学期名称
   grade_name: string;          // 年级名称
   class_name: string;          // 班级名称
-  birth_date?: string;         // 出生日期
   parent_name?: string;        // 家长姓名
   parent_phone?: string;       // 家长电话
   address?: string;            // 家庭住址
