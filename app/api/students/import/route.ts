@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
       }
 
       // 获取班级 ID
-      const classIdResult = getClassIdByNames(
+      const classIdResult = await getClassIdByNames(
         row.semester_name.trim(),
         row.grade_name.trim(),
         row.class_name.trim()
@@ -132,14 +132,27 @@ export async function POST(request: NextRequest) {
       }
 
       // 转换是否营养餐
-      let isNutritionMeal: number | undefined = undefined;
-      if (row.is_nutrition_meal?.trim()) {
-        const value = row.is_nutrition_meal.trim();
+      let isNutritionMeal: boolean | undefined = undefined;
+      const rawMealValue = row.is_nutrition_meal?.trim();
+      if (rawMealValue) {
+        const value = rawMealValue;
         if (value === "是" || value === "1" || value.toLowerCase() === "yes") {
-          isNutritionMeal = 1;
+          isNutritionMeal = true;
         } else if (value === "否" || value === "0" || value.toLowerCase() === "no") {
-          isNutritionMeal = 0;
+          isNutritionMeal = false;
+        } else {
+          console.log(`[学生导入] 第${rowNum}行: 未识别的营养餐值: "${value}"`);
         }
+      }
+      console.log(`[学生导入] 第${rowNum}行: 原始值="${row.is_nutrition_meal}", 处理后值=${isNutritionMeal}`);
+
+      // 验证 class_id 有效性
+      if (!classIdResult.class_id || classIdResult.class_id <= 0) {
+        validationErrors.push({
+          row: rowNum,
+          message: `班级 ID 无效（学期：${row.semester_name}，年级：${row.grade_name}，班级：${row.class_name}）`
+        });
+        continue;
       }
 
       // 构建验证后的数据
@@ -147,7 +160,7 @@ export async function POST(request: NextRequest) {
         student_no: row.student_no.trim(),
         name: row.name.trim(),
         gender: row.gender?.trim(),
-        class_id: classIdResult.class_id ?? 0,
+        class_id: classIdResult.class_id,
         parent_name: row.parent_name?.trim() || undefined,
         parent_phone: row.parent_phone?.trim() || undefined,
         address: row.address?.trim() || undefined,

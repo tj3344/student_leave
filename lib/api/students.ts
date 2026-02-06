@@ -163,7 +163,7 @@ export async function createStudent(input: StudentInput): Promise<{
       input.parent_name || null,
       input.parent_phone || null,
       input.address || null,
-      input.is_nutrition_meal || false,
+      input.is_nutrition_meal ?? false,
       input.enrollment_date || null,
       true
     ]
@@ -496,7 +496,7 @@ export async function batchCreateOrUpdateStudents(
 
       // 检查班级是否存在
       if (!validClassIds.has(input.class_id)) {
-        errors.push({ row: rowNum, input, message: "班级不存在" });
+        errors.push({ row: rowNum, input, message: `班级不存在 (class_id: ${input.class_id})` });
         continue;
       }
 
@@ -528,7 +528,7 @@ export async function batchCreateOrUpdateStudents(
               input.parent_name || null,
               input.parent_phone || null,
               input.address || null,
-              input.is_nutrition_meal || false,
+              input.is_nutrition_meal ?? false,
               input.enrollment_date || null,
               true
             ]
