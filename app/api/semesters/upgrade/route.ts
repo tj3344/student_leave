@@ -20,6 +20,7 @@ export async function GET(request: NextRequest) {
     const searchParams = request.nextUrl.searchParams;
     const sourceSemesterId = searchParams.get("source_semester_id");
     const targetSemesterId = searchParams.get("target_semester_id");
+    const upgradeMode = searchParams.get("upgrade_mode") as "semester" | "year" | null;
 
     if (!sourceSemesterId || !targetSemesterId) {
       return NextResponse.json(
@@ -28,9 +29,10 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const preview = getUpgradePreview(
+    const preview = await getUpgradePreview(
       parseInt(sourceSemesterId, 10),
-      parseInt(targetSemesterId, 10)
+      parseInt(targetSemesterId, 10),
+      upgradeMode || "year"
     );
 
     if (!preview) {
@@ -57,6 +59,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = (await request.json()) as SemesterUpgradeRequest;
+    const upgradeMode = body.upgrade_mode || "year";
 
     // 参数验证
     if (!body.source_semester_id || !body.target_semester_id) {
@@ -71,15 +74,19 @@ export async function POST(request: NextRequest) {
     }
 
     // 执行升级
-    const result = upgradeSemester(body);
+    const result = await upgradeSemester(body);
 
     // 记录操作日志
     if (result.success) {
+      const modeText = upgradeMode === "year" ? "学年升级" : "学期迁移";
+      const graduatedText = result.data?.graduated_students_count
+        ? `, 毕业学生 ${result.data.graduated_students_count} 人`
+        : "";
       await logOperation(
         user.id,
         "upgrade",
         "semesters",
-        `学生升级: 学期 ${body.source_semester_id} -> ${body.target_semester_id}, 年级 ${body.grade_ids.length} 个, 班级 ${result.data?.classes_created} 个, 学生 ${result.data?.students_created} 个`
+        `${modeText}: 学期 ${body.source_semester_id} -> ${body.target_semester_id}, 年级 ${body.grade_ids.length} 个, 班级 ${result.data?.classes_created} 个, 学生 ${result.data?.students_created} 个${graduatedText}`
       );
     } else {
       await logOperation(

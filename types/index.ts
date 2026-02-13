@@ -556,10 +556,17 @@ export interface ClassTeacherDashboardStats {
 // 学期升级相关类型
 // ============================================
 
+// 迁移模式类型
+export type UpgradeMode = "semester" | "year";
+
 export interface SemesterUpgradeRequest {
   source_semester_id: number;
   target_semester_id: number;
   grade_ids: number[];
+  // 是否保留班主任（默认 true）
+  preserve_class_teachers?: boolean;
+  // 迁移模式（默认 "year" 学年迁移以保持向后兼容）
+  upgrade_mode?: UpgradeMode;
 }
 
 export interface SemesterUpgradeResult {
@@ -569,8 +576,20 @@ export interface SemesterUpgradeResult {
     grades_created: number;
     classes_created: number;
     students_created: number;
+    graduated_students_count?: number;  // 毕业学生数
+    skipped_count?: number;  // 跳过学生数（学号已存在）
     warnings?: string[];
   };
+}
+
+// 班主任映射预览类型
+export interface ClassTeacherMappingPreview {
+  old_class_id: number;
+  old_class_name: string;
+  old_grade_name: string;
+  old_teacher_id?: number;
+  old_teacher_name?: string;
+  will_migrate: boolean;  // 是否会迁移班主任
 }
 
 export interface UpgradePreview {
@@ -591,13 +610,23 @@ export interface UpgradePreview {
   }>;
   total_classes: number;
   total_students: number;
+  // 班主任映射预览信息
+  class_teacher_preview?: ClassTeacherMappingPreview[];
+  // 即将毕业的学生数量（六年级）
+  graduating_students_count?: number;
+  // 毕业预览信息
+  graduation_preview?: Array<{
+    grade_name: string;
+    class_name: string;
+    student_count: number;
+  }>;
+  // 学号冲突的学生数量
+  conflicting_students_count?: number;
 }
 
 // ============================================
 // 数据库管理相关类型
 // ============================================
-
-export type DatabaseEnvironment = "production" | "staging" | "development";
 
 export type DatabaseEnvironment = "production" | "staging" | "development";
 export type DatabaseConnectionTestStatus = "success" | "failed" | "pending";

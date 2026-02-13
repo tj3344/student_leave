@@ -41,6 +41,7 @@ export default function StudentsPage() {
   const [semesterLoading, setSemesterLoading] = useState(true);
   const [classList, setClassList] = useState<Array<{ id: number; name: string; grade_name: string; grade_id: number }>>([]);
   const [gradeList, setGradeList] = useState<Array<{ id: number; name: string }>>([]);
+  const [currentSemester, setCurrentSemester] = useState<{ id: number; name: string } | null>(null);
 
   const fetchStudents = async () => {
     setLoading(true);
@@ -94,9 +95,10 @@ export default function StudentsPage() {
     try {
       const response = await fetch("/api/semesters");
       const data = await response.json();
-      const currentSemester = data.data?.find((s: { is_current: boolean }) => s.is_current === true);
-      if (currentSemester) {
-        setCurrentSemesterId(currentSemester.id);
+      const semester = data.data?.find((s: { is_current: boolean }) => s.is_current === true);
+      if (semester) {
+        setCurrentSemesterId(semester.id);
+        setCurrentSemester({ id: semester.id, name: semester.name });
       }
     } catch (error) {
       console.error("获取当前学期失败:", error);
@@ -191,6 +193,12 @@ export default function StudentsPage() {
           <h1 className="text-2xl font-bold">学生管理</h1>
           <p className="text-muted-foreground">管理学生档案信息</p>
         </div>
+        {currentSemester && (
+          <div className="bg-primary/10 text-primary-foreground px-3 py-1 rounded-md inline-block">
+            <span className="font-medium">{currentSemester.name}</span>
+            <span className="text-xs ml-2">（当前学期）</span>
+          </div>
+        )}
         <div className="flex gap-2">
           <Button variant="outline" size="icon" onClick={() => currentSemesterId && fetchStudents()} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />

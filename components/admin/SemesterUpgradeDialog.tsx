@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import type { Semester, UpgradePreview } from "@/types";
+import type { Semester, UpgradePreview, ClassTeacherMappingPreview } from "@/types";
 
 interface SemesterUpgradeDialogProps {
   open: boolean;
@@ -32,7 +32,8 @@ interface SemesterUpgradeDialogProps {
   allSemesters: Semester[];
 }
 
-type UpgradeStep = "select-semester" | "select-grade" | "confirm" | "processing" | "result";
+type UpgradeStep = "select-mode" | "select-semester" | "select-grade" | "teacher-preview" | "confirm" | "processing" | "result";
+type UpgradeMode = "semester" | "year";
 
 interface SelectedGradesInfo {
   [gradeId: number]: boolean;
@@ -44,22 +45,26 @@ export function SemesterUpgradeDialog({
   onSuccess,
   allSemesters,
 }: SemesterUpgradeDialogProps) {
-  const [step, setStep] = useState<UpgradeStep>("select-semester");
+  const [step, setStep] = useState<UpgradeStep>("select-mode");
   const [loading, setLoading] = useState(false);
   const [preview, setPreview] = useState<UpgradePreview | null>(null);
   const [sourceSemesterId, setSourceSemesterId] = useState<number | null>(null);
   const [targetSemesterId, setTargetSemesterId] = useState<number | null>(null);
   const [selectedGrades, setSelectedGrades] = useState<SelectedGradesInfo>({});
+  const [upgradeMode, setUpgradeMode] = useState<UpgradeMode>("year");
   const [result, setResult] = useState<{
     grades_created: number;
     classes_created: number;
     students_created: number;
+    graduated_students_count?: number;
+    skipped_count?: number;
     warnings?: string[];
   } | null>(null);
 
   // 重置状态
   const resetState = useCallback(() => {
-    setStep("select-semester");
+    setStep("select-mode");
+    setUpgradeMode("year");
     setPreview(null);
     setSourceSemesterId(null);
     setTargetSemesterId(null);
@@ -82,12 +87,18 @@ export function SemesterUpgradeDialog({
     setLoading(true);
     try {
       const response = await fetch(
-        `/api/semesters/upgrade?source_semester_id=${sourceSemesterId}&target_semester_id=${targetSemesterId}`
+        `/api/semesters/upgrade?source_semester_id=${sourceSemesterId}&target_semester_id=${targetSemesterId}&upgrade_mode=${upgradeMode}`
       );
       if (!response.ok) {
         throw new Error("获取预览失败");
       }
       const data = await response.json();
+
+      // 验证响应数据结构
+      if (!data.data || !Array.isArray(data.data.available_grades)) {
+        throw new Error("返回数据格式错误");
+      }
+
       setPreview(data.data);
 
       // 预选所有年级
@@ -157,12 +168,15 @@ export function SemesterUpgradeDialog({
     return preview.available_grades
       .filter((g) => selectedGrades[g.id])
       .map((g) => {
-        // 提取年级名称中的数字并+1
-        const match = g.name.match(/(\d+)/);
         let newGradeName = g.name;
-        if (match) {
-          const number = parseInt(match[1], 10);
-          newGradeName = g.name.replace(match[1], (number + 1).toString());
+
+        // 仅在学年迁移时递增年级名称
+        if (upgradeMode === "year") {
+          const match = g.name.match(/(\d+)/);
+          if (match) {
+            const number = parseInt(match[1], 10);
+            newGradeName = g.name.replace(match[1], (number + 1).toString());
+          }
         }
 
         return {
@@ -198,6 +212,8 @@ export function SemesterUpgradeDialog({
           source_semester_id: sourceSemesterId,
           target_semester_id: targetSemesterId,
           grade_ids: selectedGradeIds,
+          preserve_class_teachers: true,
+          upgrade_mode: upgradeMode,
         }),
       });
 
@@ -218,14 +234,115 @@ export function SemesterUpgradeDialog({
     }
   };
 
+  // 提示用户切换到目标学期
+  const promptSwitchSemester = () => {
+    if (preview?.target_semester) {
+      const shouldSwitch = confirm(
+        `数据已迁移到 ${preview.target_semester.name}\n\n` +
+        `请切换当前学期到「${preview.target_semester.name}」以查看迁移后的学生数据。\n\n` +
+        `是否立即切换到目标学期？`
+      );
+      if (shouldSwitch) {
+        // 这里可以调用切换学期的逻辑，或者跳转到学期管理页面
+        // 暂时只提示用户，让用户手动切换
+        window.location.href = "/admin/semesters"; // 跳转到学期管理页面
+      }
+    }
+  };
+
   // 关闭对话框
   const handleClose = () => {
     if (step === "result") {
+      // 如果升级成功且有数据迁移，提示用户切换学期
+      if (result && (result.students_created || 0) > 0) {
+        promptSwitchSemester();
+      } else if (result && (result.graduated_students_count || 0) > 0) {
+        // 如果有学生毕业，也提示用户
+        promptSwitchSemester();
+      } else {
+        // 其他情况（学生数为0但有其他数据迁移）
+        promptSwitchSemester();
+      }
       onSuccess();
     }
     resetState();
     onClose();
   };
+
+  // 渲染选择模式步骤
+  const renderSelectModeStep = () => (
+    <div className="space-y-4">
+      <div className="text-center space-y-2">
+        <p className="text-sm font-medium">选择迁移模式</p>
+        <p className="text-xs text-muted-foreground">根据不同的场景选择适合的迁移方式</p>
+      </div>
+
+      {/* 学期迁移选项 */}
+      <button
+        onClick={() => setUpgradeMode("semester")}
+        type="button"
+        className={`w-full p-6 rounded-lg border-2 transition-all text-left ${
+          upgradeMode === "semester"
+            ? "border-primary bg-primary/5"
+            : "border-border hover:border-primary/50"
+        }`}
+      >
+        <div className="flex items-start gap-4">
+          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+            upgradeMode === "semester" ? "border-primary" : "border-muted"
+          }`}>
+            {upgradeMode === "semester" && (
+              <div className="w-3 h-3 rounded-full bg-primary" />
+            )}
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold mb-1">学期迁移（上下学期）</h3>
+            <p className="text-sm text-muted-foreground mb-2">
+              适用于同一年级的不同学期之间的数据迁移
+            </p>
+            <ul className="text-xs text-muted-foreground space-y-1">
+              <li>• 年级名称保持不变（如"1年级"迁移后还是"1年级"）</li>
+              <li>• 只迁移年级、班级、学生基础数据</li>
+              <li>• 不迁移请假和缴费记录</li>
+            </ul>
+          </div>
+        </div>
+      </button>
+
+      {/* 学年迁移选项 */}
+      <button
+        onClick={() => setUpgradeMode("year")}
+        type="button"
+        className={`w-full p-6 rounded-lg border-2 transition-all text-left ${
+          upgradeMode === "year"
+            ? "border-primary bg-primary/5"
+            : "border-border hover:border-primary/50"
+        }`}
+      >
+        <div className="flex items-start gap-4">
+          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 mt-0.5 ${
+            upgradeMode === "year" ? "border-primary" : "border-muted"
+          }`}>
+            {upgradeMode === "year" && (
+              <div className="w-3 h-3 rounded-full bg-primary" />
+            )}
+          </div>
+          <div className="flex-1">
+            <h3 className="font-semibold mb-1">学年迁移</h3>
+            <p className="text-sm text-muted-foreground mb-2">
+              适用于跨学年的学生升级，自动处理毕业
+            </p>
+            <ul className="text-xs text-muted-foreground space-y-1">
+              <li>• 年级名称自动递增（如"1年级" → "2年级"）</li>
+              <li>• 六年级学生自动标记为毕业（is_active=false）</li>
+              <li>• 只迁移年级、班级、学生基础数据</li>
+              <li>• 不迁移请假和缴费记录</li>
+            </ul>
+          </div>
+        </div>
+      </button>
+    </div>
+  );
 
   // 渲染选择学期步骤
   const renderSelectSemesterStep = () => (
@@ -360,7 +477,105 @@ export function SemesterUpgradeDialog({
           <p className="text-sm text-yellow-800 dark:text-yellow-200">
             <AlertCircle className="h-4 w-4 inline mr-2" />
             <strong>注意：</strong>
-            升级后年级名称自动递增（1→2，2→3），班级班主任为空需要手动分配。
+            {upgradeMode === "year"
+              ? "升级后年级名称自动递增（1→2，2→3），六年级学生将被标记为毕业。"
+              : "迁移后年级名称保持不变。"
+            }
+            班主任为空需要手动分配。
+          </p>
+        </div>
+
+        {/* 学年迁移时显示毕业提示 */}
+        {upgradeMode === "year" && (preview?.graduating_students_count ?? 0) > 0 && (
+          <div className="p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded-lg">
+            <p className="text-sm text-orange-800 dark:text-orange-200">
+              <AlertCircle className="h-4 w-4 inline mr-2" />
+              <strong>毕业提示：</strong>
+              将有 {preview.graduating_students_count} 名六年级学生被标记为毕业状态，不会被迁移到新学期。
+            </p>
+          </div>
+        )}
+
+        {/* 学号冲突警告 */}
+        {(preview?.conflicting_students_count ?? 0) > 0 && (
+          <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900 rounded-lg">
+            <p className="text-sm text-amber-800 dark:text-amber-200">
+              <AlertCircle className="h-4 w-4 inline mr-2" />
+              <strong>学号冲突：</strong>
+              检测到 {preview.conflicting_students_count} 名学生的学号在目标学期已存在，将被跳过。
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // 渲染班主任预览步骤
+  const renderTeacherPreviewStep = () => {
+    if (!preview?.class_teacher_preview) {
+      return (
+        <div className="space-y-4 text-center py-8">
+          <Loader2 className="h-12 w-12 animate-spin mx-auto text-primary" />
+          <p className="text-lg font-medium">正在加载班主任信息...</p>
+        </div>
+      );
+    }
+
+    const teacherPreview = preview.class_teacher_preview;
+    const migrateCount = teacherPreview.filter((t) => t.will_migrate).length;
+
+    return (
+      <div className="space-y-4">
+        {/* 提示信息 */}
+        <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
+          <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+            将迁移 {migrateCount} 个班级的班主任到新学期
+          </p>
+          <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">
+            升级后，原班级的班主任关联将自动清除
+          </p>
+        </div>
+
+        {/* 班主任映射列表 */}
+        <ScrollArea className="h-[300px] border rounded-lg">
+          <div className="p-4 space-y-2">
+            {teacherPreview.map((item) => (
+              <div
+                key={item.old_class_id}
+                className="flex items-center gap-4 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline">{item.old_grade_name}</Badge>
+                    <span className="font-medium">{item.old_class_name}</span>
+                  </div>
+                  {item.old_teacher_name && (
+                    <p className="text-sm text-muted-foreground mt-1">
+                      班主任: {item.old_teacher_name}
+                    </p>
+                  )}
+                </div>
+                <div className="text-right">
+                  {item.will_migrate ? (
+                    <>
+                      <ArrowRight className="h-4 w-4 text-green-500 inline" />
+                      <p className="text-xs text-green-600 dark:text-green-400">自动迁移</p>
+                    </>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">无班主任</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </ScrollArea>
+
+        {/* 注意事项 */}
+        <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded-lg">
+          <p className="text-sm text-yellow-800 dark:text-yellow-200">
+            <AlertCircle className="h-4 w-4 inline mr-2" />
+            <strong>注意：</strong>
+            班主任将自动迁移到新学期的对应班级，原班级的班主任关联将被清除。
           </p>
         </div>
       </div>
@@ -460,50 +675,119 @@ export function SemesterUpgradeDialog({
   );
 
   // 渲染结果步骤
-  const renderResultStep = () => (
-    <div className="space-y-4 text-center py-4">
-      <CheckCircle className="h-16 w-16 mx-auto text-green-500" />
-      <div>
-        <p className="text-lg font-medium">升级完成！</p>
-        <p className="text-sm text-muted-foreground mt-1">
-          学生已从 {preview?.source_semester.name} 复制到 {preview?.target_semester.name}
-        </p>
-      </div>
+  const renderResultStep = () => {
+    // 计算跳过的学生数量
+    const skippedCount = result?.skipped_count ?? result?.warnings?.length ?? 0;
+    const hasWarnings = skippedCount > 0;
+    const allSkipped = result?.students_created === 0 && hasWarnings;
 
-      <div className="flex justify-center gap-6 py-4">
-        <div className="text-center">
-          <p className="text-3xl font-bold text-blue-600">{result?.grades_created || 0}</p>
-          <p className="text-sm text-muted-foreground">新建年级</p>
+    return (
+      <div className="space-y-4 text-center py-4">
+        <CheckCircle className={`h-16 w-16 mx-auto ${allSkipped ? "text-orange-500" : "text-green-500"}`} />
+        <div>
+          <p className="text-lg font-medium">
+            {allSkipped ? "升级完成（有警告）" : "升级完成！"}
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            学生已从 {preview?.source_semester.name} 复制到 {preview?.target_semester.name}
+          </p>
         </div>
-        <div className="text-center">
-          <p className="text-3xl font-bold text-green-600">{result?.classes_created || 0}</p>
-          <p className="text-sm text-muted-foreground">班级</p>
+
+        <div className="flex justify-center gap-6 py-4">
+          <div className="text-center">
+            <p className="text-3xl font-bold text-blue-600">{result?.grades_created || 0}</p>
+            <p className="text-sm text-muted-foreground">新建年级</p>
+          </div>
+          <div className="text-center">
+            <p className="text-3xl font-bold text-green-600">{result?.classes_created || 0}</p>
+            <p className="text-sm text-muted-foreground">班级</p>
+          </div>
+          <div className="text-center">
+            <p className="text-3xl font-bold text-purple-600">{result?.students_created || 0}</p>
+            <p className="text-sm text-muted-foreground">学生</p>
+          </div>
+          {skippedCount > 0 && (
+            <div className="text-center">
+              <p className="text-3xl font-bold text-orange-600">{skippedCount}</p>
+              <p className="text-sm text-muted-foreground">跳过</p>
+            </div>
+          )}
         </div>
-        <div className="text-center">
-          <p className="text-3xl font-bold text-purple-600">{result?.students_created || 0}</p>
-          <p className="text-sm text-muted-foreground">学生</p>
+
+        {result?.graduated_students_count > 0 && (
+          <div className="p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded-lg text-left">
+            <p className="text-sm text-orange-800 dark:text-orange-200">
+              <GraduationCap className="h-4 w-4 inline mr-2" />
+              <strong>毕业信息：</strong>
+              有 {result.graduated_students_count} 名六年级学生被标记为毕业状态，不会迁移到新学期。
+            </p>
+          </div>
+        )}
+
+        {allSkipped ? (
+          <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-lg text-left">
+            <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
+              <AlertCircle className="h-4 w-4 inline mr-2" />
+              <strong>重要：没有学生被迁移！</strong>
+            </p>
+            <p className="text-sm text-red-700 dark:text-red-300">
+              所有学生都因为学号已存在而被跳过。这可能是因为：
+            </p>
+            <ul className="text-sm text-red-700 dark:text-red-300 list-disc list-inside ml-4 space-y-1">
+              <li>您之前已经执行过迁移到目标学期</li>
+              <li>目标学期已经有了相同学号的学生数据</li>
+            </ul>
+            {result?.warnings && result.warnings.length > 0 && (
+              <details className="mt-2">
+                <summary className="text-sm font-medium text-red-800 dark:text-red-200 cursor-pointer">
+                  查看跳过的学生详情
+                </summary>
+                <div className="mt-2 text-left">
+                  <ul className="text-sm text-red-700 dark:text-red-300 space-y-1 max-h-32 overflow-y-auto">
+                    {result.warnings.slice(0, 50).map((warning, index) => (
+                      <li key={index}>• {warning}</li>
+                    ))}
+                    {result.warnings.length > 50 && (
+                      <li className="italic">... 还有 {result.warnings.length - 50} 条警告</li>
+                    )}
+                  </ul>
+                </div>
+              </details>
+            )}
+          </div>
+        ) : hasWarnings ? (
+          <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded-lg text-left">
+            <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">
+              <AlertCircle className="h-4 w-4 inline mr-2" />
+              <strong>警告：</strong>有 {skippedCount} 名学生因学号已存在被跳过
+            </p>
+            <details className="mt-2">
+              <summary className="text-sm font-medium text-yellow-800 dark:text-yellow-200 cursor-pointer">
+                查看跳过的学生详情
+              </summary>
+              <div className="mt-2 text-left">
+                <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1 max-h-32 overflow-y-auto">
+                  {result.warnings.slice(0, 50).map((warning, index) => (
+                    <li key={index}>• {warning}</li>
+                  ))}
+                  {result.warnings.length > 50 && (
+                    <li className="italic">... 还有 {result.warnings.length - 50} 条警告</li>
+                  )}
+                </ul>
+              </div>
+            </details>
+          </div>
+        ) : null}
+
+        <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
+          <p className="text-sm text-blue-800 dark:text-blue-200">
+            <GraduationCap className="h-4 w-4 inline mr-2" />
+            提醒：请为各班级分配班主任
+          </p>
         </div>
       </div>
-
-      {result?.warnings && result.warnings.length > 0 && (
-        <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded-lg text-left">
-          <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">警告：</p>
-          <ul className="text-sm text-yellow-700 dark:text-yellow-300 space-y-1">
-            {result.warnings.map((warning, index) => (
-              <li key={index}>• {warning}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
-        <p className="text-sm text-blue-800 dark:text-blue-200">
-          <GraduationCap className="h-4 w-4 inline mr-2" />
-          提醒：请为各班级分配班主任
-        </p>
-      </div>
-    </div>
-  );
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -514,21 +798,35 @@ export function SemesterUpgradeDialog({
             学生升级到新学期
           </DialogTitle>
           <DialogDescription>
+            {step === "select-mode" && "选择迁移模式"}
             {step === "select-semester" && "选择源学期和目标学期"}
             {step === "select-grade" && "选择要升级的年级"}
+            {step === "teacher-preview" && "确认班主任迁移"}
             {step === "confirm" && "确认升级信息"}
             {step === "processing" && "正在执行升级操作"}
             {step === "result" && "升级已完成"}
           </DialogDescription>
         </DialogHeader>
 
+        {step === "select-mode" && renderSelectModeStep()}
         {step === "select-semester" && renderSelectSemesterStep()}
         {step === "select-grade" && renderSelectGradeStep()}
+        {step === "teacher-preview" && renderTeacherPreviewStep()}
         {step === "confirm" && renderConfirmStep()}
         {step === "processing" && renderProcessingStep()}
         {step === "result" && renderResultStep()}
 
         <DialogFooter>
+          {step === "select-mode" && (
+            <>
+              <Button variant="outline" onClick={handleClose} disabled={loading}>
+                取消
+              </Button>
+              <Button onClick={() => setStep("select-semester")}>
+                下一步：选择学期
+              </Button>
+            </>
+          )}
           {step === "select-semester" && (
             <>
               <Button variant="outline" onClick={handleClose} disabled={loading}>
@@ -545,10 +843,20 @@ export function SemesterUpgradeDialog({
                 上一步
               </Button>
               <Button
-                onClick={() => setStep("confirm")}
+                onClick={() => setStep("teacher-preview")}
                 disabled={Object.values(selectedGrades).filter((v) => v).length === 0 || loading}
               >
                 下一步 ({Object.values(selectedGrades).filter((v) => v).length} 个年级)
+              </Button>
+            </>
+          )}
+          {step === "teacher-preview" && (
+            <>
+              <Button variant="outline" onClick={() => setStep("select-grade")} disabled={loading}>
+                上一步
+              </Button>
+              <Button onClick={() => setStep("confirm")}>
+                确认升级
               </Button>
             </>
           )}
