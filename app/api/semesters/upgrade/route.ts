@@ -22,6 +22,13 @@ export async function GET(request: NextRequest) {
     const targetSemesterId = searchParams.get("target_semester_id");
     const upgradeMode = searchParams.get("upgrade_mode") as "semester" | "year" | null;
 
+    console.log("[DEBUG] Upgrade preview params:", {
+      sourceSemesterId,
+      targetSemesterId,
+      upgradeMode,
+      url: request.nextUrl
+    });
+
     if (!sourceSemesterId || !targetSemesterId) {
       return NextResponse.json(
         { error: "缺少 source_semester_id 或 target_semester_id 参数" },
@@ -32,14 +39,17 @@ export async function GET(request: NextRequest) {
     const preview = await getUpgradePreview(
       parseInt(sourceSemesterId, 10),
       parseInt(targetSemesterId, 10),
-      upgradeMode || "year"
+      upgradeMode
     );
 
     if (!preview) {
       return NextResponse.json({ error: "学期不存在" }, { status: 404 });
     }
 
+    console.log("[DEBUG] Upgrade preview data:", JSON.stringify(preview, null, 2));
     return NextResponse.json({ data: preview });
+
+    console.log("[DEBUG] Upgrade preview returned:", JSON.stringify(preview, null, 2));
   } catch (error) {
     console.error("Get upgrade preview error:", error);
     return NextResponse.json({ error: "获取升级预览失败" }, { status: 500 });

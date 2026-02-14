@@ -52,6 +52,7 @@ export function SemesterUpgradeDialog({
   const [targetSemesterId, setTargetSemesterId] = useState<number | null>(null);
   const [selectedGrades, setSelectedGrades] = useState<SelectedGradesInfo>({});
   const [upgradeMode, setUpgradeMode] = useState<UpgradeMode>("year");
+  const [gradeNameOverrides, setGradeNameOverrides] = useState<Record<number, string>>({});
   const [result, setResult] = useState<{
     grades_created: number;
     classes_created: number;
@@ -69,6 +70,7 @@ export function SemesterUpgradeDialog({
     setSourceSemesterId(null);
     setTargetSemesterId(null);
     setSelectedGrades({});
+    setGradeNameOverrides({});
     setResult(null);
     setLoading(false);
   }, []);
@@ -168,20 +170,13 @@ export function SemesterUpgradeDialog({
     return preview.available_grades
       .filter((g) => selectedGrades[g.id])
       .map((g) => {
-        let newGradeName = g.name;
-
-        // 仅在学年迁移时递增年级名称
-        if (upgradeMode === "year") {
-          const match = g.name.match(/(\d+)/);
-          if (match) {
-            const number = parseInt(match[1], 10);
-            newGradeName = g.name.replace(match[1], (number + 1).toString());
-          }
-        }
+        // 后端已处理年级名称递增，使用 original_name 和 name
+        const originalName = g.original_name || g.name;
+        const newName = g.name;
 
         return {
-          old_grade: g.name,
-          new_grade: newGradeName,
+          old_grade: originalName,
+          new_grade: newName,
           class_count: g.class_count,
           student_count: g.student_count,
         };
@@ -438,12 +433,10 @@ export function SemesterUpgradeDialog({
         <ScrollArea className="h-[300px] border rounded-lg">
           <div className="p-4 space-y-2">
             {preview.available_grades.map((grade) => {
-              const match = grade.name.match(/(\d+)/);
-              let newGradeName = grade.name;
-              if (match) {
-                const number = parseInt(match[1], 10);
-                newGradeName = grade.name.replace(match[1], (number + 1).toString());
-              }
+              // 根据迁移模式决定显示方式
+              const isYearMode = upgradeMode === "year";
+              const originalName = grade.original_name || grade.name;
+              const newName = grade.name;
 
               return (
                 <div
@@ -456,9 +449,13 @@ export function SemesterUpgradeDialog({
                   />
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <Badge variant="outline">{grade.name}</Badge>
-                      <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                      <Badge>{newGradeName}</Badge>
+                      <Badge variant="outline">{originalName}</Badge>
+                      {isYearMode && (
+                        <>
+                          <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                          <Badge>{newName}</Badge>
+                        </>
+                      )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1">
                       {grade.class_count} 个班级 · {grade.student_count} 名学生
@@ -502,6 +499,49 @@ export function SemesterUpgradeDialog({
               <strong>学号冲突：</strong>
               检测到 {preview.conflicting_students_count} 名学生的学号在目标学期已存在，将被跳过。
             </p>
+          </div>
+        )}
+
+        {/* 年级名称冲突警告（学年迁移） */}
+        {upgradeMode === "year" && (preview?.conflicting_grades_count ?? 0) > 0 && (
+          <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded-lg">
+            <p className="text-sm font-medium text-yellow-800 dark:text-yellow-200 mb-2">
+              <AlertCircle className="h-4 w-4 inline mr-2" />
+              <strong>年级名称冲突提示：</strong>检测到 {preview.conflicting_grades_count} 个年级名称在目标学期已存在
+            </p>
+            <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-2">
+              学年迁移会自动递增年级名称，但目标学期已存在以下年级：
+            </p>
+            <ul className="text-sm text-yellow-700 dark:text-yellow-300 list-disc list-inside ml-4 space-y-1">
+              {preview.conflicting_grades_names?.map((conflict, index) => (
+                <li key={index}>{conflict}</li>
+              ))}
+            </ul>
+            <div className="mt-3 space-y-2">
+              <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                请选择处理方式：
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    alert("请先删除目标学期中已存在的年级，或使用「学期迁移」模式。");
+                  }}
+                >
+                  删除已存在的年级
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setUpgradeMode("semester");
+                  }}
+                >
+                  切换到学期迁移
+                </Button>
+              </div>
+            </div>
           </div>
         )}
       </div>
@@ -624,8 +664,12 @@ export function SemesterUpgradeDialog({
               <thead className="border-b">
                 <tr>
                   <th className="text-left p-2 font-medium">原年级</th>
-                  <th className="text-left p-2 font-medium"></th>
-                  <th className="text-left p-2 font-medium">新年级</th>
+                  {upgradeMode === "year" && (
+                    <>
+                      <th className="text-left p-2 font-medium"></th>
+                      <th className="text-left p-2 font-medium">新年级</th>
+                    </>
+                  )}
                   <th className="text-right p-2 font-medium">班级数</th>
                   <th className="text-right p-2 font-medium">学生数</th>
                 </tr>
@@ -636,12 +680,16 @@ export function SemesterUpgradeDialog({
                     <td className="p-2">
                       <Badge variant="outline">{item.old_grade}</Badge>
                     </td>
-                    <td className="p-2 text-center">
-                      <ArrowRight className="h-4 w-4 text-muted-foreground inline" />
-                    </td>
-                    <td className="p-2">
-                      <Badge>{item.new_grade}</Badge>
-                    </td>
+                    {upgradeMode === "year" && (
+                      <>
+                        <td className="p-2 text-center">
+                          <ArrowRight className="h-4 w-4 text-muted-foreground inline" />
+                        </td>
+                        <td className="p-2">
+                          <Badge>{item.new_grade}</Badge>
+                        </td>
+                      </>
+                    )}
                     <td className="p-2 text-right">{item.class_count}</td>
                     <td className="p-2 text-right">{item.student_count}</td>
                   </tr>
@@ -859,7 +907,10 @@ export function SemesterUpgradeDialog({
               </Button>
               <Button
                 onClick={() => setStep("teacher-preview")}
-                disabled={Object.values(selectedGrades).filter((v) => v).length === 0 || loading}
+                disabled={
+                  Object.values(selectedGrades).filter((v) => v).length === 0 ||
+                  loading
+                }
               >
                 下一步 ({Object.values(selectedGrades).filter((v) => v).length} 个年级)
               </Button>

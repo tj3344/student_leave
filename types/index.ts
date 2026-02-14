@@ -567,6 +567,8 @@ export interface SemesterUpgradeRequest {
   preserve_class_teachers?: boolean;
   // 迁移模式（默认 "year" 学年迁移以保持向后兼容）
   upgrade_mode?: UpgradeMode;
+  // 冲突年级的自定义名称映射（旧年级ID -> 新年级名称）
+  grade_name_overrides?: Record<number, string>;
 }
 
 export interface SemesterUpgradeResult {
@@ -597,7 +599,8 @@ export interface UpgradePreview {
   target_semester: Semester;
   available_grades: Array<{
     id: number;
-    name: string;
+    name: string;          // 迁移后的年级名称（学年迁移时为递增后的名称）
+    original_name?: string; // 原始年级名称（学年迁移时保留原始名称用于显示）
     class_count: number;
     student_count: number;
   }>;
@@ -622,6 +625,10 @@ export interface UpgradePreview {
   }>;
   // 学号冲突的学生数量
   conflicting_students_count?: number;
+  // 年级名称冲突的数量（学年迁移时检测）
+  conflicting_grades_count?: number;
+  // 冲突的年级名称列表（格式：原年级 → 新年级）
+  conflicting_grades_names?: string[];
 }
 
 // ============================================
