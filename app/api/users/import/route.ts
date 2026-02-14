@@ -109,10 +109,10 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // 验证角色
-      const validRoles = [ROLES.ADMIN, ROLES.TEACHER, ROLES.CLASS_TEACHER];
+      // 验证角色（只允许管理员和教师，班主任需在班级管理中设置）
+      const validRoles = [ROLES.ADMIN, ROLES.TEACHER];
       if (!validRoles.includes(row.role as typeof ROLES[keyof typeof ROLES])) {
-        validationErrors.push({ row: rowNum, message: "角色必须是 admin、teacher 或 class_teacher" });
+        validationErrors.push({ row: rowNum, message: "角色必须是 admin（管理员）或 teacher（教师），班主任请在班级管理中设置" });
         continue;
       }
 

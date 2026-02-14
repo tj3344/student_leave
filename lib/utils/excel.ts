@@ -566,7 +566,7 @@ export function generateUserTemplate(): XLSX.WorkBook {
   const worksheetData = [
     ['用户名*', '密码', '真实姓名*', '角色*', '电话', '邮箱'],
     ['teacher01', '123456', '张老师', 'teacher', '13800138000', 'zhang@example.com'],
-    ['teacher02', '123456', '李老师', 'class_teacher', '13900139000', 'li@example.com'],
+    ['teacher02', '123456', '李老师', 'teacher', '13900139000', 'li@example.com'],
     ['admin01', '123456', '管理员', 'admin', '', 'admin@example.com'],
   ];
 
@@ -616,7 +616,10 @@ export async function parseUserExcel(file: File): Promise<UserImportRow[]> {
     return firstValue !== '用户名*' && firstValue.trim() !== '';
   });
 
-  return filteredData;
+  // 将中文列名映射为英文列名
+  const mappedData = mapChineseColumnsToEnglish<UserImportRow>(filteredData);
+
+  return mappedData;
 }
 
 /**
