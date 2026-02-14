@@ -9,11 +9,60 @@ import type {
 /**
  * 年级名称递增映射
  * 提取年级名称中的数字部分，+1 后得到新年级名称
- * @param gradeName 原年级名称（如 "1年级", "2年级"）
- * @returns 新年级名称（如 "2年级", "3年级"）
+ * 支持中文数字（一、二、三...）和阿拉伯数字（1、2、3...）
+ * @param gradeName 原年级名称（如 "1年级", "2年级", "一年级", "二年级"）
+ * @returns 新年级名称（如 "2年级", "3年级", "二年级", "三年级"）
  */
 function incrementGradeName(gradeName: string): string {
-  // 提取数字部分
+  // 中文数字映射
+  const chineseNumeralMap: Record<string, number> = {
+    "一": 1,
+    "二": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+    // 正式写法
+    "壹": 1,
+    "贰": 2,
+    "叁": 3,
+    "肆": 4,
+    "伍": 5,
+    "陆": 6,
+    "柒": 7,
+    "捌": 8,
+    "玖": 9,
+  };
+
+  const numberToChinese: Record<number, string> = {
+    1: "一",
+    2: "二",
+    3: "三",
+    4: "四",
+    5: "五",
+    6: "六",
+    7: "七",
+    8: "八",
+    9: "九",
+  };
+
+  // 首先尝试匹配中文数字（优先处理）
+  for (const [chinese, number] of Object.entries(chineseNumeralMap)) {
+    if (gradeName.includes(chinese)) {
+      const newNumber = number + 1;
+      if (newNumber > 9) {
+        // 超过九年级，返回原名称
+        return gradeName;
+      }
+      const newChinese = numberToChinese[newNumber];
+      return gradeName.replace(chinese, newChinese);
+    }
+  }
+
+  // 回退到阿拉伯数字处理
   const match = gradeName.match(/(\d+)/);
   if (!match) {
     // 如果没有数字，返回原名称
@@ -22,7 +71,7 @@ function incrementGradeName(gradeName: string): string {
 
   const number = parseInt(match[1], 10);
   const newNumber = number + 1;
-  return gradeName.replace(match[1], newNumber.toString());
+  return gradeName.replace(match[0], newNumber.toString());
 }
 
 /**
@@ -169,21 +218,64 @@ export async function getUpgradePreview(
     conflictingStudentsCount = Number(conflictResult[0]?.count || 0);
   }
 
+  // 学年迁移时检测年级名称冲突
+  let conflictingGradesCount = 0;
+  const conflictingGradesNames: string[] = [];
+  const previewGrades: Array<{
+    id: number;
+    name: string;
+    original_name?: string;
+    class_count: number;
+    student_count: number;
+  }> = [];
+
+  for (const g of gradesResult) {
+    const newName = upgradeMode === "year" ? incrementGradeName(g.name) : g.name;
+
+    if (upgradeMode === "year") {
+      // 查询目标学期是否已存在递增后的年级名称
+      const existingResult = await pgClient.unsafe(
+        `SELECT id FROM grades WHERE semester_id = $1 AND name = $2`,
+        [targetSemesterId, newName]
+      ) as Array<{ id: number }>;
+
+      if (existingResult.length > 0) {
+        conflictingGradesCount++;
+        conflictingGradesNames.push(`${g.name} → ${newName}`);
+      }
+    }
+
+    previewGrades.push({
+      id: g.id,
+      name: newName,
+      original_name: g.name,
+      class_count: g.class_count,
+      student_count: g.student_count,
+    });
+  }
+
+  // 生成预览数据（显示迁移前后的年级名称变化）
+  const previewData = previewGrades.map((g) => ({
+    old_grade: g.original_name || g.name,
+    new_grade: g.name,
+    class_count: g.class_count,
+    student_count: g.student_count,
+  }));
+
   return {
     source_semester: sourceSemester,
     target_semester: targetSemester,
-    available_grades: gradesResult.map((g) => ({
-      id: g.id,
-      name: g.name,
-      class_count: g.class_count,
-      student_count: g.student_count,
-    })),
+    available_grades: previewGrades,
+    selected_grades: undefined,
+    preview_data: previewData,
     total_classes: gradesResult.reduce((sum, g) => sum + g.class_count, 0),
     total_students: gradesResult.reduce((sum, g) => sum + g.student_count, 0),
     class_teacher_preview: classTeacherPreview,
     graduating_students_count: graduatingStudentsCount,
     graduation_preview: graduationPreview,
     conflicting_students_count: conflictingStudentsCount,
+    conflicting_grades_count: conflictingGradesCount > 0 ? conflictingGradesCount : undefined,
+    conflicting_grades_names: conflictingGradesNames.length > 0 ? conflictingGradesNames : undefined,
   };
 }
 
