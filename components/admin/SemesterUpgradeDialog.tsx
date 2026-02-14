@@ -430,7 +430,7 @@ export function SemesterUpgradeDialog({
         </div>
 
         {/* 年级列表 */}
-        <ScrollArea className="h-[300px] border rounded-lg">
+        <ScrollArea className="max-h-[40vh] border rounded-lg">
           <div className="p-4 space-y-2">
             {preview.available_grades.map((grade) => {
               // 根据迁移模式决定显示方式
@@ -563,9 +563,9 @@ export function SemesterUpgradeDialog({
     const migrateCount = teacherPreview.filter((t) => t.will_migrate).length;
 
     return (
-      <div className="space-y-4">
+      <div className="flex flex-col h-full space-y-4">
         {/* 提示信息 */}
-        <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
+        <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg shrink-0">
           <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
             将迁移 {migrateCount} 个班级的班主任到新学期
           </p>
@@ -575,7 +575,7 @@ export function SemesterUpgradeDialog({
         </div>
 
         {/* 班主任映射列表 */}
-        <ScrollArea className="h-[300px] border rounded-lg">
+        <ScrollArea className="flex-1 min-h-0 border rounded-lg">
           <div className="p-4 space-y-2">
             {teacherPreview.map((item) => (
               <div
@@ -609,7 +609,7 @@ export function SemesterUpgradeDialog({
         </ScrollArea>
 
         {/* 注意事项 */}
-        <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded-lg">
+        <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded-lg shrink-0">
           <p className="text-sm text-yellow-800 dark:text-yellow-200">
             <AlertCircle className="h-4 w-4 inline mr-2" />
             <strong>注意：</strong>
@@ -658,7 +658,7 @@ export function SemesterUpgradeDialog({
         </div>
 
         {/* 年级映射详情 */}
-        <ScrollArea className="h-[200px] border rounded-lg">
+        <ScrollArea className="max-h-[30vh] border rounded-lg">
           <div className="p-4">
             <table className="w-full text-sm">
               <thead className="border-b">
@@ -854,8 +854,8 @@ export function SemesterUpgradeDialog({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-[600px] max-h-[85vh] flex flex-col">
+        <DialogHeader className="shrink-0">
           <DialogTitle className="flex items-center gap-2">
             <GraduationCap className="h-5 w-5" />
             学生升级到新学期
@@ -871,15 +871,17 @@ export function SemesterUpgradeDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {step === "select-mode" && renderSelectModeStep()}
-        {step === "select-semester" && renderSelectSemesterStep()}
-        {step === "select-grade" && renderSelectGradeStep()}
-        {step === "teacher-preview" && renderTeacherPreviewStep()}
-        {step === "confirm" && renderConfirmStep()}
-        {step === "processing" && renderProcessingStep()}
-        {step === "result" && renderResultStep()}
+        <div className="flex-1 overflow-y-auto -mx-6 px-6">
+          {step === "select-mode" && renderSelectModeStep()}
+          {step === "select-semester" && renderSelectSemesterStep()}
+          {step === "select-grade" && renderSelectGradeStep()}
+          {step === "teacher-preview" && renderTeacherPreviewStep()}
+          {step === "confirm" && renderConfirmStep()}
+          {step === "processing" && renderProcessingStep()}
+          {step === "result" && renderResultStep()}
+        </div>
 
-        <DialogFooter>
+        <DialogFooter className="shrink-0">
           {step === "select-mode" && (
             <>
               <Button variant="outline" onClick={handleClose} disabled={loading}>
