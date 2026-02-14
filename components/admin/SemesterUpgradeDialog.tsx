@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { GraduationCap, Loader2, CheckCircle, AlertCircle, ArrowRight } from "lucide-react";
+import { GraduationCap, Loader2, CheckCircle, AlertCircle, ArrowRight, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -234,35 +234,33 @@ export function SemesterUpgradeDialog({
     }
   };
 
-  // 提示用户切换到目标学期
-  const promptSwitchSemester = () => {
-    if (preview?.target_semester) {
-      const shouldSwitch = confirm(
-        `数据已迁移到 ${preview.target_semester.name}\n\n` +
-        `请切换当前学期到「${preview.target_semester.name}」以查看迁移后的学生数据。\n\n` +
-        `是否立即切换到目标学期？`
-      );
-      if (shouldSwitch) {
-        // 这里可以调用切换学期的逻辑，或者跳转到学期管理页面
-        // 暂时只提示用户，让用户手动切换
-        window.location.href = "/admin/semesters"; // 跳转到学期管理页面
+  // 切换到目标学期
+  const handleSwitchToTargetSemester = async () => {
+    if (!preview?.target_semester) return;
+
+    try {
+      const response = await fetch(`/api/semesters/${preview.target_semester.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "set_current" }),
+      });
+
+      if (response.ok) {
+        // 切换成功，刷新页面
+        window.location.reload();
+      } else {
+        const data = await response.json();
+        alert(data.error || "切换学期失败");
       }
+    } catch (error) {
+      console.error("切换学期失败:", error);
+      alert("切换学期失败，请稍后重试");
     }
   };
 
   // 关闭对话框
   const handleClose = () => {
     if (step === "result") {
-      // 如果升级成功且有数据迁移，提示用户切换学期
-      if (result && (result.students_created || 0) > 0) {
-        promptSwitchSemester();
-      } else if (result && (result.graduated_students_count || 0) > 0) {
-        // 如果有学生毕业，也提示用户
-        promptSwitchSemester();
-      } else {
-        // 其他情况（学生数为0但有其他数据迁移）
-        promptSwitchSemester();
-      }
       onSuccess();
     }
     resetState();
@@ -785,6 +783,23 @@ export function SemesterUpgradeDialog({
             提醒：请为各班级分配班主任
           </p>
         </div>
+
+        {/* 切换学期提示 */}
+        {preview?.target_semester && (
+          <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-900 rounded-lg">
+            <div className="flex items-start gap-3">
+              <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-medium text-green-800 dark:text-green-200 mb-1">
+                  数据已迁移到「{preview.target_semester.name}」
+                </p>
+                <p className="text-xs text-green-700 dark:text-green-300">
+                  切换当前学期到目标学期以查看迁移后的学生数据
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     );
   };
@@ -881,7 +896,17 @@ export function SemesterUpgradeDialog({
             </>
           )}
           {step === "result" && (
-            <Button onClick={handleClose}>完成</Button>
+            <>
+              <Button variant="outline" onClick={handleClose}>
+                稍后切换
+              </Button>
+              {preview?.target_semester && (
+                <Button onClick={handleSwitchToTargetSemester}>
+                  <ExternalLink className="mr-2 h-4 w-4" />
+                  切换到{preview.target_semester.name}
+                </Button>
+              )}
+            </>
           )}
         </DialogFooter>
       </DialogContent>

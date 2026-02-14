@@ -148,16 +148,22 @@ export async function getUpgradePreview(
   }
 
   // 检查学号冲突（源学期的学生在目标学期是否已存在）
+  // 注意：由于唯一约束是 (class_id, student_no)，只有当目标学期的班级中
+  // 已经存在相同学号的学生时才会发生冲突
   let conflictingStudentsCount = 0;
   const sourceClassIds = classesResult.map((c) => c.id);
   if (sourceClassIds.length > 0) {
     const conflictResult = await pgClient.unsafe(
       `SELECT COUNT(DISTINCT s1.student_no) as count
        FROM students s1
-       JOIN students s2 ON s1.student_no = s2.student_no
-       WHERE s1.class_id = ANY($1) AND s2.class_id IN (
-         SELECT id FROM classes WHERE semester_id = $2
-       )`,
+       WHERE s1.class_id = ANY($1)
+         AND EXISTS (
+           SELECT 1
+           FROM students s2
+           JOIN classes c ON s2.class_id = c.id
+           WHERE c.semester_id = $2
+             AND s2.student_no = s1.student_no
+         )`,
       [sourceClassIds, targetSemesterId]
     ) as Array<{ count: bigint }>;
     conflictingStudentsCount = Number(conflictResult[0]?.count || 0);
@@ -327,20 +333,34 @@ export async function upgradeSemester(
           }>;
 
         for (const cls of classesResult) {
-          const newClassResult = await sql.unsafe(
-            `INSERT INTO classes (semester_id, grade_id, name, class_teacher_id, meal_fee, student_count, created_at, updated_at)
-             VALUES ($1, $2, $3, NULL, $4, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-             RETURNING id`,
-            [
-              request.target_semester_id,
-              newGradeId,
-              cls.name,
-              cls.meal_fee
-            ]
+          // 检查目标学期的目标年级中是否已存在同名班级
+          const existingClass = await sql.unsafe(
+            `SELECT id FROM classes WHERE semester_id = $1 AND grade_id = $2 AND name = $3`,
+            [request.target_semester_id, newGradeId, cls.name]
           ) as { id: number }[];
 
-          classIdMap[cls.id] = newClassResult[0].id;
-          classesCreated++;
+          let newClassId: number;
+          if (existingClass.length > 0) {
+            // 使用已存在的班级
+            newClassId = existingClass[0].id;
+          } else {
+            // 创建新班级
+            const newClassResult = await sql.unsafe(
+              `INSERT INTO classes (semester_id, grade_id, name, class_teacher_id, meal_fee, student_count, created_at, updated_at)
+               VALUES ($1, $2, $3, NULL, $4, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+               RETURNING id`,
+              [
+                request.target_semester_id,
+                newGradeId,
+                cls.name,
+                cls.meal_fee
+              ]
+            ) as { id: number }[];
+            newClassId = newClassResult[0].id;
+            classesCreated++;
+          }
+
+          classIdMap[cls.id] = newClassId;
         }
       }
 
@@ -412,12 +432,13 @@ export async function upgradeSemester(
 
         for (const student of studentsResult) {
           // 使用 ON CONFLICT DO NOTHING 避免重复学号错误
+          // 注意：唯一约束是 (class_id, student_no)，允许同一学号在不同学期存在
           const insertResult = await sql.unsafe(
             `INSERT INTO students (student_no, name, gender, class_id,
                                     parent_name, parent_phone, address, is_nutrition_meal,
                                     enrollment_date, is_active, created_at, updated_at)
                  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-                 ON CONFLICT (student_no) DO NOTHING
+                 ON CONFLICT (class_id, student_no) DO NOTHING
                  RETURNING (xmax = 0) AS inserted`,
             [
               student.student_no,
@@ -437,7 +458,7 @@ export async function upgradeSemester(
           if (insertResult.length > 0 && insertResult[0].inserted > 0) {
             studentsCreated++;
           } else {
-            // 没有插入说明学号已存在
+            // 没有插入说明学号已存在（同一班级内）
             warnings.push(`学号 ${student.student_no} 已存在，跳过该学生`);
           }
         }
