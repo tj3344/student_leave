@@ -499,23 +499,31 @@ export async function getClassRefundSummary(
       COALESCE(SUM(lr.leave_days), 0) as leave_days
     FROM students s
     LEFT JOIN leave_records lr ON s.id = lr.student_id AND lr.status = 'approved'
-    WHERE s.is_active = true
   `;
 
   const studentLeaveParams: (string | number)[] = [];
-  const studentLeaveConditions: string[] = [];
   let paramIndex = 1;
 
+  // 构建子查询的 WHERE 条件
+  const studentWhereConditions: string[] = [];
+
+  // 如果有学期筛选，添加到子查询
   if (params?.semester_id) {
-    studentLeaveConditions.push("lr.semester_id = $" + (paramIndex++));
+    studentWhereConditions.push(`s.class_id IN (SELECT id FROM classes WHERE semester_id = $${paramIndex++})`);
     studentLeaveParams.push(params.semester_id);
   }
 
-  if (studentLeaveConditions.length > 0) {
-    studentLeaveQuery += " AND " + studentLeaveConditions.join(" AND ");
+  // 如果有班级筛选，也添加到子查询
+  if (params?.class_id) {
+    studentWhereConditions.push(`s.class_id = $${paramIndex++}`);
+    studentLeaveParams.push(params.class_id);
   }
 
-  studentLeaveQuery += " GROUP BY s.id, s.class_id, s.is_nutrition_meal";
+  // 添加 WHERE 条件到子查询
+  if (studentWhereConditions.length > 0) {
+    studentLeaveQuery += ` WHERE ${studentWhereConditions.join(" AND ")}`;
+  }
+  studentLeaveQuery += ` AND s.is_active = true GROUP BY s.id, s.class_id, s.is_nutrition_meal`;
 
   const queryParams: (string | number)[] = [];
   const whereConditions: string[] = [];
