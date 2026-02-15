@@ -40,12 +40,18 @@ export async function GET(request: NextRequest) {
 
     // 处理返回值：可能是数组或分页响应
     if (Array.isArray(result)) {
+      console.log("[GET /api/fees/refunds] Returning array, length:", result.length);
       return NextResponse.json({ data: result, total: result.length });
     }
 
+    console.log("[GET /api/fees/refunds] Returning paginated response, total:", result.total);
     return NextResponse.json(result);
   } catch (error) {
-    console.error("Get student refund records error:", error);
+    console.error("[GET /api/fees/refunds] Error:", error);
+    if (error instanceof Error) {
+      console.error("[GET /api/fees/refunds] Error message:", error.message);
+      console.error("[GET /api/fees/refunds] Error stack:", error.stack);
+    }
     return NextResponse.json({ error: "获取退费记录失败" }, { status: 500 });
   }
 }

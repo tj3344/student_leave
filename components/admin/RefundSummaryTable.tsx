@@ -20,13 +20,13 @@ export function RefundSummaryTable({ data }: RefundSummaryTableProps) {
     return `¥${isNaN(num) ? "0.00" : num.toFixed(2)}`;
   };
 
-  // 计算总计
+  // 计算总计 - 确保将所有值转换为数字，避免字符串拼接
   const totals = data.reduce(
     (acc, item) => ({
-      studentCount: acc.studentCount + item.student_count,
-      refundStudentsCount: acc.refundStudentsCount + item.refund_students_count,
-      totalLeaveDays: acc.totalLeaveDays + item.total_leave_days,
-      totalRefundAmount: acc.totalRefundAmount + item.total_refund_amount,
+      studentCount: acc.studentCount + Number(item.student_count || 0),
+      refundStudentsCount: acc.refundStudentsCount + Number(item.refund_students_count || 0),
+      totalLeaveDays: acc.totalLeaveDays + Number(item.total_leave_days || 0),
+      totalRefundAmount: acc.totalRefundAmount + Number(item.total_refund_amount || 0),
     }),
     { studentCount: 0, refundStudentsCount: 0, totalLeaveDays: 0, totalRefundAmount: 0 }
   );
@@ -62,12 +62,12 @@ export function RefundSummaryTable({ data }: RefundSummaryTableProps) {
                     {item.grade_name} {item.class_name}
                   </TableCell>
                   <TableCell>{item.class_teacher_name || "-"}</TableCell>
-                  <TableCell className="text-center">{item.student_count}</TableCell>
+                  <TableCell className="text-center">{Number(item.student_count || 0)}</TableCell>
                   <TableCell className="text-right">{formatCurrency(item.meal_fee_standard)}</TableCell>
-                  <TableCell className="text-center">{item.prepaid_days}</TableCell>
-                  <TableCell className="text-center">{item.actual_days}</TableCell>
-                  <TableCell className="text-center">{item.suspension_days}</TableCell>
-                  <TableCell className="text-center">{item.total_leave_days}</TableCell>
+                  <TableCell className="text-center">{Number(item.prepaid_days || 0)}</TableCell>
+                  <TableCell className="text-center">{Number(item.actual_days || 0)}</TableCell>
+                  <TableCell className="text-center">{Number(item.suspension_days || 0)}</TableCell>
+                  <TableCell className="text-center">{Number(item.total_leave_days || 0)}</TableCell>
                   <TableCell className="text-right font-semibold">
                     {formatCurrency(item.total_refund_amount)}
                   </TableCell>

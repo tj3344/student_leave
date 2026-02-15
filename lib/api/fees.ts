@@ -171,7 +171,7 @@ export async function createFeeConfig(
   // 插入费用配置
   const result = await pgClient.unsafe(
     `INSERT INTO fee_configs (class_id, semester_id, meal_fee_standard, prepaid_days, actual_days, suspension_days, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+     IALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
      RETURNING id`,
     [input.class_id, input.semester_id, input.meal_fee_standard, input.prepaid_days, input.actual_days, input.suspension_days]
   );
@@ -310,15 +310,19 @@ export async function getStudentRefundRecords(
 ): Promise<PaginatedResponse<StudentRefundRecord> | StudentRefundRecord[]> {
   const pgClient = getRawPostgres();
 
+  // 调试日志：记录传入的参数
+  console.log("[getStudentRefundRecords] params:", params);
+
   // 如果没有分页参数，返回所有数据
   if (!params?.page && !params?.limit) {
     const queryParams: (string | number)[] = [];
     let paramIndex = 1;
 
     // 根据 semester_id 筛选条件，动态构建 JOIN
+    // 当指定学期时，严格按学期过滤；否则不限制学期以获取所有数据
     const feeConfigJoin = params?.semester_id
       ? "LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = $" + (paramIndex++)
-      : "LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = c.semester_id";
+      : "LEFT JOIN fee_configs fc ON c.id = fc.class_id";
 
     if (params?.semester_id) {
       queryParams.push(params.semester_id);
@@ -333,9 +337,10 @@ export async function getStudentRefundRecords(
     }
 
     // 请假记录的 JOIN 条件也需要根据学期动态调整
+    // 当指定学期时，严格按学期过滤；否则不限制学期以获取所有数据
     const leaveRecordJoin = params?.semester_id
       ? "LEFT JOIN leave_records lr ON s.id = lr.student_id AND lr.semester_id = $" + (paramIndex++) + " AND lr.status = 'approved'"
-      : "LEFT JOIN leave_records lr ON s.id = lr.student_id AND lr.semester_id = c.semester_id AND lr.status = 'approved'";
+      : "LEFT JOIN leave_records lr ON s.id = lr.student_id AND lr.status = 'approved'";
 
     if (params?.semester_id) {
       queryParams.push(params.semester_id);
@@ -353,7 +358,7 @@ export async function getStudentRefundRecords(
         COALESCE(fc.prepaid_days, 0) as prepaid_days,
         COALESCE(fc.actual_days, 0) as actual_days,
         COALESCE(fc.suspension_days, 0) as suspension_days,
-        COALESCE(fc.meal_fee_standard, 0) as meal_fee_standard,
+        COALESCE(fc.meal_fee_standard, '0') as meal_fee_standard,
         CASE
           WHEN s.is_nutrition_meal = true THEN 0
           ELSE COALESCE(CAST(fc.meal_fee_standard AS NUMERIC), 0) *
@@ -390,11 +395,10 @@ export async function getStudentRefundRecords(
   let paramIndex = 1;
 
   // 根据 semester_id 筛选条件，动态构建 JOIN
-  // 如果指定了学期，JOIN 该学期的费用配置
-  // 如果没指定学期，JOIN 班级所在学期的费用配置
+  // 当指定学期时，严格按学期过滤；否则不限制学期以获取所有数据
   const feeConfigJoin = params?.semester_id
     ? "LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = $" + (paramIndex++)
-    : "LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = c.semester_id";
+    : "LEFT JOIN fee_configs fc ON c.id = fc.class_id";
 
   if (params?.semester_id) {
     queryParams.push(params.semester_id);
@@ -406,9 +410,10 @@ export async function getStudentRefundRecords(
   }
 
   // 请假记录的 JOIN 条件也需要根据学期动态调整
+  // 当指定学期时，严格按学期过滤；否则不限制学期以获取所有数据
   const leaveRecordJoin = params?.semester_id
     ? "LEFT JOIN leave_records lr ON s.id = lr.student_id AND lr.semester_id = $" + (paramIndex++) + " AND lr.status = 'approved'"
-    : "LEFT JOIN leave_records lr ON s.id = lr.student_id AND lr.semester_id = c.semester_id AND lr.status = 'approved'";
+    : "LEFT JOIN leave_records lr ON s.id = lr.student_id AND lr.status = 'approved'";
 
   if (params?.semester_id) {
     queryParams.push(params.semester_id);
@@ -425,8 +430,8 @@ export async function getStudentRefundRecords(
     ${whereClause}
   `;
 
-  const totalResult = await pgClient.unsafe(countQuery, queryParams) as { total: number }[];
-  const total = totalResult[0]?.total || 0;
+  const totalResult = await pgClient.unsafe(countQuery, queryParams) as { total: string | number }[];
+  const total = totalResult[0]?.total ? Number(totalResult[0].total) : 0;
 
   // 获取数据（注意：meal_fee_standard 是 text 类型，需要转换为 numeric）
   const dataQuery = `
@@ -441,7 +446,7 @@ export async function getStudentRefundRecords(
       COALESCE(fc.prepaid_days, 0) as prepaid_days,
       COALESCE(fc.actual_days, 0) as actual_days,
       COALESCE(fc.suspension_days, 0) as suspension_days,
-      COALESCE(fc.meal_fee_standard, 0) as meal_fee_standard,
+      COALESCE(fc.meal_fee_standard, '0') as meal_fee_standard,
       CASE
         WHEN s.is_nutrition_meal = true THEN 0
         ELSE COALESCE(CAST(fc.meal_fee_standard AS NUMERIC), 0) *
@@ -512,6 +517,9 @@ export async function getClassRefundSummary(
 
   studentLeaveQuery += " GROUP BY s.id, s.class_id, s.is_nutrition_meal";
 
+  const queryParams: (string | number)[] = [];
+  const whereConditions: string[] = [];
+
   // 主查询：获取班级退费汇总（注意：meal_fee_standard 是 text 类型，需要转换为 numeric）
   let query = `
     SELECT
@@ -519,7 +527,7 @@ export async function getClassRefundSummary(
       c.name as class_name,
       g.name as grade_name,
       u.real_name as class_teacher_name,
-      COALESCE(fc.meal_fee_standard, 0) as meal_fee_standard,
+      COALESCE(fc.meal_fee_standard, '0') as meal_fee_standard,
       COALESCE(fc.prepaid_days, 0) as prepaid_days,
       COALESCE(fc.actual_days, 0) as actual_days,
       COALESCE(fc.suspension_days, 0) as suspension_days,
@@ -536,13 +544,11 @@ export async function getClassRefundSummary(
     FROM classes c
     LEFT JOIN grades g ON c.grade_id = g.id
     LEFT JOIN users u ON c.class_teacher_id = u.id
-    LEFT JOIN fee_configs fc ON c.id = fc.class_id AND fc.semester_id = c.semester_id
+    LEFT JOIN fee_configs fc ON c.id = fc.class_id
     LEFT JOIN (${studentLeaveQuery}) sl ON c.id = sl.class_id
   `;
 
-  const queryParams: (string | number)[] = [];
-  const whereConditions: string[] = [];
-
+  // WHERE 条件（如果指定学期或班级）
   if (params?.semester_id) {
     whereConditions.push(`c.semester_id = $${paramIndex++}`);
     queryParams.push(params.semester_id);
