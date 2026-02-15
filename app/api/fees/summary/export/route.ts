@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
     if (semester_id) params.semester_id = parseInt(semester_id, 10);
 
     // 获取退费汇总数据
-    const summaryData = getClassRefundSummary(params);
+    const summaryData = await getClassRefundSummary(params);
 
     if (summaryData.length === 0) {
       return NextResponse.json({ error: "暂无退费汇总数据可导出" }, { status: 400 });
@@ -39,13 +39,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: limitCheck.message }, { status: 400 });
     }
 
-    // 计算总计
+    // 计算总计 - 确保将所有值转换为数字，避免字符串拼接
     const totals = summaryData.reduce(
       (acc, item) => ({
-        studentCount: acc.studentCount + item.student_count,
-        refundStudentsCount: acc.refundStudentsCount + item.refund_students_count,
-        totalLeaveDays: acc.totalLeaveDays + item.total_leave_days,
-        totalRefundAmount: acc.totalRefundAmount + item.total_refund_amount,
+        studentCount: acc.studentCount + Number(item.student_count || 0),
+        refundStudentsCount: acc.refundStudentsCount + Number(item.refund_students_count || 0),
+        totalLeaveDays: acc.totalLeaveDays + Number(item.total_leave_days || 0),
+        totalRefundAmount: acc.totalRefundAmount + Number(item.total_refund_amount || 0),
       }),
       { studentCount: 0, refundStudentsCount: 0, totalLeaveDays: 0, totalRefundAmount: 0 }
     );
