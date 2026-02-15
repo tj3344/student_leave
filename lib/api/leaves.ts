@@ -765,9 +765,14 @@ export async function batchCreateLeaves(
       results.created++;
     } else {
       results.failed++;
+      // 确保错误信息存在
+      const errorMessage = result.message || "创建失败";
+      if (!errorMessage) {
+        console.error(`创建请假记录失败（第${rowNum}行）:`, leave);
+      }
       results.errors.push({
         row: rowNum,
-        message: result.message || "创建失败",
+        message: errorMessage,
       });
     }
   }

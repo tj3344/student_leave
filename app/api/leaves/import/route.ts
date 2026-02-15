@@ -5,6 +5,7 @@ import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { logImport } from "@/lib/utils/logger";
 import { getNumberConfig } from "@/lib/api/system-config";
 import { checkImportRateLimit, getClientIp } from "@/lib/utils/rate-limit";
+import { normalizeDateFormat } from "@/lib/utils/excel";
 import type { LeaveImportRow, LeaveInput } from "@/types";
 
 /**
@@ -22,19 +23,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
-    // 检查速率限制
-    const clientIp = getClientIp(request);
-    const rateLimitCheck = checkImportRateLimit(currentUser.id, clientIp);
-    if (!rateLimitCheck.allowed) {
-      return NextResponse.json(
-        { error: rateLimitCheck.error || "请求过于频繁，请稍后重试" },
-        { status: 429 }
-      );
-    }
-
     // 解析请求体
     const body = await request.json();
-    const { leaves } = body as { leaves: LeaveImportRow[] };
+    const { currentSemesterId, currentSemesterName, leaves, validateOnly } = body as {
+      currentSemesterId?: number;
+      currentSemesterName?: string;
+      leaves: LeaveImportRow[];
+      validateOnly?: boolean;
+    };
+
+    // 如果不是仅验证模式，检查速率限制
+    if (!validateOnly) {
+      const clientIp = getClientIp(request);
+      const rateLimitCheck = checkImportRateLimit(currentUser.id, clientIp);
+      if (!rateLimitCheck.allowed) {
+        return NextResponse.json(
+          { error: rateLimitCheck.error || "请求过于频繁，请稍后重试" },
+          { status: 429 }
+        );
+      }
+    }
 
     if (!Array.isArray(leaves) || leaves.length === 0) {
       return NextResponse.json({ error: "请假数据不能为空" }, { status: 400 });
@@ -95,49 +103,113 @@ export async function POST(request: NextRequest) {
         continue;
       }
       if (!row.student_name?.trim()) {
-        validationErrors.push({ row: rowNum, message: "学生姓名不能为空" });
+        validationErrors.push({
+          row: rowNum,
+          message: "学生姓名不能为空",
+          student_no: row.student_no?.trim()
+        });
         continue;
       }
       if (!row.semester_name?.trim()) {
-        validationErrors.push({ row: rowNum, message: "学期名称不能为空" });
+        validationErrors.push({
+          row: rowNum,
+          message: "学期名称不能为空",
+          student_no: row.student_no?.trim(),
+          student_name: row.student_name?.trim()
+        });
+        continue;
+      }
+
+      // 验证学期名称与当前学期匹配
+      if (currentSemesterName && row.semester_name.trim() !== currentSemesterName) {
+        validationErrors.push({
+          row: rowNum,
+          message: `学期名称必须与当前学期一致（当前学期：${currentSemesterName}）`,
+          student_no: row.student_no?.trim(),
+          student_name: row.student_name?.trim()
+        });
         continue;
       }
       if (!row.grade_name?.trim()) {
-        validationErrors.push({ row: rowNum, message: "年级名称不能为空" });
+        validationErrors.push({
+          row: rowNum,
+          message: "年级名称不能为空",
+          student_no: row.student_no?.trim(),
+          student_name: row.student_name?.trim()
+        });
         continue;
       }
       if (!row.class_name?.trim()) {
-        validationErrors.push({ row: rowNum, message: "班级名称不能为空" });
+        validationErrors.push({
+          row: rowNum,
+          message: "班级名称不能为空",
+          student_no: row.student_no?.trim(),
+          student_name: row.student_name?.trim()
+        });
         continue;
       }
       if (!row.start_date?.trim()) {
-        validationErrors.push({ row: rowNum, message: "开始日期不能为空" });
+        validationErrors.push({
+          row: rowNum,
+          message: "开始日期不能为空",
+          student_no: row.student_no?.trim(),
+          student_name: row.student_name?.trim()
+        });
         continue;
       }
       if (!row.end_date?.trim()) {
-        validationErrors.push({ row: rowNum, message: "结束日期不能为空" });
+        validationErrors.push({
+          row: rowNum,
+          message: "结束日期不能为空",
+          student_no: row.student_no?.trim(),
+          student_name: row.student_name?.trim()
+        });
         continue;
       }
+
+      // 标准化日期格式
+      const normalizedStartDate = normalizeDateFormat(row.start_date);
+      const normalizedEndDate = normalizeDateFormat(row.end_date);
       if (!row.leave_days?.trim()) {
-        validationErrors.push({ row: rowNum, message: "请假天数不能为空" });
+        validationErrors.push({
+          row: rowNum,
+          message: "请假天数不能为空",
+          student_no: row.student_no?.trim(),
+          student_name: row.student_name?.trim()
+        });
         continue;
       }
       if (!row.reason?.trim()) {
-        validationErrors.push({ row: rowNum, message: "请假事由不能为空" });
+        validationErrors.push({
+          row: rowNum,
+          message: "请假事由不能为空",
+          student_no: row.student_no?.trim(),
+          student_name: row.student_name?.trim()
+        });
         continue;
       }
 
       // 验证日期格式
-      const startDate = new Date(row.start_date.trim());
-      const endDate = new Date(row.end_date.trim());
+      const startDate = new Date(normalizedStartDate);
+      const endDate = new Date(normalizedEndDate);
       if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        validationErrors.push({ row: rowNum, message: "日期格式不正确，请使用 YYYY-MM-DD 格式" });
+        validationErrors.push({
+          row: rowNum,
+          message: "日期格式不正确，请使用 YYYY-MM-DD 格式",
+          student_no: row.student_no?.trim(),
+          student_name: row.student_name?.trim()
+        });
         continue;
       }
 
       // 验证日期范围
       if (startDate > endDate) {
-        validationErrors.push({ row: rowNum, message: "开始日期不能晚于结束日期" });
+        validationErrors.push({
+          row: rowNum,
+          message: "开始日期不能晚于结束日期",
+          student_no: row.student_no?.trim(),
+          student_name: row.student_name?.trim()
+        });
         continue;
       }
 
@@ -153,12 +225,17 @@ export async function POST(request: NextRequest) {
 
       // 业务规则：请假天数必须大于最小天数
       if (leaveDays <= minLeaveDays) {
-        validationErrors.push({ row: rowNum, message: `请假天数必须大于${minLeaveDays}天` });
+        validationErrors.push({
+          row: rowNum,
+          message: `请假天数必须大于${minLeaveDays}天`,
+          student_no: row.student_no?.trim(),
+          student_name: row.student_name?.trim()
+        });
         continue;
       }
 
-      // 获取学生ID
-      const studentIdResult = getStudentIdByInfo(
+      // 获取学生ID - 包含完整的验证逻辑
+      const studentIdResult = await getStudentIdByInfo(
         row.student_no.trim(),
         row.student_name.trim(),
         row.semester_name.trim(),
@@ -166,7 +243,12 @@ export async function POST(request: NextRequest) {
         row.class_name.trim()
       );
       if (studentIdResult.error) {
-        validationErrors.push({ row: rowNum, message: studentIdResult.error });
+        validationErrors.push({
+          row: rowNum,
+          message: studentIdResult.error,
+          student_no: row.student_no?.trim(),
+          student_name: row.student_name?.trim()
+        });
         continue;
       }
 
@@ -177,8 +259,8 @@ export async function POST(request: NextRequest) {
       validatedLeaves.push({
         student_id: studentIdResult.student_id ?? 0,
         semester_id: semesterId,
-        start_date: row.start_date.trim(),
-        end_date: row.end_date.trim(),
+        start_date: normalizedStartDate,
+        end_date: normalizedEndDate,
         leave_days: leaveDays,
         reason: row.reason.trim(),
       });
@@ -195,8 +277,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 如果是仅验证模式，返回成功结果
+    if (validateOnly) {
+      return NextResponse.json({
+        success: true,
+        message: "验证通过"
+      });
+    }
+
     // 执行批量导入
-    const result = batchCreateLeaves(validatedLeaves, currentUser.id);
+    const result = await batchCreateLeaves(validatedLeaves, currentUser.id);
 
     // 记录导入日志
     await logImport(currentUser.id, "leaves", `导入请假记录：新增 ${result.created} 条，失败 ${result.failed} 条`);

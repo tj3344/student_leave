@@ -14,17 +14,26 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { parseLeaveExcel, downloadLeaveTemplate } from "@/lib/utils/excel";
+import { formatDate } from "@/lib/utils/date";
 import type { LeaveImportRow, LeaveImportResult } from "@/types";
 
 interface LeaveImportDialogProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  currentSemesterId?: number | null;
+  currentSemesterName?: string | null;
 }
 
 type ImportStep = "upload" | "preview" | "processing" | "result";
 
-export function LeaveImportDialog({ open, onClose, onSuccess }: LeaveImportDialogProps) {
+export function LeaveImportDialog({
+  open,
+  onClose,
+  onSuccess,
+  currentSemesterId,
+  currentSemesterName
+}: LeaveImportDialogProps) {
   const [step, setStep] = useState<ImportStep>("upload");
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [file, setFile] = useState<File | null>(null);
@@ -117,9 +126,32 @@ export function LeaveImportDialog({ open, onClose, onSuccess }: LeaveImportDialo
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          leaves: rows,
+          currentSemesterId,
+          currentSemesterName,
+          validateOnly: true,
+          leaves: rows.map((row) => ({
+            ...row,
+            // 确保所有字段都有值
+            student_no: row.student_no || "",
+            student_name: row.student_name || "",
+            semester_name: row.semester_name || "",
+            grade_name: row.grade_name || "",
+            class_name: row.class_name || "",
+            start_date: row.start_date || "",
+            end_date: row.end_date || "",
+            leave_days: row.leave_days || "",
+            reason: row.reason || "",
+          })),
         }),
       });
+
+      // 检查响应类型，处理HTML错误页面
+      const contentType = response.headers.get('content-type');
+      if (contentType?.includes('text/html')) {
+        const errorMessage = `服务器返回错误 (${response.status})，请检查API路由或联系管理员`;
+        setError(errorMessage);
+        throw new Error(errorMessage);
+      }
 
       if (!response.ok) {
         const errorData = await response.json();
@@ -131,16 +163,16 @@ export function LeaveImportDialog({ open, onClose, onSuccess }: LeaveImportDialo
           throw new Error(rateLimitMessage);
         }
 
-        // 如果是验证错误，返回验证错误
+        // 如果是验证错误，使用 Map 优化错误查找
         if (errorData.validationErrors) {
+          const errorMap = new Map(errorData.validationErrors.map((e: { row: number; message: string }) => [e.row, e.message]));
           return rows.map((row, index) => {
-            const error = errorData.validationErrors.find(
-              (e: { row: number }) => e.row === index + 1
-            );
+            const rowNum = index + 1;
+            const errorMessage = errorMap.get(rowNum);
             return {
-              row: index + 1,
-              success: false,
-              message: error?.message || "验证失败",
+              row: rowNum,
+              success: !errorMessage,
+              message: errorMessage || "验证通过",
             };
           });
         }
@@ -151,7 +183,7 @@ export function LeaveImportDialog({ open, onClose, onSuccess }: LeaveImportDialo
         throw new Error(errorMessage);
       }
 
-      await response.json();
+      const result = await response.json();
 
       // 返回成功结果
       return rows.map((row, index) => ({
@@ -192,7 +224,11 @@ export function LeaveImportDialog({ open, onClose, onSuccess }: LeaveImportDialo
       const response = await fetch("/api/leaves/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ leaves: validData }),
+        body: JSON.stringify({
+          currentSemesterId,
+          currentSemesterName,
+          leaves: validData
+        }),
       });
 
       if (!response.ok) {
@@ -203,6 +239,7 @@ export function LeaveImportDialog({ open, onClose, onSuccess }: LeaveImportDialo
       setImportResult({
         created: result.created,
         failed: result.failed,
+        errors: result.errors,
       });
       setStep("result");
     } catch (error) {
@@ -355,9 +392,13 @@ export function LeaveImportDialog({ open, onClose, onSuccess }: LeaveImportDialo
                   <th className="text-left p-2 font-medium">行号</th>
                   <th className="text-left p-2 font-medium">学号</th>
                   <th className="text-left p-2 font-medium">姓名</th>
+                  <th className="text-left p-2 font-medium">学期</th>
+                  <th className="text-left p-2 font-medium">年级</th>
                   <th className="text-left p-2 font-medium">班级</th>
                   <th className="text-left p-2 font-medium">开始日期</th>
+                  <th className="text-left p-2 font-medium">结束日期</th>
                   <th className="text-left p-2 font-medium">天数</th>
+                  <th className="text-left p-2 font-medium">事由</th>
                   <th className="text-left p-2 font-medium">状态</th>
                 </tr>
               </thead>
@@ -374,9 +415,13 @@ export function LeaveImportDialog({ open, onClose, onSuccess }: LeaveImportDialo
                       <td className="p-2">{index + 1}</td>
                       <td className="p-2">{row.student_no}</td>
                       <td className="p-2">{row.student_name}</td>
-                      <td className="p-2">{row.grade_name} {row.class_name}</td>
-                      <td className="p-2">{row.start_date}</td>
+                      <td className="p-2">{row.semester_name}</td>
+                      <td className="p-2">{row.grade_name}</td>
+                      <td className="p-2">{row.class_name}</td>
+                      <td className="p-2">{formatDate(row.start_date)}</td>
+                      <td className="p-2">{formatDate(row.end_date)}</td>
                       <td className="p-2">{row.leave_days}</td>
+                      <td className="p-2">{row.reason}</td>
                       <td className="p-2">
                         {result?.success ? (
                           <CheckCircle className="h-4 w-4 text-green-500 inline" />
@@ -411,7 +456,11 @@ export function LeaveImportDialog({ open, onClose, onSuccess }: LeaveImportDialo
   );
 
   // 渲染结果步骤
-  const renderResultStep = () => (
+  const renderResultStep = () => {
+    const hasErrors = importResult?.failed && importResult.failed > 0;
+    const hasDetailedErrors = hasErrors && importResult.errors && importResult.errors.length > 0;
+
+    return (
     <div className="space-y-4 text-center py-8">
       <CheckCircle className="h-16 w-16 mx-auto text-green-500" />
       <div>
@@ -431,8 +480,68 @@ export function LeaveImportDialog({ open, onClose, onSuccess }: LeaveImportDialo
           <p className="text-sm text-muted-foreground">失败</p>
         </div>
       </div>
+
+      {hasErrors && (
+        <div className="mt-6">
+          <div className="border rounded-lg p-4">
+            <p className="text-sm font-medium mb-2">
+              失败详情：{!hasDetailedErrors && (
+                <span className="text-muted-foreground text-xs ml-2">（无详细错误信息，请检查控制台日志）</span>
+              )}
+            </p>
+            <ScrollArea className="h-[200px] border rounded-md">
+              <table className="w-full text-sm">
+                <thead className="border-b">
+                  <tr>
+                    <th className="text-left p-2 font-medium">行号</th>
+                    <th className="text-left p-2 font-medium">学号</th>
+                    <th className="text-left p-2 font-medium">姓名</th>
+                    <th className="text-left p-2 font-medium">错误信息</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.map((row, index) => {
+                    const validationResult = validationResults[index];
+                    // 显示验证错误或导入错误
+                    if (!validationResult?.success) {
+                      return (
+                        <tr key={index} className="border-b">
+                          <td className="p-2">{index + 1}</td>
+                          <td className="p-2">{row.student_no || '-'}</td>
+                          <td className="p-2">{row.student_name || '-'}</td>
+                          <td className="p-2 text-red-600">
+                            {validationResult.message || "未知错误"}
+                          </td>
+                        </tr>
+                      );
+                    }
+                    // 显示导入失败（有错误信息）
+                    if (importResult?.errors?.length > 0) {
+                      const importError = importResult.errors.find(e => e.row === index + 1);
+                      if (importError) {
+                        return (
+                          <tr key={index} className="border-b">
+                            <td className="p-2">{index + 1}</td>
+                            <td className="p-2">{importError.student_no || row.student_no || '-'}</td>
+                            <td className="p-2">{importError.student_name || row.student_name || '-'}</td>
+                            <td className="p-2 text-red-600">
+                              {importError.message || "未知错误"}
+                            </td>
+                          </tr>
+                        );
+                      }
+                    }
+                    return null;
+                  })}
+                </tbody>
+              </table>
+            </ScrollArea>
+          </div>
+        </div>
+      )}
     </div>
   );
+};
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>

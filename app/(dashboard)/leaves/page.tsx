@@ -49,6 +49,7 @@ export default function UnifiedLeavesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
+  const [currentSemesterName, setCurrentSemesterName] = useState<string | null>(null);
   const [semesterLoading, setSemesterLoading] = useState(true);
   const [classList, setClassList] = useState<Array<{ id: number; name: string; grade_name: string }>>([]);
   const [classFilter, setClassFilter] = useState("");
@@ -109,11 +110,18 @@ export default function UnifiedLeavesPage() {
         setTeacherApplyEnabled(data.data.config_value === "true" || data.data.config_value === "1");
       }
 
-      // 获取编辑权限配置
-      const editRes = await fetch("/api/system-config/permission.class_teacher_edit_leave");
-      const editData = await editRes.json();
-      if (editData.data?.config_value) {
-        setCanEditLeave(editData.data.config_value === "true" || editData.data.config_value === "1");
+      // 获取编辑权限配置（配置可能不存在，使用默认值）
+      try {
+        const editRes = await fetch("/api/system-config/permission.class_teacher_edit_leave");
+        const editData = await editRes.json();
+        if (editData.data?.config_value) {
+          setCanEditLeave(editData.data.config_value === "true" || editData.data.config_value === "1");
+        }
+      } catch (editError) {
+        // 配置不存在时，使用默认值 true（管理员和班主任默认可编辑）
+        if (currentUser?.role === "admin" || currentUser?.role === "class_teacher") {
+          setCanEditLeave(true);
+        }
       }
     } catch (error) {
       console.error("Failed to fetch system config:", error);
@@ -146,6 +154,7 @@ export default function UnifiedLeavesPage() {
       const currentSemester = data.data?.find((s: { is_current: boolean }) => s.is_current === true);
       if (currentSemester) {
         setCurrentSemesterId(currentSemester.id);
+        setCurrentSemesterName(currentSemester.name);
       }
     } catch (error) {
       console.error("获取当前学期失败:", error);
@@ -438,6 +447,8 @@ export default function UnifiedLeavesPage() {
               setImportOpen(false);
               fetchLeaves();
             }}
+            currentSemesterId={currentSemesterId}
+            currentSemesterName={currentSemesterName}
           />
 
           {/* 编辑表单 */}

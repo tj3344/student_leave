@@ -1,12 +1,36 @@
-import { format, addDays, differenceInBusinessDays, parseISO } from "date-fns";
+import { format, addDays, differenceInBusinessDays, parseISO, isValid } from "date-fns";
 import { zhCN } from "date-fns/locale";
 
 /**
  * 格式化日期为中文格式
  */
-export function formatDate(date: Date | string, formatStr: string = "yyyy-MM-dd"): string {
-  const d = typeof date === "string" ? parseISO(date) : date;
-  return format(d, formatStr, { locale: zhCN });
+export function formatDate(date: Date | string, formatStr?: string): string {
+  let d: Date;
+
+  if (typeof date === "string") {
+    // 尝试用 parseISO 解析 ISO 格式
+    d = parseISO(date);
+
+    // 如果 parseISO 失败，尝试其他格式
+    if (!isValid(d)) {
+      // 尝试直接用 new Date 解析（处理 JavaScript Date toString 格式等）
+      d = new Date(date);
+
+      // 如果仍然无效，返回空字符串
+      if (!isValid(d)) {
+        return "";
+      }
+    }
+  } else {
+    d = date;
+  }
+
+  // 最终验证
+  if (!isValid(d)) {
+    return "";
+  }
+
+  return format(d, formatStr || "yyyy-MM-dd", { locale: zhCN });
 }
 
 /**

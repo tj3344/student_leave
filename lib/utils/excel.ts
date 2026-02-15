@@ -936,6 +936,93 @@ export function generateLeaveTemplate(): XLSX.WorkBook {
 }
 
 /**
+ * 验证日期字符串是否为有效的 YYYY-MM-DD 格式
+ */
+function isValidDateFormat(dateStr: string): boolean {
+  if (!dateStr || typeof dateStr !== 'string') {
+    return false;
+  }
+  // 简单验证：YYYY-MM-DD 格式
+  const regex = /^\d{4}-\d{2}-\d{2}$/;
+  return regex.test(dateStr);
+}
+
+/**
+ * 将各种日期格式转换为 ISO 格式 (YYYY-MM-DD)
+ * 支持格式: YYYY/M/D, YYYY/MM/DD, YYYY-M-D, Excel 序列号, JavaScript Date toString 格式等
+ */
+export function normalizeDateFormat(dateValue: unknown): string {
+  // 处理 Excel 序列号（数字类型）
+  if (typeof dateValue === 'number') {
+    // 手动计算 Excel 序列号对应的日期，避免时区问题
+    // Excel 基准日期是 1899-12-30（因为 Excel 错误地认为 1900 是闰年）
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const daysToAdd = Math.floor(dateValue);
+    const millisecondsPerDay = 24 * 60 * 60 * 1000;
+    const targetTime = excelEpoch.getTime() + daysToAdd * millisecondsPerDay;
+    const dateObj = new Date(targetTime);
+
+    // 使用 UTC 方法获取日期，避免时区影响
+    const year = dateObj.getUTCFullYear();
+    const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  // 处理字符串类型
+  if (!dateValue || typeof dateValue !== 'string') {
+    return String(dateValue || '');
+  }
+
+  const trimmed = String(dateValue).trim();
+
+  // 检查是否是 Excel 序列号（纯数字字符串）
+  if (/^\d+$/.test(trimmed)) {
+    const serialNum = parseInt(trimmed, 10);
+    // 手动计算 Excel 序列号对应的日期，避免时区问题
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const daysToAdd = serialNum;
+    const millisecondsPerDay = 24 * 60 * 60 * 1000;
+    const targetTime = excelEpoch.getTime() + daysToAdd * millisecondsPerDay;
+    const dateObj = new Date(targetTime);
+
+    // 使用 UTC 方法获取日期，避免时区影响
+    const year = dateObj.getUTCFullYear();
+    const month = String(dateObj.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(dateObj.getUTCDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  // 如果已经是 ISO 格式，直接返回
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  // 处理 JavaScript Date toString 格式 (如 "Sat Feb 14 2026 23:59:17 GMT+0800...")
+  if (trimmed.includes('GMT') || /[A-Za-z]{3}\s[A-Za-z]{3}\s\d{1,2}\s\d{4}/.test(trimmed)) {
+    const dateObj = new Date(trimmed);
+    if (!isNaN(dateObj.getTime())) {
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+  }
+
+  // 将斜杠替换为连字符，然后解析
+  const normalized = trimmed.replace(/\//g, '-');
+  const parts = normalized.split('-');
+
+  if (parts.length !== 3) {
+    return trimmed; // 无法解析，返回原值
+  }
+
+  const [year, month, day] = parts;
+  // 补零：确保月日都是两位数
+  return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+}
+
+/**
  * 解析请假上传的 Excel 文件（带安全检查）
  */
 export async function parseLeaveExcel(file: File): Promise<LeaveImportRow[]> {
@@ -953,10 +1040,11 @@ export async function parseLeaveExcel(file: File): Promise<LeaveImportRow[]> {
 
   // 解析 Excel 文件
   const arrayBuffer = await file.arrayBuffer();
-  const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+  const workbook = XLSX.read(arrayBuffer, { type: 'array', cellDates: false });
   const worksheet = workbook.Sheets[workbook.SheetNames[0]];
   const data = XLSX.utils.sheet_to_json<LeaveImportRow>(worksheet, {
     defval: '',
+    raw: true, // 使用原始值（Excel 序列号或字符串），然后手动转换日期
   });
 
   // 检查数据行数限制
@@ -974,7 +1062,51 @@ export async function parseLeaveExcel(file: File): Promise<LeaveImportRow[]> {
     return firstValue !== '学号*' && firstValue.trim() !== '';
   });
 
-  return filteredData;
+  // 请假导入专用的中文列名到英文列名的映射
+  const LEAVE_CONFIG_COLUMN_MAPPING: Record<string, string> = {
+    '学号*': 'student_no',
+    '学生姓名*': 'student_name',
+    '学期名称*': 'semester_name',
+    '年级名称*': 'grade_name',
+    '班级名称*': 'class_name',
+    '开始日期*': 'start_date',
+    '结束日期*': 'end_date',
+    '请假天数*': 'leave_days',
+    '请假事由*': 'reason',
+  };
+
+  // 将中文列名映射为英文列名
+  const mappedData = filteredData.map((row) => {
+    const mappedRow: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) {
+      const newKey = LEAVE_CONFIG_COLUMN_MAPPING[key] || key;
+      // 对日期列进行格式转换
+      if (newKey === 'start_date' || newKey === 'end_date') {
+        // 如果值是 Date 对象，先转换为 YYYY-MM-DD 字符串
+        if (value instanceof Date) {
+          const year = value.getFullYear();
+          const month = String(value.getMonth() + 1).padStart(2, '0');
+          const day = String(value.getDate()).padStart(2, '0');
+          mappedRow[newKey] = `${year}-${month}-${day}`;
+        } else if (value && typeof value === 'object' && 'toString' in value) {
+          // 处理其他可能的日期对象（如包装后的对象）
+          const strValue = String(value);
+          if (strValue !== '[object Object]') {
+            mappedRow[newKey] = normalizeDateFormat(strValue);
+          } else {
+            mappedRow[newKey] = '';
+          }
+        } else {
+          mappedRow[newKey] = normalizeDateFormat(value);
+        }
+      } else {
+        mappedRow[newKey] = value;
+      }
+    }
+    return mappedRow as LeaveImportRow;
+  });
+
+  return mappedData;
 }
 
 /**

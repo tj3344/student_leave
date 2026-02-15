@@ -434,6 +434,8 @@ export interface LeaveImportResult {
   row: number;                 // 行号
   success: boolean;            // 是否成功
   message?: string;            // 消息
+  student_no?: string;         // 学号
+  student_name?: string;       // 学生姓名
 }
 
 // ============================================
