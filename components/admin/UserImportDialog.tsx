@@ -130,6 +130,14 @@ export function UserImportDialog({ open, onClose, onSuccess }: UserImportDialogP
       });
 
       if (!response.ok) {
+        // 检查响应类型，处理HTML错误页面
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('text/html')) {
+          const errorMessage = `服务器返回错误 (${response.status})，请检查API路由或联系管理员`;
+          setError(errorMessage);
+          throw new Error(errorMessage);
+        }
+
         const errorData = await response.json();
 
         // 处理速率限制错误

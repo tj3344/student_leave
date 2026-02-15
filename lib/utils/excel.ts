@@ -734,7 +734,28 @@ export async function parseFeeConfigExcel(file: File): Promise<FeeConfigImportRo
     return firstValue !== '学期名称*' && firstValue.trim() !== '';
   });
 
-  return filteredData;
+  // 费用配置专用的中文列名到英文列名的映射
+  const FEE_CONFIG_COLUMN_MAPPING: Record<string, string> = {
+    '学期名称*': 'semester_name',
+    '年级名称*': 'grade_name',
+    '班级名称*': 'class_name',
+    '餐费标准*': 'meal_fee_standard',
+    '预收天数*': 'prepaid_days',
+    '实收天数*': 'actual_days',
+    '停课天数*': 'suspension_days',
+  };
+
+  // 将中文列名映射为英文列名
+  const mappedData = filteredData.map((row) => {
+    const mappedRow: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) {
+      const newKey = FEE_CONFIG_COLUMN_MAPPING[key] || key;
+      mappedRow[newKey] = value;
+    }
+    return mappedRow as FeeConfigImportRow;
+  });
+
+  return mappedData;
 }
 
 /**

@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { getFeeConfigs, createFeeConfig } from "@/lib/api/fees";
-import { hasPermission } from "@/lib/api/auth";
-import { PERMISSIONS } from "@/lib/constants";
+import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import type { FeeConfigInput } from "@/types";
 
 // 缓存配置：费用配置是相对静态的数据，缓存 24 小时
@@ -18,7 +17,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(user, PERMISSIONS.FEE_READ)) {
+    if (!hasPermission(user.role, PERMISSIONS.FEE_READ)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
@@ -64,7 +63,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "未登录" }, { status: 401 });
     }
 
-    if (!hasPermission(user, PERMISSIONS.FEE_CREATE)) {
+    if (!hasPermission(user.role, PERMISSIONS.FEE_CREATE)) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 

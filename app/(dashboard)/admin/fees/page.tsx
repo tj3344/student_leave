@@ -34,6 +34,7 @@ export default function FeesPage() {
   const [exporting, setExporting] = useState(false);
   const [editingFeeConfig, setEditingFeeConfig] = useState<FeeConfigWithDetails | undefined>();
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
+  const [currentSemesterName, setCurrentSemesterName] = useState<string | null>(null);
   const [semesterLoading, setSemesterLoading] = useState(true);
 
   const fetchFeeConfigs = async () => {
@@ -60,6 +61,7 @@ export default function FeesPage() {
       const currentSemester = data.data?.find((s: { is_current: boolean }) => s.is_current === true);
       if (currentSemester) {
         setCurrentSemesterId(currentSemester.id);
+        setCurrentSemesterName(currentSemester.name);
       }
     } catch (error) {
       console.error("获取当前学期失败:", error);
@@ -189,6 +191,8 @@ export default function FeesPage() {
             open={importDialogOpen}
             onClose={() => setImportDialogOpen(false)}
             onSuccess={fetchFeeConfigs}
+            currentSemesterId={currentSemesterId}
+            currentSemesterName={currentSemesterName}
           />
         </>
       )}
