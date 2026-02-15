@@ -15,7 +15,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Eye, Check, X, Trash2, Pencil } from "lucide-react";
+import { Eye, Check, X, Trash2, Pencil, RotateCcw } from "lucide-react";
 
 interface LeaveTableProps {
   data: LeaveWithDetails[];
@@ -23,6 +23,7 @@ interface LeaveTableProps {
   onViewDetail?: (leave: LeaveWithDetails) => void;
   onApprove?: (leave: LeaveWithDetails) => void;
   onReject?: (leave: LeaveWithDetails) => void;
+  onRevoke?: (leave: LeaveWithDetails) => void;
   onDelete?: (leave: LeaveWithDetails) => void;
   onEdit?: (leave: LeaveWithDetails) => void;
   canEdit?: boolean;
@@ -34,6 +35,7 @@ function LeaveTableInternal({
   onViewDetail,
   onApprove,
   onReject,
+  onRevoke,
   onDelete,
   onEdit,
   canEdit = false,
@@ -69,6 +71,10 @@ function LeaveTableInternal({
     onEdit?.(leave);
   }, [onEdit]);
 
+  const handleRevoke = useCallback((leave: LeaveWithDetails) => {
+    onRevoke?.(leave);
+  }, [onRevoke]);
+
   const tableRows = useMemo(() => {
     if (data.length === 0) {
       return null;
@@ -84,11 +90,12 @@ function LeaveTableInternal({
         onViewDetail={handleViewDetail}
         onApprove={handleApprove}
         onReject={handleReject}
+        onRevoke={handleRevoke}
         onDelete={handleDelete}
         onEdit={handleEdit}
       />
     ));
-  }, [data, getStatusBadge, showReviewActions, canEdit, handleViewDetail, handleApprove, handleReject, handleDelete, handleEdit]);
+  }, [data, getStatusBadge, showReviewActions, canEdit, handleViewDetail, handleApprove, handleReject, handleRevoke, handleDelete, handleEdit]);
 
   if (!tableRows) {
     return (
@@ -130,6 +137,7 @@ interface LeaveRowProps {
   onViewDetail?: (leave: LeaveWithDetails) => void;
   onApprove?: (leave: LeaveWithDetails) => void;
   onReject?: (leave: LeaveWithDetails) => void;
+  onRevoke?: (leave: LeaveWithDetails) => void;
   onDelete?: (leave: LeaveWithDetails) => void;
   onEdit?: (leave: LeaveWithDetails) => void;
 }
@@ -142,6 +150,7 @@ const LeaveRow = memo(function LeaveRow({
   onViewDetail,
   onApprove,
   onReject,
+  onRevoke,
   onDelete,
   onEdit,
 }: LeaveRowProps) {
@@ -222,6 +231,17 @@ const LeaveRow = memo(function LeaveRow({
                 </Button>
               )}
             </>
+          )}
+          {showReviewActions && onRevoke && leave.status === "approved" && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+              onClick={() => onRevoke(leave)}
+              title="退回到待审核"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </Button>
           )}
           {onDelete && leave.status !== "approved" && (
             <Button

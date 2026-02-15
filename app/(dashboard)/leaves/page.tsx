@@ -72,6 +72,10 @@ export default function UnifiedLeavesPage() {
   // 导入对话框状态
   const [importOpen, setImportOpen] = useState(false);
 
+  // 撤销审核对话框状态
+  const [revokeDialogOpen, setRevokeDialogOpen] = useState(false);
+  const [revokingLeave, setRevokingLeave] = useState<LeaveWithDetails | null>(null);
+
   // 获取当前用户信息
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -216,6 +220,33 @@ export default function UnifiedLeavesPage() {
   const handleEdit = (leave: LeaveWithDetails) => {
     setEditingLeave(leave);
     setEditFormOpen(true);
+  };
+
+  const handleRevoke = (leave: LeaveWithDetails) => {
+    setRevokingLeave(leave);
+    setRevokeDialogOpen(true);
+  };
+
+  const confirmRevoke = async () => {
+    if (!revokingLeave) return;
+
+    try {
+      const response = await fetch(`/api/leaves/${revokingLeave.id}/revoke`, {
+        method: "POST",
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "撤销审核失败");
+      }
+
+      fetchLeaves();
+      setRevokeDialogOpen(false);
+      setRevokingLeave(null);
+    } catch (error) {
+      console.error("Revoke leave error:", error);
+      alert(error instanceof Error ? error.message : "撤销审核失败，请稍后重试");
+    }
   };
 
   const confirmDelete = async () => {
@@ -406,6 +437,7 @@ export default function UnifiedLeavesPage() {
             onViewDetail={handleViewDetail}
             onApprove={canReview ? handleApprove : undefined}
             onReject={canReview ? handleReject : undefined}
+            onRevoke={canReview ? handleRevoke : undefined}
             onDelete={canDelete ? handleDelete : undefined}
             onEdit={canEdit ? handleEdit : undefined}
             canEdit={canEdit}
@@ -435,6 +467,22 @@ export default function UnifiedLeavesPage() {
               <AlertDialogFooter>
                 <AlertDialogCancel>取消</AlertDialogCancel>
                 <AlertDialogAction onClick={confirmDelete}>删除</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+
+          {/* 撤销审核确认对话框 */}
+          <AlertDialog open={revokeDialogOpen} onOpenChange={setRevokeDialogOpen}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>确认退回到待审核</AlertDialogTitle>
+                <AlertDialogDescription>
+                  确定要将这条请假记录退回到待审核状态吗？退回后需要重新审核。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction onClick={confirmRevoke}>确认退回</AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>

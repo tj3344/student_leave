@@ -357,6 +357,45 @@ export async function deleteLeave(id: number): Promise<{ success: boolean; messa
 }
 
 /**
+ * 撤销请假审核（将已批准/已拒绝的记录退回到待审核状态）
+ */
+export async function revokeLeaveApproval(
+  id: number,
+  adminId: number
+): Promise<{ success: boolean; message?: string }> {
+  const pgClient = getRawPostgres();
+
+  // 检查请假记录是否存在
+  const leaveResult = await pgClient.unsafe("SELECT id, status FROM leave_records WHERE id = $1", [id]) as
+    { id: number; status: string }[];
+
+  const leave = leaveResult[0];
+
+  if (!leave) {
+    return { success: false, message: "请假记录不存在" };
+  }
+
+  // 只能撤销已批准或已拒绝的记录
+  if (leave.status === "pending") {
+    return { success: false, message: "该记录已经是待审核状态" };
+  }
+
+  // 将状态改为待审核，清除审核信息
+  await pgClient.unsafe(
+    `UPDATE leave_records
+     SET status = 'pending',
+         reviewer_id = NULL,
+         review_time = NULL,
+         review_remark = NULL,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = $1`,
+    [id]
+  );
+
+  return { success: true };
+}
+
+/**
  * 获取待审核的请假记录数量
  */
 export async function getPendingLeaveCount(): Promise<number> {
