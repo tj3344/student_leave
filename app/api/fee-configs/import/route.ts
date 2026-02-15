@@ -4,6 +4,7 @@ import {
   batchCreateOrUpdateFeeConfigs,
   getClassIdByNames,
 } from "@/lib/api/fees";
+import { getSemesterById } from "@/lib/api/semesters";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { checkImportRateLimit, getClientIp } from "@/lib/utils/rate-limit";
 import type { FeeConfigImportRow, FeeConfigInput } from "@/types";
@@ -23,22 +24,37 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "无权限" }, { status: 403 });
     }
 
-    // 检查速率限制
-    const clientIp = getClientIp(request);
-    const rateLimitCheck = checkImportRateLimit(currentUser.id, clientIp);
-    if (!rateLimitCheck.allowed) {
-      return NextResponse.json(
-        { error: rateLimitCheck.error || "请求过于频繁，请稍后重试" },
-        { status: 429 }
-      );
-    }
-
     // 解析请求体
     const body = await request.json();
-    const { feeConfigs } = body as { feeConfigs: FeeConfigImportRow[] };
+    const { currentSemesterId, feeConfigs, validateOnly } = body as {
+      currentSemesterId?: number;
+      feeConfigs: FeeConfigImportRow[];
+      validateOnly?: boolean;
+    };
+
+    // 如果不是仅验证模式，检查速率限制
+    if (!validateOnly) {
+      const clientIp = getClientIp(request);
+      const rateLimitCheck = checkImportRateLimit(currentUser.id, clientIp);
+      if (!rateLimitCheck.allowed) {
+        return NextResponse.json(
+          { error: rateLimitCheck.error || "请求过于频繁，请稍后重试" },
+          { status: 429 }
+        );
+      }
+    }
 
     if (!Array.isArray(feeConfigs) || feeConfigs.length === 0) {
       return NextResponse.json({ error: "费用配置数据不能为空" }, { status: 400 });
+    }
+
+    // 验证当前学期
+    let currentSemesterName: string | null = null;
+    if (currentSemesterId) {
+      const currentSemester = await getSemesterById(currentSemesterId);
+      if (currentSemester) {
+        currentSemesterName = currentSemester.name;
+      }
     }
 
     // 检测 Excel 内部的重复数据（学期+年级+班级组合）
@@ -95,6 +111,15 @@ export async function POST(request: NextRequest) {
         validationErrors.push({ row: rowNum, message: "学期名称不能为空" });
         continue;
       }
+
+      // 验证学期名称与当前学期匹配
+      if (currentSemesterName && row.semester_name.trim() !== currentSemesterName) {
+        validationErrors.push({
+          row: rowNum,
+          message: `学期名称必须与当前学期一致（当前学期：${currentSemesterName}）`
+        });
+        continue;
+      }
       if (!row.grade_name?.trim()) {
         validationErrors.push({ row: rowNum, message: "年级名称不能为空" });
         continue;
@@ -121,7 +146,7 @@ export async function POST(request: NextRequest) {
       }
 
       // 获取班级和学期 ID
-      const classIdResult = getClassIdByNames(
+      const classIdResult = await getClassIdByNames(
         row.semester_name.trim(),
         row.grade_name.trim(),
         row.class_name.trim()
@@ -182,8 +207,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // 如果是仅验证模式，返回成功结果
+    if (validateOnly) {
+      return NextResponse.json({
+        success: true,
+        message: "验证通过"
+      });
+    }
+
     // 执行批量导入
-    const result = batchCreateOrUpdateFeeConfigs(validatedFeeConfigs);
+    const result = await batchCreateOrUpdateFeeConfigs(validatedFeeConfigs);
 
     return NextResponse.json({
       success: true,

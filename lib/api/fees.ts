@@ -601,7 +601,7 @@ export async function getClassIdByNames(
   const cls = clsResult[0];
 
   if (!cls) {
-    return { error: `学期"${semesterName}"${gradeName}"下不存在班级"${className}"` };
+    return { error: `学期"${semesterName}"的"${gradeName}"下不存在班级"${className}"` };
   }
 
   return {

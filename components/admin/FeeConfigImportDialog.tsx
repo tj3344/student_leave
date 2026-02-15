@@ -20,11 +20,13 @@ interface FeeConfigImportDialogProps {
   open: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  currentSemesterId?: number | null;
+  currentSemesterName?: string | null;
 }
 
 type ImportStep = "upload" | "preview" | "processing" | "result";
 
-export function FeeConfigImportDialog({ open, onClose, onSuccess }: FeeConfigImportDialogProps) {
+export function FeeConfigImportDialog({ open, onClose, onSuccess, currentSemesterId, currentSemesterName }: FeeConfigImportDialogProps) {
   const [step, setStep] = useState<ImportStep>("upload");
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [file, setFile] = useState<File | null>(null);
@@ -118,6 +120,8 @@ export function FeeConfigImportDialog({ open, onClose, onSuccess }: FeeConfigImp
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          currentSemesterId,
+          validateOnly: true,
           feeConfigs: rows.map((row) => ({
             ...row,
             // 确保所有字段都有值
@@ -133,6 +137,14 @@ export function FeeConfigImportDialog({ open, onClose, onSuccess }: FeeConfigImp
       });
 
       if (!response.ok) {
+        // 检查响应类型，处理HTML错误页面
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('text/html')) {
+          const errorMessage = `服务器返回错误 (${response.status})，请检查API路由或联系管理员`;
+          setError(errorMessage);
+          throw new Error(errorMessage);
+        }
+
         const errorData = await response.json();
 
         // 处理速率限制错误
@@ -144,13 +156,16 @@ export function FeeConfigImportDialog({ open, onClose, onSuccess }: FeeConfigImp
 
         // 如果是验证错误，返回验证错误
         if (errorData.validationErrors) {
-          return rows.map((row, index) => ({
-            row: index + 1,
-            success: false,
-            message: errorData.validationErrors.find(
-              (e: { row: number }) => e.row === index + 1
-            )?.message || "验证失败",
-          }));
+          const errorMap = new Map(errorData.validationErrors.map((e: { row: number; message: string }) => [e.row, e.message]));
+          return rows.map((row, index) => {
+            const rowNum = index + 1;
+            const errorMessage = errorMap.get(rowNum);
+            return {
+              row: rowNum,
+              success: !errorMessage,
+              message: errorMessage || "验证通过",
+            };
+          });
         }
 
         // 其他错误
@@ -184,12 +199,13 @@ export function FeeConfigImportDialog({ open, onClose, onSuccess }: FeeConfigImp
 
   // 执行导入
   const handleImport = async () => {
-    // 过滤出验证通过的数据
-    const validData = data.filter((_, index) =>
+    // 如果预览时全部验证通过，直接使用原始数据（避免 validData 为空的问题）
+    const allValid = validationResults.every(r => r?.success === true);
+    const dataToImport = allValid ? data : data.filter((_, index) =>
       validationResults[index]?.success
     );
 
-    if (validData.length === 0) {
+    if (dataToImport.length === 0) {
       alert("没有可导入的数据");
       return;
     }
@@ -201,10 +217,18 @@ export function FeeConfigImportDialog({ open, onClose, onSuccess }: FeeConfigImp
       const response = await fetch("/api/fee-configs/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ feeConfigs: validData }),
+        body: JSON.stringify({
+          currentSemesterId,
+          feeConfigs: dataToImport
+        }),
       });
 
       if (!response.ok) {
+        // 检查响应类型，处理HTML错误页面
+        const contentType = response.headers.get('content-type');
+        if (contentType?.includes('text/html')) {
+          throw new Error(`服务器返回错误 (${response.status})，请检查API路由或联系管理员`);
+        }
         throw new Error("导入失败");
       }
 
@@ -366,6 +390,9 @@ export function FeeConfigImportDialog({ open, onClose, onSuccess }: FeeConfigImp
                   <th className="text-left p-2 font-medium">学期</th>
                   <th className="text-left p-2 font-medium">班级</th>
                   <th className="text-left p-2 font-medium">餐费标准</th>
+                  <th className="text-left p-2 font-medium">预收天数</th>
+                  <th className="text-left p-2 font-medium">实收天数</th>
+                  <th className="text-left p-2 font-medium">停课天数</th>
                   <th className="text-left p-2 font-medium">状态</th>
                 </tr>
               </thead>
@@ -383,6 +410,9 @@ export function FeeConfigImportDialog({ open, onClose, onSuccess }: FeeConfigImp
                       <td className="p-2">{row.semester_name}</td>
                       <td className="p-2">{row.grade_name} {row.class_name}</td>
                       <td className="p-2">{row.meal_fee_standard}</td>
+                      <td className="p-2">{row.prepaid_days}</td>
+                      <td className="p-2">{row.actual_days}</td>
+                      <td className="p-2">{row.suspension_days}</td>
                       <td className="p-2">
                         {result?.success ? (
                           <CheckCircle className="h-4 w-4 text-green-500 inline" />
