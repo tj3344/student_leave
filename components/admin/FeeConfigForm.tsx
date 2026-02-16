@@ -61,6 +61,8 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const [currentSemesterName, setCurrentSemesterName] = useState<string>("");
   const [semesterLoading, setSemesterLoading] = useState(true);
+  const [semesters, setSemesters] = useState<Semester[]>([]);
+  const [editSemesterName, setEditSemesterName] = useState<string>("");
   const isEdit = !!feeConfig;
 
   const form = useForm<FeeConfigFormValues>({
@@ -129,6 +131,13 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
     }
   }, [open]);
 
+  // 编辑模式下，获取学期列表以显示学期名称
+  useEffect(() => {
+    if (open && feeConfig) {
+      fetchSemesters();
+    }
+  }, [open, feeConfig]);
+
   const fetchCurrentSemester = async () => {
     try {
       const response = await fetch("/api/semesters");
@@ -146,6 +155,24 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
       console.error("获取当前学期失败:", error);
     } finally {
       setSemesterLoading(false);
+    }
+  };
+
+  const fetchSemesters = async () => {
+    try {
+      const response = await fetch("/api/semesters");
+      const data = await response.json();
+      setSemesters(data.data || []);
+
+      // 编辑模式下，找到对应学期的名称
+      if (feeConfig?.semester_id) {
+        const semester = data.data?.find((s: Semester) => s.id === feeConfig.semester_id);
+        if (semester) {
+          setEditSemesterName(semester.name);
+        }
+      }
+    } catch (error) {
+      console.error("获取学期列表失败:", error);
     }
   };
 
@@ -226,7 +253,7 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
             {isEdit && (
               <div className="rounded-md bg-muted p-3">
                 <div className="text-sm font-medium">所属学期</div>
-                <div className="text-sm text-muted-foreground">已设置（ID: {feeConfig?.semester_id})</div>
+                <div className="text-sm text-muted-foreground">{editSemesterName}</div>
               </div>
             )}
 

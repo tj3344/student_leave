@@ -164,7 +164,7 @@ export async function getLeaveById(id: number): Promise<LeaveWithDetails | null>
 export async function createLeave(
   input: LeaveInput,
   applicantId: number
-): Promise<{ success: boolean; message?: string; leaveId?: number }> {
+): Promise<{ success: boolean; message?: string; leaveId?: number; studentName?: string; studentNo?: string }> {
   const pgClient = getRawPostgres();
 
   // 从系统配置获取最小请假天数
@@ -188,7 +188,7 @@ export async function createLeave(
 
   // 检查学生是否存在，并获取费用配置
   const studentResult = await pgClient.unsafe(
-    `SELECT s.id, s.is_nutrition_meal, s.class_id,
+    `SELECT s.id, s.name, s.student_no, s.is_nutrition_meal, s.class_id,
             c.id as class_id_check, c.semester_id as class_semester_id,
             fc.meal_fee_standard
      FROM students s
@@ -198,6 +198,8 @@ export async function createLeave(
     [input.semester_id, input.student_id]
   ) as {
       id: number;
+      name: string;
+      student_no: string;
       is_nutrition_meal: boolean;
       class_id: number;
       class_id_check: number | null;
@@ -278,7 +280,7 @@ export async function createLeave(
     );
   }
 
-  return { success: true, leaveId };
+  return { success: true, leaveId, studentName: student.name, studentNo: student.student_no };
 }
 
 /**

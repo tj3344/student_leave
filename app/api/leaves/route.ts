@@ -122,8 +122,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: result.message }, { status: 400 });
     }
 
-    // 记录创建请假日志
-    await logCreate(currentUser.id, "leaves", `创建请假申请：学生ID ${leaveInput.student_id}，请假 ${leaveInput.leave_days} 天`);
+    // 记录创建请假日志，包含学生姓名和学号
+    const studentInfo = result.studentName
+      ? `${result.studentName}（${result.studentNo}）`
+      : `学生ID ${leaveInput.student_id}`;
+    await logCreate(currentUser.id, "leaves", `创建请假申请：${studentInfo}，请假 ${leaveInput.leave_days} 天`);
 
     return NextResponse.json(
       { success: true, leaveId: result.leaveId, message: "请假申请创建成功" },
