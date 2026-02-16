@@ -40,6 +40,23 @@ export default function UsersPage() {
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [hasClassFilter, setHasClassFilter] = useState("");
+  const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
+  const [semesterLoading, setSemesterLoading] = useState(true);
+
+  const fetchCurrentSemester = async () => {
+    try {
+      const response = await fetch("/api/semesters");
+      const data = await response.json();
+      const currentSemester = data.data?.find((s: { is_current: boolean }) => s.is_current === true);
+      if (currentSemester) {
+        setCurrentSemesterId(currentSemester.id);
+      }
+    } catch (error) {
+      console.error("Fetch current semester error:", error);
+    } finally {
+      setSemesterLoading(false);
+    }
+  };
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -49,6 +66,7 @@ export default function UsersPage() {
       if (roleFilter) params.append("role", roleFilter);
       if (statusFilter) params.append("is_active", statusFilter);
       if (hasClassFilter) params.append("has_class", hasClassFilter);
+      if (currentSemesterId) params.append("semester_id", currentSemesterId.toString());
 
       const response = await fetch(`/api/users?${params.toString()}`);
       const data = await response.json();
@@ -62,7 +80,11 @@ export default function UsersPage() {
 
   useEffect(() => {
     fetchUsers();
-  }, [searchQuery, roleFilter, statusFilter, hasClassFilter]);
+  }, [searchQuery, roleFilter, statusFilter, hasClassFilter, currentSemesterId]);
+
+  useEffect(() => {
+    fetchCurrentSemester();
+  }, []);
 
   const handleEdit = (user: Omit<User, "password_hash">) => {
     setEditingUser(user);

@@ -11,7 +11,7 @@ import type { User, UserInput, UserUpdate, PaginationParams, PaginatedResponse }
  * 获取用户列表（分页）
  */
 export async function getUsers(
-  params: PaginationParams & { role?: string; roles?: string[]; is_active?: number; has_class?: boolean }
+  params: PaginationParams & { role?: string; roles?: string[]; is_active?: number; has_class?: boolean; semester_id?: number }
 ): Promise<PaginatedResponse<Omit<User, "password_hash"> & { class_id?: number; class_name?: string; grade_name?: string }>> {
   const pgClient = getRawPostgres();
   const page = params.page || 1;
@@ -61,29 +61,38 @@ export async function getUsers(
   );
   const orderClause = `ORDER BY ${orderBy} ${order}`;
 
+  // 构建班级 JOIN 条件（如果指定了学期，过滤到该学期的班级）
+  const classJoinCondition = params.semester_id !== undefined
+    ? `ON u.id = c.class_teacher_id AND c.semester_id = $${paramIndex++}`
+    : `ON u.id = c.class_teacher_id`;
+  if (params.semester_id !== undefined) {
+    queryParams.push(params.semester_id);
+  }
+
   // 获取总数
   const countQuery = `
-    SELECT COUNT(*) as count
+    SELECT COUNT(DISTINCT u.id) as count
     FROM users u
-    LEFT JOIN classes c ON u.id = c.class_teacher_id
+    LEFT JOIN classes c ${classJoinCondition}
+    LEFT JOIN grades g ON c.grade_id = g.id
     ${whereClause}
   `;
   const countResult = await pgClient.unsafe(countQuery, queryParams) as { count: number }[];
   const total = countResult[0]?.count || 0;
 
-  // 获取数据
+  // 获取数据（使用 DISTINCT ON 去重，防止因多学期班级导致重复）
   const dataQuery = `
-    SELECT
+    SELECT DISTINCT ON (u.id)
       u.id, u.username, u.real_name, u.role, u.phone, u.email,
       u.is_active, u.created_at, u.updated_at,
       c.id as class_id,
       c.name as class_name,
       g.name as grade_name
     FROM users u
-    LEFT JOIN classes c ON u.id = c.class_teacher_id
+    LEFT JOIN classes c ${classJoinCondition}
     LEFT JOIN grades g ON c.grade_id = g.id
     ${whereClause}
-    ${orderClause}
+    ORDER BY u.id, c.semester_id DESC NULLS LAST, ${orderBy} ${order}
     LIMIT $${paramIndex++} OFFSET $${paramIndex++}
   `;
   queryParams.push(limit, offset);
