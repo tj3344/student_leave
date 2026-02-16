@@ -1,6 +1,7 @@
 import { getRawPostgres } from "@/lib/db";
 import { hashPassword } from "@/lib/utils/crypto";
 import { validateOrderBy, SORT_FIELDS, DEFAULT_SORT_FIELDS } from "@/lib/utils/sql-security";
+import { promoteTeacherToClassTeacher, demoteClassTeacherToTeacher } from "./classes";
 import type { User, UserInput, UserUpdate, PaginationParams, PaginatedResponse } from "@/types";
 
 /**
@@ -300,20 +301,23 @@ export async function assignTeacherToClass(
 
   // 如果是分配班级
   if (classId !== null) {
-    // 检查班级是否存在
-    const classExists = await pgClient.unsafe("SELECT id FROM classes WHERE id = $1", [classId]);
-    if (classExists.length === 0) {
+    // 检查班级是否存在并获取学期ID
+    const classInfo = await pgClient.unsafe(
+      "SELECT id, semester_id FROM classes WHERE id = $1",
+      [classId]
+    ) as { id: number; semester_id: number }[];
+    if (classInfo.length === 0) {
       return { success: false, message: "班级不存在" };
     }
 
-    // 检查该教师是否已是其他班级的班主任
+    // 检查该教师是否已是该学期其他班级的班主任（同一学期内一对一约束）
     const existingClass = await pgClient.unsafe(
-      "SELECT id FROM classes WHERE class_teacher_id = $1 AND id != $2",
-      [teacherId, classId]
+      "SELECT id FROM classes WHERE class_teacher_id = $1 AND semester_id = $2 AND id != $3",
+      [teacherId, classInfo[0].semester_id, classId]
     ) as { id: number }[];
 
     if (existingClass.length > 0) {
-      return { success: false, message: "该教师已是其他班级的班主任" };
+      return { success: false, message: "该教师已是该学期其他班级的班主任" };
     }
 
     // 更新班级的班主任
@@ -321,8 +325,8 @@ export async function assignTeacherToClass(
       [teacherId, classId]
     );
 
-    // 将教师角色更新为班主任
-    await pgClient.unsafe("UPDATE users SET role = 'class_teacher' WHERE id = $1", [teacherId]);
+    // 将教师角色更新为班主任（复用已有函数）
+    await promoteTeacherToClassTeacher(teacherId);
   } else {
     // 解除班主任分配：找到该教师担任班主任的班级并清除
     const existingClass = await pgClient.unsafe(
@@ -334,6 +338,9 @@ export async function assignTeacherToClass(
       await pgClient.unsafe("UPDATE classes SET class_teacher_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = $1",
         [existingClass[0].id]
       );
+
+      // 将班主任角色降级为教师（如果不担任其他班级）
+      await demoteClassTeacherToTeacher(teacherId);
     }
   }
 

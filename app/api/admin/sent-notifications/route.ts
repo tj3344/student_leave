@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { getSentNotificationBatches } from "@/lib/api/notifications";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
+import { getCurrentSemester } from "@/lib/api/semesters";
 
 /**
  * GET /api/admin/sent-notifications - 获取管理员发送的通知批次列表（聚合显示）
+ * 查询参数：
+ * - all: 可选，设置为 "true" 时显示所有学期的通知
+ * 注意：默认只显示当前学期的通知
  */
 export async function GET(request: NextRequest) {
   try {
@@ -24,6 +28,19 @@ export async function GET(request: NextRequest) {
     const type = searchParams.get("type");
     const sort = searchParams.get("sort") || "created_at";
     const order = (searchParams.get("order") || "desc") as "asc" | "desc";
+    const showAll = searchParams.get("all") === "true";
+
+    // 获取学期日期范围，默认使用当前学期
+    let semesterStartDate: string | undefined;
+    let semesterEndDate: string | undefined;
+
+    if (!showAll) {
+      const currentSemester = await getCurrentSemester();
+      if (currentSemester) {
+        semesterStartDate = currentSemester.startDate;
+        semesterEndDate = currentSemester.endDate;
+      }
+    }
 
     const result = await getSentNotificationBatches(currentUser.id, {
       page,
@@ -32,6 +49,8 @@ export async function GET(request: NextRequest) {
       type: type || undefined,
       sort,
       order,
+      semester_start_date: semesterStartDate,
+      semester_end_date: semesterEndDate,
     });
 
     return NextResponse.json(result);

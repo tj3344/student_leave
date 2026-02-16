@@ -372,29 +372,46 @@ export async function getNotificationStats(userId: number): Promise<Notification
 
 /**
  * 获取所有班主任（用于发送通知）
+ * @param semesterId 可选，指定学期ID，如果不传则返回所有班主任
  */
-export async function getAllClassTeachersForNotification(): Promise<
+export async function getAllClassTeachersForNotification(semesterId?: number): Promise<
   NotificationClassTeacher[]
 > {
   const pgClient = getRawPostgres();
-  const result = await pgClient.unsafe(
-    `SELECT u.id, u.real_name, u.username, c.name as class_name
+  let query = `SELECT u.id, u.real_name, u.username, c.name as class_name
      FROM users u
-     LEFT JOIN classes c ON u.id = c.class_teacher_id
-     WHERE u.role = 'class_teacher' AND u.is_active = true
-     ORDER BY u.real_name`
-  );
+     LEFT JOIN classes c ON u.id = c.class_teacher_id`;
+  const params: (string | number)[] = [];
+
+  // 如果指定了学期，只返回该学期的班主任
+  if (semesterId !== undefined) {
+    query += ` WHERE (u.role = 'class_teacher' AND u.is_active = true AND c.semester_id = $1)
+              OR (u.role = 'class_teacher' AND u.is_active = true AND c.id IS NULL)`;
+    params.push(semesterId);
+  } else {
+    query += ` WHERE u.role = 'class_teacher' AND u.is_active = true`;
+  }
+
+  query += ` ORDER BY u.real_name`;
+
+  const result = await pgClient.unsafe(query, params);
   return result;
 }
 
 /**
  * 获取管理员发送的聚合通知批次（分页）
  * 将批量发送给多个班主任的通知聚合为一条记录
+ * @param senderId 发送者ID
+ * @param params 查询参数
+ * @param params.semester_start_date 可选，学期开始日期，用于过滤通知
+ * @param params.semester_end_date 可选，学期结束日期，用于过滤通知
  */
 export async function getSentNotificationBatches(
   senderId: number,
   params: PaginationParams & {
     type?: string;
+    semester_start_date?: string;
+    semester_end_date?: string;
   }
 ): Promise<PaginatedResponse<NotificationBatch>> {
   const pgClient = getRawPostgres();
@@ -421,6 +438,13 @@ export async function getSentNotificationBatches(
   if (params.type) {
     whereClause += " AND n.type = $" + paramIndex++;
     queryParams.push(params.type);
+  }
+
+  // 学期日期过滤：通过通知创建时间判断属于哪个学期
+  if (params.semester_start_date && params.semester_end_date) {
+    whereClause += " AND n.created_at >= $" + paramIndex++;
+    whereClause += " AND n.created_at <= $" + paramIndex++;
+    queryParams.push(params.semester_start_date, params.semester_end_date);
   }
 
   // 获取批次总数（按内容分组后计数）
@@ -476,8 +500,9 @@ export async function getSentNotificationBatches(
     const batchId = `${batch.title}-${batch.content}-${batch.type}-${batchTime.getTime()}`;
 
     // 获取该批次的所有接收者信息
+    // 使用 DISTINCT ON 确保每个接收者只返回一行（避免因多个班级导致重复）
     const receiversQuery = `
-      SELECT
+      SELECT DISTINCT ON (n.receiver_id)
         n.receiver_id as id,
         u.real_name,
         u.username,
@@ -492,7 +517,7 @@ export async function getSentNotificationBatches(
         AND n.content = $3
         AND n.type = $4
         AND DATE_TRUNC('minute', n.created_at) = $5
-      ORDER BY n.is_read DESC, n.read_at DESC NULLS LAST, u.real_name
+      ORDER BY n.receiver_id, c.semester_id DESC NULLS LAST
     `;
     const receivers = (await pgClient.unsafe(receiversQuery, [
       senderId,

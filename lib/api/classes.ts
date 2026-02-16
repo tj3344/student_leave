@@ -10,7 +10,7 @@ import type {
 /**
  * 检查教师是否担任班主任
  */
-async function isTeacherAssignedAsClassTeacher(teacherId: number): Promise<boolean> {
+export async function isTeacherAssignedAsClassTeacher(teacherId: number): Promise<boolean> {
   const pgClient = getRawPostgres();
   const assignedClass = await pgClient.unsafe(
     "SELECT id FROM classes WHERE class_teacher_id = $1",
@@ -22,7 +22,7 @@ async function isTeacherAssignedAsClassTeacher(teacherId: number): Promise<boole
 /**
  * 将教师角色更新为班主任
  */
-async function promoteTeacherToClassTeacher(teacherId: number): Promise<void> {
+export async function promoteTeacherToClassTeacher(teacherId: number): Promise<void> {
   const pgClient = getRawPostgres();
   await pgClient.unsafe(
     "UPDATE users SET role = 'class_teacher', updated_at = CURRENT_TIMESTAMP WHERE id = $1",
@@ -33,7 +33,7 @@ async function promoteTeacherToClassTeacher(teacherId: number): Promise<void> {
 /**
  * 将班主任角色降级为教师（如果不担任任何班级的班主任）
  */
-async function demoteClassTeacherToTeacher(teacherId: number): Promise<void> {
+export async function demoteClassTeacherToTeacher(teacherId: number): Promise<void> {
   const pgClient = getRawPostgres();
   const isAssigned = await isTeacherAssignedAsClassTeacher(teacherId);
   if (!isAssigned) {
@@ -197,14 +197,14 @@ export async function createClass(
       return { success: false, message: "班主任必须是教师角色" };
     }
 
-    // 检查该教师是否已是其他班级的班主任（一对一约束）
+    // 检查该教师是否已是该学期其他班级的班主任（同一学期内一对一约束）
     const existingClass = await pgClient.unsafe(
-      "SELECT id FROM classes WHERE class_teacher_id = $1",
-      [input.class_teacher_id]
+      "SELECT id FROM classes WHERE class_teacher_id = $1 AND semester_id = $2",
+      [input.class_teacher_id, input.semester_id]
     );
 
     if (existingClass.length > 0) {
-      return { success: false, message: "该教师已是其他班级的班主任" };
+      return { success: false, message: "该教师已是该学期其他班级的班主任" };
     }
   }
 
@@ -278,14 +278,14 @@ export async function updateClass(
         return { success: false, message: "班主任必须是教师角色" };
       }
 
-      // 检查该教师是否已是其他班级的班主任（一对一约束）
+      // 检查该教师是否已是该学期其他班级的班主任（同一学期内一对一约束）
       const existingClass = await pgClient.unsafe(
-        "SELECT id FROM classes WHERE class_teacher_id = $1 AND id != $2",
-        [input.class_teacher_id, id]
+        "SELECT id FROM classes WHERE class_teacher_id = $1 AND semester_id = $2 AND id != $3",
+        [input.class_teacher_id, semesterId, id]
       );
 
       if (existingClass.length > 0) {
-        return { success: false, message: "该教师已是其他班级的班主任" };
+        return { success: false, message: "该教师已是该学期其他班级的班主任" };
       }
     }
   }
