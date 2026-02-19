@@ -125,6 +125,11 @@ export function Sidebar({ user }: SidebarProps) {
     window.location.href = "/login";
   };
 
+  // 计算所有可见的菜单项（用于全局的激活状态判断）
+  const allVisibleItems = navigation.flatMap(section =>
+    section.items.filter(item => item.roles.includes(user.role))
+  );
+
   return (
     <div className="flex h-full w-64 flex-col border-r border-sidebar-border bg-sidebar shadow-soft">
       {/* Logo */}
@@ -153,8 +158,8 @@ export function Sidebar({ user }: SidebarProps) {
               </h3>
               <div className="space-y-1">
                 {filteredItems.map((item) => {
-                  // 如果有其他菜单项是当前路径更长/更精确的前缀，则当前项不高亮
-                  const hasMoreSpecificMatch = filteredItems.some(
+                  // 检查是否有更具体的匹配项（在所有可见菜单项中检查，而非仅当前分类）
+                  const hasMoreSpecificMatch = allVisibleItems.some(
                     (other) => other.href !== item.href &&
                       (pathname === other.href || pathname.startsWith(other.href + "/")) &&
                       other.href.length > item.href.length

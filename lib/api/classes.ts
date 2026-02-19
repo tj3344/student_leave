@@ -8,13 +8,20 @@ import type {
 } from "@/types";
 
 /**
- * 检查教师是否担任班主任
+ * 检查教师是否担任班主任（当前学期）
  */
 export async function isTeacherAssignedAsClassTeacher(teacherId: number): Promise<boolean> {
   const pgClient = getRawPostgres();
+  const { getCurrentSemester } = await import("./semesters");
+  const currentSemester = await getCurrentSemester();
+
+  if (!currentSemester) {
+    return false;
+  }
+
   const assignedClass = await pgClient.unsafe(
-    "SELECT id FROM classes WHERE class_teacher_id = $1",
-    [teacherId]
+    "SELECT id FROM classes WHERE class_teacher_id = $1 AND semester_id = $2",
+    [teacherId, currentSemester.id]
   );
   return assignedClass.length > 0;
 }

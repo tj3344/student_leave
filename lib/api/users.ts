@@ -229,10 +229,17 @@ export async function deleteUser(id: number): Promise<{ success: boolean; messag
     return { success: false, message: "用户不存在" };
   }
 
-  // 检查是否是班主任
-  const classTeacherCheckResult = await pgClient.unsafe("SELECT id FROM classes WHERE class_teacher_id = $1", [id]);
-  if (classTeacherCheckResult.length > 0) {
-    return { success: false, message: "该用户是班主任，无法删除" };
+  // 检查是否是当前学期的班主任
+  const { getCurrentSemester } = await import("./semesters");
+  const currentSemester = await getCurrentSemester();
+  if (currentSemester) {
+    const classTeacherCheckResult = await pgClient.unsafe(
+      "SELECT id FROM classes WHERE class_teacher_id = $1 AND semester_id = $2",
+      [id, currentSemester.id]
+    );
+    if (classTeacherCheckResult.length > 0) {
+      return { success: false, message: "该用户是当前学期的班主任，无法删除" };
+    }
   }
 
   // 检查是否有请假记录

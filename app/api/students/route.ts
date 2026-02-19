@@ -35,12 +35,24 @@ export async function GET(request: NextRequest) {
     // 班主任角色：只看本班学生
     let filterClassId = class_id ? parseInt(class_id, 10) : undefined;
     if (currentUser.role === "class_teacher") {
-      // 获取班主任管理的班级ID
+      // 获取班主任管理的班级ID（当前学期）
+      const { getCurrentSemester } = await import("@/lib/api/semesters");
+      const currentSemester = await getCurrentSemester();
+      if (!currentSemester) {
+        return NextResponse.json({
+          data: [],
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
+        });
+      }
+
       const { getRawPostgres } = await import("@/lib/db");
       const pgClient = getRawPostgres();
       const managedClassResult = await pgClient.unsafe(
-        "SELECT id FROM classes WHERE class_teacher_id = $1",
-        [currentUser.id]
+        "SELECT id FROM classes WHERE class_teacher_id = $1 AND semester_id = $2",
+        [currentUser.id, currentSemester.id]
       );
       const managedClass = managedClassResult[0] as { id: number } | undefined;
 

@@ -53,11 +53,32 @@ export async function GET(request: NextRequest) {
     // 班主任角色：只导出本班学生请假
     let filterClassId = params.class_id;
     if (currentUser.role === "class_teacher") {
+      const { getCurrentSemester } = await import("@/lib/api/semesters");
+      const currentSemester = await getCurrentSemester();
+      if (!currentSemester) {
+        // 没有设置当前学期，返回空文件
+        const workbook = exportLeavesToExcel([]);
+        const blob = workbookToBlob(workbook);
+        const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+        const encodedFilename = encodeURIComponent(`请假列表_${timestamp}.xlsx`);
+
+        // 记录导出日志
+        await logExport(currentUser.id, "leaves", `导出请假列表：0 条记录（无当前学期）`);
+
+        return new NextResponse(blob as Blob, {
+          status: 200,
+          headers: {
+            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "Content-Disposition": `attachment; filename*=UTF-8''${encodedFilename}`,
+          },
+        });
+      }
+
       const { getRawPostgres } = await import("@/lib/db");
       const pgClient = getRawPostgres();
       const managedClassResult = await pgClient.unsafe(
-        "SELECT id FROM classes WHERE class_teacher_id = $1",
-        [currentUser.id]
+        "SELECT id FROM classes WHERE class_teacher_id = $1 AND semester_id = $2",
+        [currentUser.id, currentSemester.id]
       );
       const managedClass = managedClassResult[0] as { id: number } | undefined;
 
