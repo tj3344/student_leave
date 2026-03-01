@@ -319,7 +319,7 @@ export async function toggleStudentStatus(id: number): Promise<{ success: boolea
 }
 
 /**
- * 批量创建学生
+ * 批量创建学生（优化版：使用批量查询避免 N+1 问题）
  */
 export async function batchCreateStudents(
   students: StudentInput[]
@@ -328,62 +328,138 @@ export async function batchCreateStudents(
   const errors: string[] = [];
   let createdCount = 0;
 
-  for (let i = 0; i < students.length; i++) {
-    const student = students[i];
+  try {
+    // 批量验证班级是否存在（减少查询次数）
+    const uniqueClassIds = [...new Set(students.map(s => s.class_id))];
+    const existingClasses = await pgClient.unsafe(
+      `SELECT id FROM classes WHERE id = ANY($1::int[])`,
+      [uniqueClassIds]
+    ) as { id: number }[];
+    const validClassIds = new Set(existingClasses.map(c => c.id));
 
-    // 检查学号是否已存在
-    const existingStudent = await pgClient.unsafe("SELECT id FROM students WHERE student_no = $1", [student.student_no]);
-    if (existingStudent.length > 0) {
-      errors.push(`第${i + 1}行：学号 ${student.student_no} 已存在`);
-      continue;
+    // 批量检查学号是否存在（减少查询次数）
+    const uniqueStudentNos = [...new Set(students.map(s => s.student_no))];
+    const existingStudentsMap = new Map<string, number>();
+
+    if (uniqueStudentNos.length > 0) {
+      const existingStudents = await pgClient.unsafe(
+        `SELECT id, student_no FROM students WHERE student_no = ANY($1::text[])`,
+        [uniqueStudentNos]
+      ) as { id: number; student_no: string }[];
+
+      for (const student of existingStudents) {
+        existingStudentsMap.set(student.student_no, student.id);
+      }
     }
 
-    // 检查班级是否存在
-    const classExists = await pgClient.unsafe("SELECT id FROM classes WHERE id = $1", [student.class_id]);
-    if (classExists.length === 0) {
-      errors.push(`第${i + 1}行：班级不存在`);
-      continue;
+    // 批量插入学生
+    for (let i = 0; i < students.length; i++) {
+      const student = students[i];
+
+      // 检查班级是否存在
+      if (!validClassIds.has(student.class_id)) {
+        errors.push(`第${i + 1}行：班级不存在 (class_id: ${student.class_id})`);
+        continue;
+      }
+
+      // 检查学号是否已存在
+      if (existingStudentsMap.has(student.student_no)) {
+        errors.push(`第${i + 1}行：学号 ${student.student_no} 已存在`);
+        continue;
+      }
+
+      // 插入学生
+      try {
+        await pgClient.unsafe(
+          `INSERT INTO students (
+            student_no, name, gender, class_id,
+            parent_name, parent_phone, address, is_nutrition_meal,
+            enrollment_date, is_active, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [
+            student.student_no,
+            student.name,
+            student.gender || null,
+            student.class_id,
+            student.parent_name || null,
+            student.parent_phone || null,
+            student.address || null,
+            student.is_nutrition_meal || false,
+            student.enrollment_date || null,
+            true
+          ]
+        );
+        createdCount++;
+      } catch (error) {
+        errors.push(`第${i + 1}行：${error instanceof Error ? error.message : "插入失败"}`);
+      }
     }
 
-    // 插入学生
-    try {
-      await pgClient.unsafe(
-        `INSERT INTO students (
-          student_no, name, gender, class_id,
-          parent_name, parent_phone, address, is_nutrition_meal,
-          enrollment_date, is_active, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-        [
-          student.student_no,
-          student.name,
-          student.gender || null,
-          student.class_id,
-          student.parent_name || null,
-          student.parent_phone || null,
-          student.address || null,
-          student.is_nutrition_meal || false,
-          student.enrollment_date || null,
-          true
-        ]
-      );
-      createdCount++;
-    } catch (error) {
-      errors.push(`第${i + 1}行：${error instanceof Error ? error.message : "插入失败"}`);
+    return {
+      success: true,
+      createdCount,
+      message: `成功创建 ${createdCount} 个学生`,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  } catch (err) {
+    // 如果批量操作失败，回退到逐个处理的方式
+    console.error("批量操作失败，回退到逐个处理:", err);
+
+    for (let i = 0; i < students.length; i++) {
+      const student = students[i];
+
+      // 检查学号是否已存在
+      const existingStudent = await pgClient.unsafe("SELECT id FROM students WHERE student_no = $1", [student.student_no]);
+      if (existingStudent.length > 0) {
+        errors.push(`第${i + 1}行：学号 ${student.student_no} 已存在`);
+        continue;
+      }
+
+      // 检查班级是否存在
+      const classExists = await pgClient.unsafe("SELECT id FROM classes WHERE id = $1", [student.class_id]);
+      if (classExists.length === 0) {
+        errors.push(`第${i + 1}行：班级不存在`);
+        continue;
+      }
+
+      // 插入学生
+      try {
+        await pgClient.unsafe(
+          `INSERT INTO students (
+            student_no, name, gender, class_id,
+            parent_name, parent_phone, address, is_nutrition_meal,
+            enrollment_date, is_active, created_at, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+          [
+            student.student_no,
+            student.name,
+            student.gender || null,
+            student.class_id,
+            student.parent_name || null,
+            student.parent_phone || null,
+            student.address || null,
+            student.is_nutrition_meal || false,
+            student.enrollment_date || null,
+            true
+          ]
+        );
+        createdCount++;
+      } catch (error) {
+        errors.push(`第${i + 1}行：${error instanceof Error ? error.message : "插入失败"}`);
+      }
     }
+
+    return {
+      success: true,
+      createdCount,
+      message: `成功创建 ${createdCount} 个学生`,
+      errors: errors.length > 0 ? errors : undefined,
+    };
   }
-
-  // 学生数量通过数据库触发器自动维护，无需手动更新
-
-  return {
-    success: true,
-    createdCount,
-    message: `成功创建 ${createdCount} 个学生`,
-    errors: errors.length > 0 ? errors : undefined,
-  };
 }
 
 /**
- * 获取学生统计信息
+ * 获取学生统计信息（优化版：使用单次查询）
  */
 export async function getStudentStats(): Promise<{
   total: number;
@@ -393,22 +469,23 @@ export async function getStudentStats(): Promise<{
 }> {
   const pgClient = getRawPostgres();
 
-  const totalResult = await pgClient.unsafe("SELECT COUNT(*) as count FROM students") as { count: number }[];
-  const total = totalResult[0]?.count || 0;
+  // 使用单次查询获取所有统计信息
+  const result = await pgClient.unsafe(`
+    SELECT
+      COUNT(*) as total,
+      COUNT(*) FILTER (WHERE is_active = true) as active,
+      COUNT(*) FILTER (WHERE is_nutrition_meal = true AND is_active = true) as nutrition_meal
+    FROM students
+  `) as { total: number; active: number; nutrition_meal: number }[];
 
-  const activeResult = await pgClient.unsafe("SELECT COUNT(*) as count FROM students WHERE is_active = true") as { count: number }[];
-  const active = activeResult[0]?.count || 0;
-
-  const inactive = total - active;
-
-  const nutritionMealResult = await pgClient.unsafe("SELECT COUNT(*) as count FROM students WHERE is_nutrition_meal = true AND is_active = true") as { count: number }[];
-  const nutritionMeal = nutritionMealResult[0]?.count || 0;
+  const total = result[0]?.total || 0;
+  const active = result[0]?.active || 0;
 
   return {
     total,
     active,
-    inactive,
-    nutritionMeal,
+    inactive: total - active,
+    nutritionMeal: result[0]?.nutrition_meal || 0,
   };
 }
 

@@ -27,8 +27,8 @@ export async function GET() {
     if (!config) {
       await pgClient.unsafe(
         `
-        INSERT INTO backup_config (id, enabled, schedule_type, schedule_time, backup_type, modules, retention_days)
-        VALUES (1, false, 'daily', '02:00', 'full', $1, 30)
+        INSERT INTO backup_config (id, enabled, schedule_type, schedule_time, backup_type, modules, retention_days, updated_at)
+        VALUES (1, false, 'daily', '02:00', 'full', $1, 30, CURRENT_TIMESTAMP)
       `,
         [JSON.stringify(["users", "semesters", "grades", "classes", "students", "leave_records", "fee_configs"])]
       );
@@ -97,8 +97,8 @@ export async function PUT(request: NextRequest) {
       // 创建配置
       await pgClient.unsafe(
         `
-        INSERT INTO backup_config (id, enabled, schedule_type, schedule_time, backup_type, modules, retention_days)
-        VALUES (1, $1, $2, $3, $4, $5, $6)
+        INSERT INTO backup_config (id, enabled, schedule_type, schedule_time, backup_type, modules, retention_days, updated_at)
+        VALUES (1, $1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
       `,
         [
           enabled ? true : false,

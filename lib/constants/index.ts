@@ -157,7 +157,11 @@ export const PERMISSIONS = {
 
 // 角色权限映射
 export const ROLE_PERMISSIONS: Record<string, string[]> = {
+  // 超级管理员：拥有所有权限
+  super_admin: Object.values(PERMISSIONS),
+  // 管理员：拥有所有权限
   admin: Object.values(PERMISSIONS),
+  // 教师：基础权限
   teacher: [
     PERMISSIONS.STUDENT_READ,
     PERMISSIONS.LEAVE_CREATE,
@@ -167,6 +171,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     PERMISSIONS.NOTIFICATION_READ,
     PERMISSIONS.NOTIFICATION_MARK_READ,
   ],
+  // 班主任：扩展权限
   class_teacher: [
     PERMISSIONS.STUDENT_READ,
     PERMISSIONS.LEAVE_CREATE,
@@ -188,10 +193,21 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
 
 /**
  * 检查角色是否有指定权限
+ * 兼容处理：如果角色未定义，检查角色名是否包含 "admin"
  */
 export function hasPermission(role: string, permission: string): boolean {
-  const permissions = ROLE_PERMISSIONS[role] || [];
-  return permissions.includes(permission);
+  // 首先检查精确匹配的角色权限
+  const permissions = ROLE_PERMISSIONS[role];
+  if (permissions && permissions.includes(permission)) {
+    return true;
+  }
+
+  // 如果角色未定义，检查是否为管理员角色（兼容性处理）
+  if (!permissions && role.toLowerCase().includes("admin")) {
+    return true;
+  }
+
+  return false;
 }
 
 /**

@@ -98,3 +98,60 @@ export function decryptConnectionString(encrypted: string): string {
 export function generateEncryptionKey(): string {
   return crypto.randomBytes(32).toString("hex");
 }
+
+// ============================================================================
+// CSRF Token 签名相关
+// ============================================================================
+
+const CSRF_SECRET = process.env.CSRF_SECRET;
+
+/**
+ * 获取 CSRF 签名密钥
+ */
+function getCsrfSecret(): Buffer {
+  if (!CSRF_SECRET) {
+    throw new Error(
+      "CSRF_SECRET environment variable is not set. " +
+      "Please generate a key using: node -e \"console.log(require('crypto').randomBytes(32).toString('hex'))\" " +
+      "and add it to your .env file as CSRF_SECRET=<generated_key>"
+    );
+  }
+  return Buffer.from(CSRF_SECRET, "hex");
+}
+
+/**
+ * 生成 CSRF Token 的 HMAC 签名
+ * @param tokenData - 要签名的数据（timestamp.random 格式）
+ * @returns HMAC 签名（hex 格式）
+ */
+export function generateCsrfSignature(tokenData: string): string {
+  const secret = getCsrfSecret();
+  return crypto.createHmac("sha256", secret).update(tokenData).digest("hex");
+}
+
+/**
+ * 验证 CSRF Token 的 HMAC 签名
+ * @param tokenData - 原始数据（timestamp.random 格式）
+ * @param signature - 要验证的签名
+ * @returns 签名是否有效
+ */
+export function verifyCsrfSignature(tokenData: string, signature: string): boolean {
+  try {
+    const expectedSignature = generateCsrfSignature(tokenData);
+    // 使用 timing-safe 比较防止时序攻击
+    return crypto.timingSafeEqual(
+      Buffer.from(signature, "hex"),
+      Buffer.from(expectedSignature, "hex")
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 生成 CSRF 签名密钥（用于初始化）
+ * 返回 hex 格式的密钥，应存储在环境变量 CSRF_SECRET 中
+ */
+export function generateCsrfSecret(): string {
+  return crypto.randomBytes(32).toString("hex");
+}

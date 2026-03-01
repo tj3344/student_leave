@@ -235,4 +235,165 @@ export const RATE_LIMIT_CONFIG = {
   DEFAULT: DEFAULT_RATE_LIMIT_CONFIG,
   IMPORT: IMPORT_RATE_LIMIT_CONFIG,
   EXPORT: EXPORT_RATE_LIMIT_CONFIG,
+  // 登录操作（严格限制）
+  LOGIN: { windowMs: 15 * 60 * 1000, maxRequests: 5 } as const, // 15分钟5次
+  // 密码修改（严格限制）
+  PASSWORD_CHANGE: { windowMs: 60 * 60 * 1000, maxRequests: 3 } as const, // 1小时3次
+  // 创建操作
+  CREATE: { windowMs: 60 * 1000, maxRequests: 20 } as const, // 1分钟20次
+  // 更新操作
+  UPDATE: { windowMs: 60 * 1000, maxRequests: 30 } as const, // 1分钟30次
+  // 删除操作
+  DELETE: { windowMs: 60 * 1000, maxRequests: 10 } as const, // 1分钟10次
+  // 查询操作（宽松限制）
+  QUERY: { windowMs: 60 * 1000, maxRequests: 100 } as const, // 1分钟100次
+  // 通知发送
+  NOTIFICATION: { windowMs: 60 * 1000, maxRequests: 5 } as const, // 1分钟5次
+  // 备份操作
+  BACKUP: { windowMs: 60 * 60 * 1000, maxRequests: 3 } as const, // 1小时3次
 } as const;
+
+/**
+ * 通用的速率限制检查函数
+ * @param userId 用户ID
+ * @param operation 操作类型
+ * @param configName 配置名称（使用 RATE_LIMIT_CONFIG 中的预设）
+ * @param request Request 对象（可选，用于获取 IP）
+ */
+export function checkRateLimitByConfig(
+  userId: number,
+  operation: string,
+  configName: keyof typeof RATE_LIMIT_CONFIG = "DEFAULT",
+  request?: Request
+): { allowed: boolean; retryAfter?: number; error?: string } {
+  const config = RATE_LIMIT_CONFIG[configName];
+
+  // 检查用户级别限制
+  const userLimit = checkRateLimit(
+    getUserOperationKey(userId, operation),
+    config
+  );
+
+  if (!userLimit.allowed) {
+    return {
+      allowed: false,
+      retryAfter: userLimit.retryAfter,
+      error: `${operation} 操作过于频繁，请在${userLimit.retryAfter}秒后重试`,
+    };
+  }
+
+  // 如果提供了请求对象，也检查IP级别限制
+  if (request) {
+    const ip = getClientIp(request);
+    if (ip) {
+      const ipLimit = checkRateLimit(
+        getIpOperationKey(ip, operation),
+        config
+      );
+
+      if (!ipLimit.allowed) {
+        return {
+          allowed: false,
+          retryAfter: ipLimit.retryAfter,
+          error: `${operation} 操作过于频繁（IP限制），请在${ipLimit.retryAfter}秒后重试`,
+        };
+      }
+    }
+  }
+
+  return { allowed: true };
+}
+
+/**
+ * API 路由速率限制包装器
+ * 用于在 API 路由处理函数中自动应用速率限制
+ *
+ * @example
+ * ```ts
+ * export const POST = withRateLimit(
+ *   async (request: NextRequest) => {
+ *     // 你的 API 处理逻辑
+ *     return NextResponse.json({ success: true });
+ *   },
+ *   "CREATE", // 操作类型
+ *   "students" // 操作名称
+ * );
+ * ```
+ */
+export async function withRateLimit<T extends Request>(
+  handler: (request: T, ...args: unknown[]) => Promise<Response>,
+  configName: keyof typeof RATE_LIMIT_CONFIG = "DEFAULT",
+  operation?: string
+): Promise<Response> {
+  return async (request: T, ...args: unknown[]) => {
+    try {
+      // 获取当前用户
+      const { getCurrentUser } = await import("@/lib/api/auth");
+      const currentUser = await getCurrentUser();
+
+      if (!currentUser) {
+        // 未登录用户使用 IP 限制
+        const ip = getClientIp(request);
+        if (!ip) {
+          return new Response(JSON.stringify({ error: "无法识别客户端" }), {
+            status: 400,
+            headers: { "Content-Type": "application/json" },
+          });
+        }
+
+        const result = checkRateLimit(
+          getIpOperationKey(ip, operation || configName.toLowerCase()),
+          RATE_LIMIT_CONFIG[configName]
+        );
+
+        if (!result.allowed) {
+          return new Response(
+            JSON.stringify({
+              error: result.error || "请求过于频繁",
+              retryAfter: result.retryAfter,
+            }),
+            {
+              status: 429,
+              headers: {
+                "Content-Type": "application/json",
+                "Retry-After": String(result.retryAfter || 60),
+              },
+            }
+          );
+        }
+      } else {
+        // 已登录用户使用用户 ID 限制
+        const result = checkRateLimitByConfig(
+          currentUser.id,
+          operation || configName.toLowerCase(),
+          configName,
+          request
+        );
+
+        if (!result.allowed) {
+          return new Response(
+            JSON.stringify({
+              error: result.error || "请求过于频繁",
+              retryAfter: result.retryAfter,
+            }),
+            {
+              status: 429,
+              headers: {
+                "Content-Type": "application/json",
+                "Retry-After": String(result.retryAfter || 60),
+              },
+            }
+          );
+        }
+      }
+
+      // 通过速率限制，执行实际处理函数
+      return handler(request, ...args);
+    } catch (error) {
+      // 如果速率限制检查出错，为了安全起见仍然执行处理函数
+      // 但记录错误
+      console.error("速率限制检查出错:", error);
+      return handler(request, ...args);
+    }
+  };
+}

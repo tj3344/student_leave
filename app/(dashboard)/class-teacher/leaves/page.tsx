@@ -3,12 +3,24 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, RefreshCw, Search, Download, AlertCircle } from "lucide-react";
+import dynamic from "next/dynamic";
 import type { LeaveWithDetails, User } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { LeaveTable } from "@/components/admin/LeaveTable";
-import { LeaveReviewDialog } from "@/components/admin/LeaveReviewDialog";
-import { LeaveForm } from "@/components/teacher/LeaveForm";
+
+// 代码分割：动态导入大型组件
+const LeaveTable = dynamic(
+  () => import("@/components/admin/LeaveTable").then(m => ({ default: m.LeaveTable })),
+  { ssr: false }
+);
+const LeaveReviewDialog = dynamic(
+  () => import("@/components/admin/LeaveReviewDialog").then(m => ({ default: m.LeaveReviewDialog })),
+  { ssr: false }
+);
+const LeaveForm = dynamic(
+  () => import("@/components/teacher/LeaveForm").then(m => ({ default: m.LeaveForm })),
+  { ssr: false }
+);
 import {
   Select,
   SelectContent,

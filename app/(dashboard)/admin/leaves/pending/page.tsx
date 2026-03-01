@@ -2,11 +2,20 @@
 
 import { useState, useEffect } from "react";
 import { RefreshCw, Search, CheckCircle, AlertCircle } from "lucide-react";
+import dynamic from "next/dynamic";
 import type { LeaveWithDetails } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { LeaveTable } from "@/components/admin/LeaveTable";
-import { LeaveReviewDialog } from "@/components/admin/LeaveReviewDialog";
+
+// 代码分割：动态导入大型组件
+const LeaveTable = dynamic(
+  () => import("@/components/admin/LeaveTable").then(m => ({ default: m.LeaveTable })),
+  { ssr: false }
+);
+const LeaveReviewDialog = dynamic(
+  () => import("@/components/admin/LeaveReviewDialog").then(m => ({ default: m.LeaveReviewDialog })),
+  { ssr: false }
+);
 import {
   Select,
   SelectContent,

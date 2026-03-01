@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import dynamic from "next/dynamic";
 import { cn } from "@/lib/utils";
 import {
   Users,
@@ -31,7 +32,15 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { ROLE_NAMES } from "@/lib/constants";
-import { ChangePasswordDialog } from "@/components/auth/ChangePasswordDialog";
+
+// 代码分割：动态导入修改密码对话框
+const ChangePasswordDialog = dynamic(
+  () => import("@/components/auth/ChangePasswordDialog").then(m => ({ default: m.ChangePasswordDialog })),
+  {
+    ssr: false,
+    loading: () => null,
+  }
+);
 
 const navigation = [
   {

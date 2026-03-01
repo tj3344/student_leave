@@ -3,15 +3,30 @@ import type { NextRequest } from "next/server";
 
 const SESSION_COOKIE_NAME = "student_leave_session";
 
-// CSP 头部配置
-const CSP_HEADER = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: https:",
-  "font-src 'self' data:",
-  "connect-src 'self'",
-].join("; ");
+/**
+ * 构建 CSP 头部
+ * 开发环境需要 'unsafe-eval' 支持 Next.js 热更新
+ * 生产环境移除 'unsafe-eval' 提高安全性
+ */
+function buildCSPHeader(): string {
+  const isDevelopment = process.env.NODE_ENV === "development";
+
+  const directives = [
+    "default-src 'self'",
+    `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ""}`, // 开发环境需要 'unsafe-eval'
+    "style-src 'self' 'unsafe-inline'", // 保留用于 Tailwind CSS 等
+    "img-src 'self' data: https:",
+    "font-src 'self' data:",
+    "connect-src 'self'",
+    "object-src 'none'", // 禁止插件
+    "base-uri 'self'", // 限制 base 标签
+    "form-action 'self'", // 限制表单提交目标
+    "frame-ancestors 'none'", // 禁止被嵌入 iframe
+    "upgrade-insecure-requests", // 自动升级 HTTP 到 HTTPS
+  ];
+
+  return directives.join("; ");
+}
 
 // 不需要认证的路径
 const publicPaths = ["/", "/login", "/api/auth/login", "/api/init", "/maintenance"];
@@ -29,7 +44,7 @@ export async function middleware(request: NextRequest) {
   const response = NextResponse.next();
 
   // 添加 CSP 和其他安全头部
-  response.headers.set("Content-Security-Policy", CSP_HEADER);
+  response.headers.set("Content-Security-Policy", buildCSPHeader());
   response.headers.set("X-Content-Type-Options", "nosniff");
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("X-XSS-Protection", "1; mode=block");

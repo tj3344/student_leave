@@ -2,11 +2,23 @@
 
 import { useState, useEffect } from "react";
 import { Plus, RefreshCw, GraduationCap } from "lucide-react";
+import dynamic from "next/dynamic";
 import type { Semester } from "@/types";
 import { Button } from "@/components/ui/button";
-import { SemesterForm } from "@/components/admin/SemesterForm";
-import { SemesterTable } from "@/components/admin/SemesterTable";
-import { SemesterUpgradeDialog } from "@/components/admin/SemesterUpgradeDialog";
+
+// 代码分割：动态导入大型组件
+const SemesterForm = dynamic(
+  () => import("@/components/admin/SemesterForm").then(m => ({ default: m.SemesterForm })),
+  { ssr: false }
+);
+const SemesterTable = dynamic(
+  () => import("@/components/admin/SemesterTable").then(m => ({ default: m.SemesterTable })),
+  { ssr: false }
+);
+const SemesterUpgradeDialog = dynamic(
+  () => import("@/components/admin/SemesterUpgradeDialog").then(m => ({ default: m.SemesterUpgradeDialog })),
+  { ssr: false }
+);
 
 export default function SemestersPage() {
   const [semesters, setSemesters] = useState<Semester[]>([]);

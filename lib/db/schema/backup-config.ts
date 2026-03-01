@@ -8,7 +8,7 @@ export const backupConfig = pgTable("backup_config", {
   backupType: text("backup_type").notNull(),
   modules: text("modules").notNull(),
   retentionDays: integer("retention_days").notNull().default(30),
-  updatedAt: timestamp("updated_at").notNull(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
 
 // Types

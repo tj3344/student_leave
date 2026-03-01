@@ -812,3 +812,277 @@ export interface NotificationBatch {
     read_at?: string;
   }>;
 }
+
+// ============================================
+// API 通用响应类型
+// ============================================
+
+/**
+ * 标准 API 响应
+ */
+export interface ApiResponse<T = unknown> {
+  success: boolean;
+  message?: string;
+  data?: T;
+  error?: string;
+  code?: string;
+}
+
+/**
+ * 分页 API 响应
+ */
+export interface ApiPaginatedResponse<T> extends ApiResponse<{
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}> {}
+
+/**
+ * 批量操作结果
+ */
+export interface BatchOperationResult {
+  success: boolean;
+  total: number;
+  created: number;
+  updated: number;
+  deleted: number;
+  failed: number;
+  errors?: Array<{
+    row: number;
+    message: string;
+  }>;
+}
+
+/**
+ * 导入结果
+ */
+export interface ImportResult {
+  success: boolean;
+  total: number;
+  created: number;
+  updated: number;
+  failed: number;
+  errors?: Array<{
+    row: number;
+    message: string;
+    data?: unknown;
+  }>;
+}
+
+/**
+ * 导入结果详情
+ */
+export interface ImportResultDetail extends ImportResult {
+  fileName?: string;
+  processedAt?: string;
+}
+
+// ============================================
+// 错误类型
+// ============================================
+
+/**
+ * 应用错误基类
+ */
+export class AppError extends Error {
+  public readonly code: string;
+  public readonly statusCode: number;
+  public readonly isOperational: boolean;
+
+  constructor(message: string, code: string, statusCode: number = 500, isOperational: boolean = true) {
+    super(message);
+    this.name = this.constructor.name;
+    this.code = code;
+    this.statusCode = statusCode;
+    this.isOperational = isOperational;
+    Error.captureStackTrace(this, this.constructor);
+  }
+}
+
+/**
+ * 验证错误（400）
+ */
+export class ValidationError extends AppError {
+  constructor(message: string = "验证失败") {
+    super(message, "VALIDATION_ERROR", 400);
+  }
+}
+
+/**
+ * 认证错误（401）
+ */
+export class AuthenticationError extends AppError {
+  constructor(message: string = "未授权访问") {
+    super(message, "AUTHENTICATION_ERROR", 401);
+  }
+}
+
+/**
+ * 权限错误（403）
+ */
+export class AuthorizationError extends AppError {
+  constructor(message: string = "权限不足") {
+    super(message, "AUTHORIZATION_ERROR", 403);
+  }
+}
+
+/**
+ * 资源未找到错误（404）
+ */
+export class NotFoundError extends AppError {
+  constructor(message: string = "资源未找到") {
+    super(message, "NOT_FOUND_ERROR", 404);
+  }
+}
+
+/**
+ * 冲突错误（409）
+ */
+export class ConflictError extends AppError {
+  constructor(message: string = "资源冲突") {
+    super(message, "CONFLICT_ERROR", 409);
+  }
+}
+
+/**
+ * 速率限制错误（429）
+ */
+export class RateLimitError extends AppError {
+  constructor(message: string = "请求过于频繁", public readonly retryAfter?: number) {
+    super(message, "RATE_LIMIT_ERROR", 429);
+  }
+}
+
+/**
+ * 服务器错误（500）
+ */
+export class InternalServerError extends AppError {
+  constructor(message: string = "服务器内部错误") {
+    super(message, "INTERNAL_SERVER_ERROR", 500, false);
+  }
+}
+
+/**
+ * 服务不可用错误（503）
+ */
+export class ServiceUnavailableError extends AppError {
+  constructor(message: string = "服务暂时不可用") {
+    super(message, "SERVICE_UNAVAILABLE", 503);
+  }
+}
+
+// ============================================
+// CSRF 相关类型
+// ============================================
+
+/**
+ * CSRF Token 信息
+ */
+export interface CsrfTokenInfo {
+  token: string;
+  expiresAt: number;
+}
+
+// ============================================
+// 缓存相关类型
+// ============================================
+
+/**
+ * 缓存条目
+ */
+export interface CacheEntry<T = unknown> {
+  data: T;
+  timestamp: number;
+  ttl: number;
+  hits: number;
+}
+
+/**
+ * 缓存统计
+ */
+export interface CacheStats {
+  size: number;
+  hits: number;
+  misses: number;
+  hitRate: number;
+  keys: string[];
+}
+
+// ============================================
+// 日志相关类型
+// ============================================
+
+/**
+ * 日志级别
+ */
+export enum LogLevel {
+  DEBUG = "DEBUG",
+  INFO = "INFO",
+  WARN = "WARN",
+  ERROR = "ERROR",
+}
+
+/**
+ * 日志条目
+ */
+export interface LogEntry {
+  level: LogLevel;
+  timestamp: string;
+  message: string;
+  context?: Record<string, unknown>;
+  error?: {
+    name: string;
+    message: string;
+    stack?: string;
+  };
+}
+
+// ============================================
+// 环境变量类型
+// ============================================
+
+/**
+ * 环境变量配置
+ */
+export interface EnvironmentConfig {
+  // 数据库
+  POSTGRES_URL: string;
+  DB_ENCRYPTION_KEY: string;
+  // CSRF
+  CSRF_SECRET: string;
+  // 会话
+  SESSION_SECRET: string;
+  // 应用
+  NODE_ENV: "development" | "production" | "test";
+  NEXT_PUBLIC_APP_URL: string;
+  // 可选
+  LOG_DIR?: string;
+  LOG_MAX_SIZE?: string;
+  LOG_MAX_FILES?: string;
+  BACKUP_DIR?: string;
+  ENABLE_FILE_LOG?: string;
+}
+
+// ============================================
+// 速率限制相关类型
+// ============================================
+
+/**
+ * 速率限制配置
+ */
+export interface RateLimitConfig {
+  windowMs: number;
+  maxRequests: number;
+}
+
+/**
+ * 速率限制结果
+ */
+export interface RateLimitResult {
+  allowed: boolean;
+  retryAfter?: number;
+  error?: string;
+  remaining?: number;
+}
