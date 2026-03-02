@@ -3,11 +3,11 @@ services:
   student-leave:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.simple
     container_name: student-leave-app
     restart: unless-stopped
-    # 以宿主机用户身份运行，避免权限问题
-    user: "1000:1000"
+    # 以容器内用户身份运行，与 Dockerfile 中创建的 nextjs 用户 (UID 1001) 一致
+    user: "1001:1001"
     ports:
       - "3000:3000"
     environment:
@@ -15,16 +15,15 @@ services:
       # PostgreSQL 连接
       - POSTGRES_URL=${POSTGRES_URL}
       - DB_ENCRYPTION_KEY=${DB_ENCRYPTION_KEY}
+      - CSRF_SECRET=${CSRF_SECRET:-change-this-csrf-secret-in-production}
       - SESSION_SECRET=${SESSION_SECRET:-change-this-secret-key-in-production}
       - MAX_FILE_SIZE=10485760
-      - NEXT_PUBLIC_APP_URL=${APP_URL:-http://localhost:3000}
+      - NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
     volumes:
       # 日志目录
       - ./logs:/app/logs
     networks:
       - student-leave-network
-      # 加入外部网络以访问独立 PostgreSQL 容器
-      - ${POSTGRES_NETWORK_NAME:-postgres-network}
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
       interval: 30s
@@ -87,10 +86,9 @@ services:
 networks:
   student-leave-network:
     driver: bridge
-  # 外部 PostgreSQL 网络（如果使用独立 PostgreSQL 容器）
-  ${POSTGRES_NETWORK_NAME:-postgres-network}:
-    external: true
-    name: ${POSTGRES_NETWORK_NAME:-postgres-network}
+  # 外部 PostgreSQL 网络（如果使用独立 PostgreSQL 容器，取消下面的注释）
+  # postgres-network:
+  #   external: true
 
 volumes:
   postgres-data:

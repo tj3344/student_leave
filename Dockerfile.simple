@@ -1,0 +1,37 @@
+# 简化版 Dockerfile - 使用预构建的 dist 目录
+FROM node:18-alpine
+
+# 安装运行时依赖
+RUN apk add --no-cache tzdata && \
+    cp /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
+    echo "Asia/Shanghai" > /etc/timezone && \
+    rm -rf /var/cache/apk/* && \
+    addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001
+
+# 设置工作目录
+WORKDIR /app
+
+# 复制预构建的 dist 目录内容
+COPY dist/project_data/student_leave/.next ./.next
+COPY dist/project_data/student_leave/node_modules ./node_modules
+COPY dist/project_data/student_leave/package.json ./
+COPY dist/project_data/student_leave/server.js ./
+COPY dist/project_data/student_leave/public ./public
+# 不复制 .env，使用 docker-compose.yml 的 environment 配置
+
+# 安装 PM2
+RUN npm install -g pm2 && npm cache clean --force
+
+# 创建必要的目录
+RUN mkdir -p /app/data/backups /app/logs && \
+    chown -R nextjs:nodejs /app
+
+# 切换到非 root 用户
+USER nextjs
+
+# 暴露端口
+EXPOSE 3000
+
+# 使用 PM2 Runtime 启动（容器内使用 pm2-runtime）
+CMD ["pm2-runtime", "server.js"]

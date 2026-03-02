@@ -12,7 +12,8 @@ pnpm-lock.yaml
 # ===================================
 .next
 out
-dist
+# dist 排除，但保留用于 Dockerfile.simple
+# !dist
 build
 
 # ===================================
