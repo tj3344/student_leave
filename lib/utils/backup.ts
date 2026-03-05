@@ -145,11 +145,17 @@ function filterTimestampColumns(insertStmt: string): string | null {
 
 /**
  * 执行 SQL 恢复
+ *
+ * 注意：恢复时会跳过 backup_records 和 backup_config 表，保留当前的备份元数据
+ * 这样可以避免新创建的 pre-restore 备份记录被旧数据覆盖
  */
 export async function restoreFromSQL(
   sqlContent: string
 ): Promise<{ success: boolean; message: string; preBackupPath?: string }> {
   const pgClient = getRawPostgres();
+
+  // 恢复时需要跳过的表（系统元数据表，不应该被恢复覆盖）
+  const SKIP_TABLES_IN_RESTORE = ["backup_records", "backup_config"];
 
   try {
     // 恢复前自动备份当前数据
@@ -167,8 +173,12 @@ export async function restoreFromSQL(
 
     // 使用 postgres 包的 begin 方法处理事务
     await pgClient.begin(async (sql) => {
-      // 删除现有数据（按依赖逆序）
-      const reversedOrder = [...TABLE_DEPENDENCY_ORDER].reverse();
+      // 临时禁用外键约束触发器（session_replication_role = 'replica' 会禁用所有触发器）
+      await sql.unsafe(`SET session_replication_role = 'replica'`);
+
+      // 删除现有数据（按依赖逆序，但跳过元数据表）
+      const reversedOrder = [...TABLE_DEPENDENCY_ORDER].reverse()
+        .filter(table => !SKIP_TABLES_IN_RESTORE.includes(table));
       for (const table of reversedOrder) {
         await sql.unsafe(`DELETE FROM ${table}`);
       }
@@ -187,15 +197,24 @@ export async function restoreFromSQL(
         if (trimmed.endsWith(";")) {
           const insertStmt = currentStmt.trim();
           if (insertStmt.toUpperCase().includes("INSERT")) {
-            await sql.unsafe(insertStmt);
+            // 跳过元数据表的 INSERT 语句
+            const shouldSkip = SKIP_TABLES_IN_RESTORE.some(table =>
+              insertStmt.toUpperCase().includes(`INSERT INTO ${table}`)
+            );
+            if (!shouldSkip) {
+              await sql.unsafe(insertStmt);
+            }
           }
           currentStmt = "";
         }
       }
+
+      // 恢复外键约束触发器
+      await sql.unsafe(`SET session_replication_role = 'origin'`);
     });
 
-    // 同步序列（必须在事务外执行）
-    await syncSequencesAfterRestore(pgClient);
+    // 同步序列（必须在事务外执行，跳过元数据表）
+    await syncSequencesAfterRestore(pgClient, SKIP_TABLES_IN_RESTORE);
 
     return { success: true, message: "数据恢复成功", preBackupPath };
   } catch (error) {
@@ -208,8 +227,9 @@ export async function restoreFromSQL(
 
 /**
  * 恢复后同步所有表的序列
+ * @param skipTables - 需要跳过的表（如 backup_records、backup_config）
  */
-async function syncSequencesAfterRestore(pgClient: any): Promise<void> {
+async function syncSequencesAfterRestore(pgClient: any, skipTables: string[] = []): Promise<void> {
   const tables = [
     { name: "users", sequence: "users_id_seq" },
     { name: "semesters", sequence: "semesters_id_seq" },
@@ -224,10 +244,10 @@ async function syncSequencesAfterRestore(pgClient: any): Promise<void> {
     { name: "backup_config", sequence: "backup_config_id_seq" },
   ];
 
-  // 按 TABLE_DEPENDENCY_ORDER 的逆序同步（确保外键关系）
-  const reverseOrder = [...TABLE_DEPENDENCY_ORDER].reverse().filter(
-    (table) => tables.some((t) => t.name === table)
-  );
+  // 按 TABLE_DEPENDENCY_ORDER 的逆序同步（确保外键关系），跳过元数据表
+  const reverseOrder = [...TABLE_DEPENDENCY_ORDER].reverse()
+    .filter(table => !skipTables.includes(table))
+    .filter((table) => tables.some((t) => t.name === table));
 
   for (const tableName of reverseOrder) {
     const table = tables.find((t) => t.name === tableName);

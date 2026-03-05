@@ -91,7 +91,7 @@ export function validateFilePath(requestedPath: string, allowedBaseDir: string):
  * 获取备份目录路径（从环境变量或使用默认值）
  */
 export function getBackupDirectory(): string {
-  return process.env.BACKUP_DIR || path.join(process.cwd(), "backups");
+  return process.env.BACKUP_DIR || path.join(process.cwd(), "data", "backups");
 }
 
 /**
