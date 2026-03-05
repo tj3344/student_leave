@@ -18,10 +18,13 @@ COPY dist/project_data/student_leave/node_modules ./node_modules
 COPY dist/project_data/student_leave/package.json ./
 COPY dist/project_data/student_leave/server.js ./
 COPY dist/project_data/student_leave/public ./public
+COPY dist/project_data/student_leave/scripts ./scripts
+COPY dist/project_data/student_leave/lib ./lib
 # 不复制 .env，使用 docker-compose.yml 的 environment 配置
 
-# 安装 PM2
-RUN npm install -g pm2 && npm cache clean --force
+# 安装 PM2 和数据库初始化所需的依赖
+RUN npm install -g pm2 && \
+    npm install postgres bcryptjs
 
 # 创建必要的目录
 RUN mkdir -p /app/data/backups /app/logs && \

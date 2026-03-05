@@ -10,6 +10,9 @@ const SESSION_COOKIE_NAME = "student_leave_session";
  */
 function buildCSPHeader(): string {
   const isDevelopment = process.env.NODE_ENV === "development";
+  // 检查是否配置了 HTTPS
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+  const isHttps = appUrl.startsWith("https://");
 
   const directives = [
     "default-src 'self'",
@@ -22,7 +25,8 @@ function buildCSPHeader(): string {
     "base-uri 'self'", // 限制 base 标签
     "form-action 'self'", // 限制表单提交目标
     "frame-ancestors 'none'", // 禁止被嵌入 iframe
-    "upgrade-insecure-requests", // 自动升级 HTTP 到 HTTPS
+    // 只在配置了 HTTPS 的环境才添加 upgrade-insecure-requests
+    ...(isHttps ? ["upgrade-insecure-requests"] : []),
   ];
 
   return directives.join("; ");

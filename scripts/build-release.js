@@ -61,7 +61,7 @@ function removeDir(dir) {
 
 // 主流程
 async function main() {
-  const steps = 7;
+  const steps = 8;
   log.info('开始构建生产部署包...');
 
   try {
@@ -113,9 +113,20 @@ async function main() {
     // Step 5: 复制数据库层
     log.step(5, steps, '复制数据库层 (lib/db/)');
     const dbSource = path.join(ROOT, 'lib', 'db');
-    const dbDest = path.join(DIST, 'lib', 'db');
+    // standalone 输出路径包含 project_data/student_leave/ 前缀
+    const dbDest = path.join(DIST, 'project_data', 'student_leave', 'lib', 'db');
     copyDir(dbSource, dbDest);
     log.success('已复制数据库层');
+
+    // Step 5.5: 复制初始化脚本
+    log.step(5.5, steps, '复制数据库初始化脚本');
+    // standalone 输出路径包含 project_data/student_leave/ 前缀
+    const scriptsDest = path.join(DIST, 'project_data', 'student_leave', 'scripts');
+    fs.mkdirSync(scriptsDest, { recursive: true });
+    // 复制初始化脚本
+    const initScriptSource = path.join(ROOT, 'scripts', 'init-database.js');
+    fs.copyFileSync(initScriptSource, path.join(scriptsDest, 'init-database.js'));
+    log.success('已复制初始化脚本');
 
     // Step 6: 创建部署文件
     log.step(6, steps, '创建部署文件');

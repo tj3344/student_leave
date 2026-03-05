@@ -54,4 +54,25 @@ next-env.d.ts
 /data/backups/
 /backups/*.db
 /backups/*.sql
+
+# 部署包（生成的 Docker 镜像导出文件）
+/deploy-images-*.tar
+/deploy-images-*/
+/deploy-images-*/
+
+# 日志文件
+/logs/
+*.log
+
+# PM2
+.pm2/
+.pids/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Claude Code
 .claude/

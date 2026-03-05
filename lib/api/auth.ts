@@ -57,9 +57,12 @@ export async function login(
 
   // 设置会话
   const cookieStore = await cookies();
+  // 检查是否使用 HTTPS，只有 HTTPS 才设置 secure 标志
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "";
+  const isHttps = appUrl.startsWith("https://");
   cookieStore.set(SESSION_COOKIE_NAME, user.id.toString(), {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: isHttps,
     sameSite: "lax",
     maxAge: SESSION_MAX_AGE,
     path: "/",

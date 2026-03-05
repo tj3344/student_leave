@@ -108,6 +108,192 @@ npm run dev
 
 ## 生产部署
 
+### Docker 镜像打包部署（离线部署）
+
+适用于无外网环境或需要快速部署的场景。
+
+#### 打包流程（开发机）
+
+```bash
+# 1. 确保项目已构建
+npm run build
+
+# 2. 运行打包脚本（自动生成完整部署包）
+chmod +x scripts/export-image.sh
+./scripts/export-image.sh
+```
+
+脚本会自动完成：
+- 创建带时间戳的部署包目录（如 `deploy-images-YYYYMMDD-HHMMSS/`）
+- 构建 Docker 镜像（支持跨平台：ARM64 开发机可构建 AMD64 镜像）
+- 导出镜像为 tarball
+- 复制配置文件（docker-compose.yml、环境变量模板、部署脚本）
+- 配置自动数据库初始化
+
+**生成的部署包结构**：
+```
+deploy-images-YYYYMMDD-HHMMSS/
+├── student-leave-app.tar      # Docker 镜像文件
+├── docker-compose.yml         # 容器编排配置
+├── deploy.sh                  # 一键部署脚本
+├── .env.template              # 环境变量模板
+└── logs/                      # 日志目录（运行后生成）
+```
+
+#### 部署步骤（目标机器）
+
+```bash
+# 1. 将部署包传输到目标机器（scp、U盘等）
+
+# 2. 在目标机器上解压并加载镜像
+cd deploy-images-YYYYMMDD-HHMMSS/
+docker load < student-leave-app.tar
+
+# 3. 配置环境变量
+cp .env.template .env
+vim .env  # 修改必需的环境变量
+
+# 4. 运行部署脚本
+chmod +x deploy.sh
+./deploy.sh
+```
+
+部署脚本会自动：
+- 加载 Docker 镜像
+- 启动容器（含自动数据库初始化）
+- 创建管理员账号（admin/admin123）
+- 配置健康检查
+
+#### 重要注意事项
+
+**1. HTTP vs HTTPS 配置**
+
+- **HTTP 部署**：设置 `NEXT_PUBLIC_APP_URL=http://your-host:3000`
+- **HTTPS 部署**：设置 `NEXT_PUBLIC_APP_URL=https://your-domain`
+
+应用会自动根据此配置调整：
+- CSP 头部（是否强制 HTTPS 升级）
+- Cookie 安全标志（`Secure` 属性）
+
+**错误案例**：HTTP 环境下设置 HTTPS URL 会导致 `ERR_SSL_PROTOCOL_ERROR`
+
+**2. Docker Compose 配置**
+
+部署包使用 `image:` 而非 `build:` 指令：
+```yaml
+services:
+  student-leave:
+    image: student-leave-app:latest  # ✅ 正确：使用预构建镜像
+    # build: .                       # ❌ 错误：部署包不包含 Dockerfile
+```
+
+**3. 健康检查配置**
+
+使用 IPv4 地址避免 IPv6 解析问题：
+```yaml
+healthcheck:
+  test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:3000/api/health', ...)"]
+  # ✅ 正确：127.0.0.1（IPv4）
+  # ❌ 错误：localhost（可能解析为 ::1 IPv6 地址）
+```
+
+**4. 数据库初始化**
+
+首次部署时会自动运行数据库初始化，创建以下表：
+- users（用户表，含默认 admin 账号）
+- semesters（学期）
+- grades（年级）
+- classes（班级）
+- students（学生）
+- leave_records（请假记录）
+- notifications（通知）
+- 系统配置、操作日志、备份记录等
+
+如需重新初始化：
+```bash
+docker exec student-leave-app sh -c 'NODE_PATH=/app/node_modules node /app/scripts/init-database.js'
+```
+
+**5. Cookie 安全配置**
+
+应用根据 `NEXT_PUBLIC_APP_URL` 自动设置 Cookie 安全标志：
+- HTTPS：`secure: true`（浏览器只通过 HTTPS 传输）
+- HTTP：`secure: false`（允许 HTTP 传输）
+
+**错误案例**：HTTP 环境下设置 `secure: true` 会导致浏览器拒绝 Cookie，登录失败。
+
+**6. 静态资源**
+
+Next.js standalone 模式不会自动包含 `.next/static` 目录。打包脚本会自动处理：
+```bash
+# build-release.js Step 4: 复制静态资源
+cp -r .next/static dist/project_data/student_leave/.next/static
+```
+
+**错误案例**：缺少静态资源会导致 CSS/JS 文件 404 错误。
+
+**7. 必需的 npm 包**
+
+Docker 镜像需包含以下运行时依赖：
+```dockerfile
+RUN npm install postgres bcryptjs
+```
+
+这些包用于数据库初始化脚本和密码验证。
+
+**8. 默认账号**
+
+- 用户名：`admin`
+- 密码：`admin123`
+
+⚠️ **生产环境请立即修改默认密码！**
+
+**9. 资源限制**
+
+默认资源配置：
+```yaml
+deploy:
+  resources:
+    limits:
+      cpus: '1.0'
+      memory: 1G
+    reservations:
+      cpus: '0.5'
+      memory: 512M
+```
+
+可根据服务器配置调整。
+
+**10. 故障排查**
+
+```bash
+# 查看容器状态
+docker compose ps
+
+# 查看应用日志
+docker compose logs -f student-leave
+
+# 进入容器调试
+docker exec -it student-leave-app sh
+
+# 手动运行健康检查
+curl http://localhost:3000/api/health
+
+# 查看数据库连接
+docker exec -it student-leave-postgres psql -U student_leave -d student_leave
+```
+
+### 常见问题
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| `ERR_SSL_PROTOCOL_ERROR` | CSP 强制 HTTPS 升级 | 设置 `NEXT_PUBLIC_APP_URL` 为 HTTP URL |
+| CSS/JS 文件 404 | 缺少 `.next/static` | 重新构建镜像（确保包含静态资源） |
+| `relation "users" does not exist` | 数据库未初始化 | 运行 `init-database.js` 脚本 |
+| 登录无反应（Cookie 问题） | Cookie `Secure` 标志不匹配协议 | 检查 `NEXT_PUBLIC_APP_URL` 协议设置 |
+| 健康检查失败 | IPv6/IPv4 解析问题 | 使用 `127.0.0.1` 替代 `localhost` |
+| `Cannot find module 'postgres'` | 缺少运行时依赖 | 重新构建镜像（包含 postgres/bcryptjs） |
+
 ### 部署前检查清单
 
 - [ ] 生成并设置所有必需的安全密钥（`DB_ENCRYPTION_KEY`, `CSRF_SECRET`, `SESSION_SECRET`）
