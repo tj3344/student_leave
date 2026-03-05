@@ -462,9 +462,9 @@ export default function BackupPage() {
                       <p className="text-sm text-muted-foreground">开启后系统将按配置自动创建备份</p>
                     </div>
                     <Switch
-                      checked={scheduleConfig.enabled === 1}
+                      checked={!!scheduleConfig.enabled}
                       onCheckedChange={(checked) =>
-                        setScheduleConfig({ ...scheduleConfig, enabled: checked ? 1 : 0 })
+                        setScheduleConfig({ ...scheduleConfig, enabled: checked })
                       }
                     />
                   </div>
