@@ -29,8 +29,9 @@ export async function executeAutoBackup(): Promise<boolean> {
     const [hour, minute] = configRow.schedule_time.split(":").map(Number);
     const now = new Date();
 
-    // 简单的时间匹配检查（实际使用时由 cron 调度，这里仅作为保险）
-    if (now.getHours() !== hour || now.getMinutes() !== minute) {
+    // 时间匹配检查（允许在配置时间的小时内执行）
+    // 例如配置 02:00，则在 02:00-02:59 之间执行时都会匹配
+    if (now.getHours() !== hour) {
       return false;
     }
 
@@ -63,20 +64,12 @@ export async function executeAutoBackup(): Promise<boolean> {
       ]
     );
 
-    // 清理过期备份
+    // 清理过期备份（先查询要删除的记录，获取文件路径）
     const retentionDays = configRow.retention_days || 30;
     const cutoffDate = new Date();
     cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
-    await pgClient.unsafe(
-      `
-      DELETE FROM backup_records
-      WHERE created_at < $1 AND name LIKE '自动备份%'
-    `,
-      [cutoffDate.toISOString()]
-    );
-
-    // 同时删除对应的文件
+    // 先查询过期的备份记录（获取文件路径）
     const expiredBackups = await pgClient.unsafe(
       `
       SELECT file_path FROM backup_records
@@ -85,17 +78,28 @@ export async function executeAutoBackup(): Promise<boolean> {
       [cutoffDate.toISOString()]
     );
 
+    // 删除过期的备份文件
     for (const backup of expiredBackups) {
       try {
         if (fs.existsSync(backup.file_path)) {
           fs.unlinkSync(backup.file_path);
+          console.log(`[Backup] 已删除过期备份文件: ${backup.file_path}`);
         }
-      } catch {
-        // 忽略文件删除错误
+      } catch (error) {
+        console.error(`[Backup] 删除备份文件失败: ${backup.file_path}`, error);
       }
     }
 
-    console.log(`[${new Date().toISOString()}] 自动备份执行成功`);
+    // 删除过期的数据库记录
+    await pgClient.unsafe(
+      `
+      DELETE FROM backup_records
+      WHERE created_at < $1 AND name LIKE '自动备份%'
+    `,
+      [cutoffDate.toISOString()]
+    );
+
+    console.log(`[${new Date().toISOString()}] 自动备份执行成功: ${fileName}`);
     return true;
   } catch (error) {
     console.error(`[${new Date().toISOString()}] 自动备份执行失败:`, error);
@@ -136,16 +140,57 @@ export function startBackupScheduler() {
 
 /**
  * 手动触发备份（用于测试）
+ * 注意：此函数会跳过时间检查，直接执行备份
  */
 export async function triggerManualBackup(): Promise<{ success: boolean; message: string }> {
   try {
-    const result = await executeAutoBackup();
-    if (result) {
-      return { success: true, message: "手动备份执行成功" };
-    } else {
-      return { success: false, message: "未配置自动备份或时间不匹配" };
+    const pgClient = getRawPostgres();
+
+    // 获取自动备份配置（不检查 enabled 状态，允许手动触发）
+    const config = await pgClient.unsafe("SELECT * FROM backup_config WHERE id = 1");
+    const configRow = config[0];
+
+    if (!configRow) {
+      return { success: false, message: "未找到自动备份配置" };
     }
+
+    if (!configRow.enabled) {
+      return { success: false, message: "自动备份功能未启用" };
+    }
+
+    // 解析备份模块
+    const modules = JSON.parse(configRow.modules) as BackupModule[];
+
+    // 生成备份
+    const sqlContent = await generateBackupSQL(modules);
+
+    const backupDir = getBackupDir();
+    const fileName = generateBackupFileName("手动备份-测试");
+    const filePath = `${backupDir}/${fileName}`;
+
+    fs.writeFileSync(filePath, sqlContent, "utf-8");
+
+    // 记录到数据库
+    await pgClient.unsafe(
+      `
+      INSERT INTO backup_records (name, type, modules, file_path, file_size, created_by, description, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
+    `,
+      [
+        "手动备份-测试",
+        configRow.backup_type,
+        configRow.modules,
+        filePath,
+        Buffer.byteLength(sqlContent, "utf-8"),
+        1, // 系统用户 (admin)
+        `手动触发备份测试 - ${new Date().toLocaleString("zh-CN")}`
+      ]
+    );
+
+    console.log(`[${new Date().toISOString()}] 手动备份执行成功: ${fileName}`);
+    return { success: true, message: `手动备份执行成功: ${fileName}` };
   } catch (error) {
+    console.error(`[${new Date().toISOString()}] 手动备份执行失败:`, error);
     return {
       success: false,
       message: `手动备份执行失败: ${error instanceof Error ? error.message : String(error)}`,

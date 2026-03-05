@@ -2,6 +2,17 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans, Noto_Sans_SC } from "next/font/google";
 import "./globals.css";
 
+// 启动自动备份调度器（仅在服务端）
+if (typeof window === "undefined") {
+  import("@/lib/cron/backup").then(({ startBackupScheduler }) => {
+    try {
+      startBackupScheduler();
+    } catch (error) {
+      console.error("[Backup] 启动调度器失败:", error);
+    }
+  });
+}
+
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-sans",
