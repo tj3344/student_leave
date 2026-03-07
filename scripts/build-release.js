@@ -82,7 +82,15 @@ async function main() {
     if (!fs.existsSync(standalonePath)) {
       throw new Error('standalone 输出不存在，请检查 next.config.ts 中的 output 配置');
     }
-    copyDir(standalonePath, DIST);
+    // standalone 输出通常在 project_data/student_leave/ 子目录下
+    const standaloneProjectPath = path.join(standalonePath, 'project_data', 'student_leave');
+    if (fs.existsSync(standaloneProjectPath)) {
+      // 复制子目录内容到 dist 根目录
+      copyDir(standaloneProjectPath, DIST);
+    } else {
+      // 如果没有子目录，直接复制
+      copyDir(standalonePath, DIST);
+    }
     // 删除自动复制的 .env 文件（包含敏感信息）
     const distEnv = path.join(DIST, '.env');
     if (fs.existsSync(distEnv)) {
@@ -113,20 +121,28 @@ async function main() {
     // Step 5: 复制数据库层
     log.step(5, steps, '复制数据库层 (lib/db/)');
     const dbSource = path.join(ROOT, 'lib', 'db');
-    // standalone 输出路径包含 project_data/student_leave/ 前缀
-    const dbDest = path.join(DIST, 'project_data', 'student_leave', 'lib', 'db');
+    const dbDest = path.join(DIST, 'lib', 'db');
     copyDir(dbSource, dbDest);
     log.success('已复制数据库层');
 
     // Step 5.5: 复制初始化脚本
     log.step(5.5, steps, '复制数据库初始化脚本');
-    // standalone 输出路径包含 project_data/student_leave/ 前缀
-    const scriptsDest = path.join(DIST, 'project_data', 'student_leave', 'scripts');
+    const scriptsDest = path.join(DIST, 'scripts');
     fs.mkdirSync(scriptsDest, { recursive: true });
     // 复制初始化脚本
     const initScriptSource = path.join(ROOT, 'scripts', 'init-database.js');
     fs.copyFileSync(initScriptSource, path.join(scriptsDest, 'init-database.js'));
     log.success('已复制初始化脚本');
+
+    // Step 5.6: 复制 1Panel 部署文档
+    log.step(5.6, steps, '复制 1Panel 部署文档');
+    const deploymentDocSource = path.join(ROOT, 'docs', '1PANEL_DEPLOYMENT.md');
+    if (fs.existsSync(deploymentDocSource)) {
+      fs.copyFileSync(deploymentDocSource, path.join(DIST, '.1panel-deployment.md'));
+      log.success('已复制 1Panel 部署文档');
+    } else {
+      log.warn('1Panel 部署文档不存在，跳过复制');
+    }
 
     // Step 6: 创建部署文件
     log.step(6, steps, '创建部署文件');
@@ -176,61 +192,102 @@ node server.js
     fs.writeFileSync(path.join(DIST, 'start.bat'), startBat);
 
     // .env.example
-    const envExample = `# Node 环境
+    const envExample = `# ============================================
+# 学生请假管理系统 - 环境变量配置
+# ============================================
+
+# Node 运行环境（必填）
 NODE_ENV=production
 
-# 服务端口
+# 服务端口（可选，默认 3000）
 PORT=3000
 
-# PostgreSQL 数据库连接（必需）
+# ============================================
+# 数据库配置（必填）
+# ============================================
+# PostgreSQL 数据库连接字符串
+# 格式：postgresql://用户名:密码@主机:端口/数据库名
+# 示例：postgresql://postgres:password@localhost:5432/student_leave
 POSTGRES_URL=postgresql://postgres:password@localhost:5432/student_leave
 
-# 数据库加密密钥（必需）
-DB_ENCRYPTION_KEY=your-32-character-hex-key-here
+# ============================================
+# 安全密钥（必填）
+# ============================================
+# 数据库加密密钥（64位十六进制）
+# 生成方法：node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+DB_ENCRYPTION_KEY=your-64-character-hex-key-here
 
-# 会话密钥（生产环境请修改为随机字符串）
+# CSRF 保护密钥（64位十六进制）
+# 生成方法：node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+CSRF_SECRET=your-64-character-hex-key-here
+
+# 会话密钥
+# 生成方法：node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 SESSION_SECRET=your-secret-key-change-this-in-production
 
-# 应用 URL
+# ============================================
+# 应用配置（必填）
+# ============================================
+# 应用公开访问 URL
+# 本地开发: http://localhost:3000
+# 生产环境: http://your-server-ip:port 或 https://your-domain.com
 NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# ============================================
+# 可选配置
+# ============================================
+# 日志目录（可选）
+# LOG_DIR=/path/to/logs
+
+# 备份目录（可选）
+# BACKUP_DIR=/path/to/backups
 `;
     fs.writeFileSync(path.join(DIST, '.env.example'), envExample);
 
     // README.md
     const readme = `# 学生请假管理系统 - 生产部署包
 
-## 快速开始
+本部署包支持多种部署方式：
 
-### Linux / macOS
+## 部署方式
+
+### 方式一：1Panel 容器化部署（推荐）
+
+1. 参考 \`.1panel-deployment.md\` 获取完整部署指南
+2. 使用 1Panel 运行环境功能，一键部署 Node.js 应用
+3. 配置环境变量、端口映射和卷挂载
+
+**启动命令**: \`node server.js\`
+
+### 方式二：传统部署
+
+#### Linux / macOS
 
 \`\`\`bash
 # 1. 复制环境变量模板
 cp .env.example .env
 
-# 2. 编辑 .env 配置（可选）
+# 2. 编辑 .env 配置
 vim .env
 
-# 3. 设置启动权限（已完成）
-chmod +x start.sh
-
-# 4. 启动服务
+# 3. 启动服务
 ./start.sh
 \`\`\`
 
-### Windows
+#### Windows
 
 \`\`\`batch
 REM 1. 复制环境变量模板
 copy .env.example .env
 
-REM 2. 编辑 .env 配置（可选）
+REM 2. 编辑 .env 配置
 notepad .env
 
 REM 3. 启动服务
 start.bat
 \`\`\`
 
-### 手动启动
+#### 手动启动
 
 \`\`\`bash
 export NODE_ENV=production
@@ -241,16 +298,18 @@ node server.js
 
 \`\`\`
 dist/
-├── server.js          # Next.js 服务器入口
-├── package.json       # 运行时依赖
-├── node_modules/      # 依赖包（已包含）
-├── .next/             # Next.js 构建产物
-│   └── static/        # 静态资源
-├── lib/db/            # 数据库层
-├── public/            # 公共静态资源
-├── start.sh           # Linux/Mac 启动脚本
-├── start.bat          # Windows 启动脚本
-└── .env.example       # 环境变量模板
+├── server.js               # Next.js 服务器入口
+├── package.json            # 运行时依赖
+├── node_modules/           # 依赖包（已包含）
+├── .next/                  # Next.js 构建产物
+│   └── static/             # 静态资源
+├── lib/db/                 # 数据库层和迁移文件
+├── public/                 # 公共静态资源
+├── start.sh                # Linux/Mac 启动脚本
+├── start.bat               # Windows 启动脚本
+├── .env.example            # 通用环境变量模板
+├── .1panel-deployment.md   # 1Panel 部署指南
+└── README.md               # 本文件
 \`\`\`
 
 ## 环境变量
@@ -260,7 +319,8 @@ dist/
 | \`NODE_ENV\` | 运行环境 | production |
 | \`PORT\` | 服务端口 | 3000 |
 | \`POSTGRES_URL\` | PostgreSQL 数据库连接 | - |
-| \`DB_ENCRYPTION_KEY\` | 数据库加密密钥 | - |
+| \`DB_ENCRYPTION_KEY\` | 数据库加密密钥（64位十六进制） | - |
+| \`CSRF_SECRET\` | CSRF 密钥（64位十六进制） | - |
 | \`SESSION_SECRET\` | 会话密钥 | - |
 | \`NEXT_PUBLIC_APP_URL\` | 应用 URL | http://localhost:3000 |
 
@@ -270,6 +330,18 @@ dist/
 2. **数据库**: 需要预先配置好 PostgreSQL 数据库
 3. **端口**: 确保配置的端口未被占用
 4. **权限**: Linux/Mac 确保 \`start.sh\` 有执行权限
+
+## 数据库初始化
+
+首次部署后，需要执行数据库迁移创建表结构：
+
+\`\`\`bash
+# 进入应用目录
+cd /path/to/dist
+
+# 执行数据库迁移
+npm run db:migrate
+\`\`\`
 
 ## 健康检查
 
@@ -291,8 +363,13 @@ lsof -i :3000
 
 ### 日志查看
 服务器日志会直接输出到终端，包含启动信息和错误提示。
+
+## 更多文档
+
+- 1Panel 部署指南: 请查看 \`.1panel-deployment.md\`
 `;
     fs.writeFileSync(path.join(DIST, 'README.md'), readme);
+
 
     log.success('已创建部署文件 (start.sh, start.bat, .env.example, README.md)');
 

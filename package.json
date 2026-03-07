@@ -12,6 +12,7 @@
     "test:ui": "vitest --ui",
     "test:coverage": "vitest --coverage",
     "test:run": "vitest run",
+    "db:init-admin": "node lib/db/init-admin.js",
     "db:migrate": "node lib/db/migrate.js",
     "db:seed": "node lib/db/seed.js",
     "db:push": "drizzle-kit push",

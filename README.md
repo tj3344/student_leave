@@ -86,8 +86,9 @@ cp .env.local.example .env.local
 
 ### 初始化数据库
 ```bash
-npm run db:migrate
-npm run db:seed      # 填充初始数据（可选）
+npm run db:migrate      # 执行数据库迁移
+npm run db:init-admin   # 创建默认管理员用户（admin/admin123）
+npm run db:seed         # 填充初始数据（可选）
 ```
 
 ### 添加性能索引（生产环境推荐）
@@ -107,6 +108,72 @@ npm run dev
 ⚠️ **重要**: 生产环境请立即修改默认密码！
 
 ## 生产部署
+
+### 1Panel 平台部署（推荐新手）
+
+[1Panel](https://1panel.cn/) 是一款现代化的 Linux 服务器运维管理面板，支持容器化部署，适合新手快速部署应用。
+
+#### 快速开始
+
+```bash
+# 1. 构建生产部署包
+npm run build:release
+
+# 2. 将 dist/ 目录上传到服务器
+# 3. 在 1Panel 中创建 Node.js 运行环境
+# 4. 配置环境变量（参考 dist/.env.example）
+# 5. 启动应用
+```
+
+#### 详细步骤
+
+1. **构建部署包**
+   ```bash
+   npm run build:release
+   ```
+   构建完成后，`dist/` 目录包含所有部署文件。
+
+2. **在 1Panel 中创建数据库**
+   - 进入 1Panel → 数据库 → 创建数据库
+   - 数据库类型: PostgreSQL
+   - 数据库名: `student_leave`
+   - 记录数据库连接信息
+
+3. **上传部署文件**
+   - 将 `dist/` 目录上传到服务器 `/opt/student_leave`
+   - 或在 1Panel 文件管理中创建目录并上传
+
+4. **创建运行环境**
+   - 应用: Node.js
+   - 版本: 18 或 20
+   - 项目目录: `/opt/student_leave`
+   - 启动命令: `node server.js`
+   - 端口映射: 3000 → 主机端口
+
+5. **配置环境变量**
+   ```env
+   NODE_ENV=production
+   POSTGRES_URL=postgresql://用户名:密码@127.0.0.1:5432/student_leave
+   DB_ENCRYPTION_KEY=生成的64位十六进制密钥
+   CSRF_SECRET=生成的64位十六进制密钥
+   SESSION_SECRET=生成的会话密钥
+   NEXT_PUBLIC_APP_URL=http://服务器IP:端口
+   ```
+
+6. **初始化数据库**
+   ```bash
+   # 进入容器终端执行
+   npm run db:migrate
+   npm run db:init-admin
+   ```
+
+#### 重要提示
+
+- ⚠️ **不要配置"安装命令"** - 部署包已包含所有依赖
+- ⚠️ **不要配置"构建命令"** - 项目已经编译好
+- ⚠️ **数据库主机使用 127.0.0.1**，而非 localhost（Docker 容器中 localhost 可能解析为 IPv6 地址）
+
+详细部署文档请参考 [1Panel 部署指南](./docs/1PANEL_DEPLOYMENT.md)
 
 ### Docker 镜像打包部署（离线部署）
 
@@ -431,9 +498,13 @@ npm run test:ui      # 测试 UI 界面
 npm run test:coverage # 测试覆盖率
 
 # 数据库
-npm run db:migrate   # 数据库迁移
-npm run db:seed      # 填充初始数据
-npm run db:studio    # 打开 Drizzle Studio
+npm run db:migrate     # 数据库迁移
+npm run db:init-admin  # 初始化管理员用户
+npm run db:seed        # 填充初始数据
+npm run db:studio      # 打开 Drizzle Studio
+
+# 构建部署包
+npm run build:release  # 构建生产部署包（用于 1Panel 等平台）
 
 # 脚本
 npm run run-script <name>  # 运行 scripts 目录下的脚本
