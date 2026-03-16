@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { restoreFromSQL } from "@/lib/utils/backup";
+import { logRestore } from "@/lib/utils/logger";
 
 /**
  * POST /api/backup/restore - 恢复备份
@@ -34,20 +35,7 @@ export async function POST(request: NextRequest) {
 
     if (result.success) {
       // 记录操作日志
-      const { getRawPostgres } = await import("@/lib/db");
-      const pgClient = getRawPostgres();
-      await pgClient.unsafe(
-        `
-        INSERT INTO operation_logs (user_id, action, module, description)
-        VALUES ($1, $2, $3, $4)
-      `,
-        [
-          currentUser.id,
-          "restore",
-          "backup",
-          `恢复数据备份，备份文件: ${file.name}`,
-        ]
-      );
+      await logRestore(currentUser.id, `恢复数据备份，备份文件: ${file.name}`);
     }
 
     return NextResponse.json(result);
