@@ -43,32 +43,40 @@ export async function updateConfig(key: string, value: string): Promise<boolean>
 }
 
 /**
- * 批量更新配置
+ * 批量更新配置（如果不存在则创建）
  */
 export async function updateConfigs(
   configs: Array<{ key: string; value: string }>
 ): Promise<boolean> {
   const pgClient = getRawPostgres();
-  let success = true;
 
-  for (const config of configs) {
-    const result = await pgClient.unsafe(
-      "UPDATE system_config SET config_value = $1, updated_at = CURRENT_TIMESTAMP WHERE config_key = $2",
-      [config.value, config.key]
-    );
-    // PostgreSQL 不提供直接的 changes 信息，需要额外查询确认
-    const checkResult = await pgClient.unsafe("SELECT config_key FROM system_config WHERE config_key = $1", [config.key]);
-    if (checkResult.length === 0) {
-      success = false;
+  try {
+    for (const config of configs) {
+      // 检查配置是否存在
+      const existing = await pgClient.unsafe("SELECT id FROM system_config WHERE config_key = $1", [config.key]);
+
+      if (existing.length > 0) {
+        // 存在则更新
+        await pgClient.unsafe(
+          "UPDATE system_config SET config_value = $1, updated_at = CURRENT_TIMESTAMP WHERE config_key = $2",
+          [config.value, config.key]
+        );
+      } else {
+        // 不存在则创建
+        await pgClient.unsafe(
+          "INSERT INTO system_config (config_key, config_value, updated_at) VALUES ($1, $2, CURRENT_TIMESTAMP)",
+          [config.key, config.value]
+        );
+      }
     }
-  }
 
-  // 清除缓存
-  if (success) {
+    // 清除缓存
     clearSystemConfigCache();
+    return true;
+  } catch (error) {
+    console.error("批量更新配置失败:", error);
+    return false;
   }
-
-  return success;
 }
 
 /**

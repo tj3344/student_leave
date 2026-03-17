@@ -25,11 +25,13 @@ export async function GET(
     const { key } = await params;
     const value = await getConfig(key);
 
-    if (value === undefined) {
-      return NextResponse.json({ error: "配置不存在" }, { status: 404 });
-    }
-
-    return NextResponse.json({ data: { config_key: key, config_value: value } });
+    // 如果配置不存在，返回空值而不是 404，让前端使用默认值
+    return NextResponse.json({
+      data: {
+        config_key: key,
+        config_value: value || "",
+      }
+    });
   } catch (error) {
     console.error("获取配置失败:", error);
     return NextResponse.json({ error: "获取配置失败" }, { status: 500 });
