@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, RefreshCw, Search, Upload, Download } from "lucide-react";
+import { Plus, RefreshCw, Search, Upload, Download, Trash2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { User } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // 懒加载组件
 const UserForm = dynamic(() => import("@/components/admin/UserForm").then(m => ({ default: m.UserForm })), {
@@ -43,6 +53,18 @@ export default function UsersPage() {
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const [semesterLoading, setSemesterLoading] = useState(true);
 
+  // 分页状态
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+  });
+
+  // 批量删除状态
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [batchDeleteDialog, setBatchDeleteDialog] = useState(false);
+
   const fetchCurrentSemester = async () => {
     try {
       const response = await fetch("/api/semesters");
@@ -58,7 +80,7 @@ export default function UsersPage() {
     }
   };
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (page = 1) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -67,10 +89,19 @@ export default function UsersPage() {
       if (statusFilter) params.append("is_active", statusFilter);
       if (hasClassFilter) params.append("has_class", hasClassFilter);
       if (currentSemesterId) params.append("semester_id", currentSemesterId.toString());
+      params.append("page", page.toString());
+      params.append("limit", pagination.limit.toString());
 
       const response = await fetch(`/api/users?${params.toString()}`);
       const data = await response.json();
+
       setUsers(data.data || []);
+      setPagination({
+        page: data.page || 1,
+        limit: data.limit || 20,
+        total: data.total || 0,
+        totalPages: data.totalPages || 0,
+      });
     } catch (error) {
       console.error("Fetch users error:", error);
     } finally {
@@ -78,8 +109,36 @@ export default function UsersPage() {
     }
   };
 
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      fetchUsers(newPage);
+    }
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+
+    const response = await fetch("/api/users", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: Array.from(selectedIds) }),
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      setBatchDeleteDialog(false);
+      setSelectedIds(new Set());
+      fetchUsers(pagination.page);
+      alert(result.message || "批量删除成功");
+    } else {
+      alert(result.error || result.message || "批量删除失败");
+    }
+  };
+
   useEffect(() => {
-    fetchUsers();
+    setPagination(prev => ({ ...prev, page: 1 })); // 重置到第一页
+    fetchUsers(1);
   }, [searchQuery, roleFilter, statusFilter, hasClassFilter, currentSemesterId]);
 
   useEffect(() => {
@@ -154,9 +213,15 @@ export default function UsersPage() {
           <p className="text-muted-foreground">管理系统用户账号</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={fetchUsers} disabled={loading}>
+          <Button variant="outline" size="icon" onClick={() => fetchUsers(pagination.page)} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
+          {selectedIds.size > 0 && (
+            <Button variant="destructive" onClick={() => setBatchDeleteDialog(true)}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              批量删除 ({selectedIds.size})
+            </Button>
+          )}
           <Button variant="outline" onClick={handleExport}>
             <Download className="mr-2 h-4 w-4" />
             导出
@@ -220,7 +285,38 @@ export default function UsersPage() {
         </Select>
       </div>
 
-      <UserTable data={users} onEdit={handleEdit} onRefresh={fetchUsers} />
+      <UserTable
+        data={users}
+        onEdit={handleEdit}
+        onRefresh={() => fetchUsers(pagination.page)}
+        selectedIds={selectedIds}
+        onSelectionChange={setSelectedIds}
+      />
+
+      {/* 分页 */}
+      {pagination.totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(pagination.page - 1)}
+            disabled={pagination.page === 1}
+          >
+            上一页
+          </Button>
+          <span className="text-sm text-muted-foreground">
+            第 {pagination.page} / {pagination.totalPages} 页
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => handlePageChange(pagination.page + 1)}
+            disabled={pagination.page === pagination.totalPages}
+          >
+            下一页
+          </Button>
+        </div>
+      )}
 
       <UserForm
         open={formOpen}
@@ -237,6 +333,31 @@ export default function UsersPage() {
           fetchUsers();
         }}
       />
+
+      {/* 批量删除确认对话框 */}
+      <AlertDialog open={batchDeleteDialog} onOpenChange={setBatchDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认批量删除</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除选中的 {selectedIds.size} 个用户吗？
+              <br />
+              当前学期的班主任或有关联记录的用户将无法删除。
+              <br />
+              此操作不可撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBatchDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              确认删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

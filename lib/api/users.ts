@@ -398,3 +398,102 @@ export async function batchCreateOrUpdateUsers(
     errors,
   };
 }
+
+/**
+ * 批量删除用户
+ * 约束：当前学期的班主任、有请假记录的用户不能删除
+ */
+export async function batchDeleteUsers(ids: number[]): Promise<{
+  success: boolean;
+  deletedCount: number;
+  message: string;
+  errors?: string[];
+}> {
+  const pgClient = getRawPostgres();
+  const errors: string[] = [];
+  let deletedCount = 0;
+
+  // 批量检查用户是否存在
+  const existingUsers = await pgClient.unsafe(
+    `SELECT id, username, real_name FROM users WHERE id = ANY($1::int[])`,
+    [ids]
+  ) as Array<{ id: number; username: string; real_name: string }>;
+
+  const existingIds = new Set(existingUsers.map(u => u.id));
+
+  // 检查不存在的用户
+  for (const id of ids) {
+    if (!existingIds.has(id)) {
+      errors.push(`用户 ID ${id} 不存在`);
+    }
+  }
+
+  if (existingUsers.length === 0) {
+    return {
+      success: false,
+      deletedCount: 0,
+      message: "没有找到有效的用户",
+      errors,
+    };
+  }
+
+  // 获取当前学期
+  const { getCurrentSemester } = await import("./semesters");
+  const currentSemester = await getCurrentSemester();
+
+  // 批量检查是否是当前学期的班主任
+  const classTeacherIds = new Set<number>();
+  if (currentSemester) {
+    const classTeacherCheckResult = await pgClient.unsafe(
+      `SELECT c.id, c.name, u.real_name
+       FROM classes c
+       JOIN users u ON c.class_teacher_id = u.id
+       WHERE c.class_teacher_id = ANY($1::int[]) AND c.semester_id = $2`,
+      [ids, currentSemester.id]
+    ) as Array<{ id: number; name: string; real_name: string }>;
+
+    for (const classTeacher of classTeacherCheckResult) {
+      classTeacherIds.add(classTeacher.id);
+      errors.push(`用户 "${classTeacher.real_name}" 是当前学期的班主任（${classTeacher.name}），无法删除`);
+    }
+  }
+
+  // 批量检查是否有请假记录
+  const leaveCheckResult = await pgClient.unsafe(
+    `SELECT DISTINCT u.id, u.real_name
+     FROM users u
+     WHERE u.id = ANY($1::int[])
+     AND EXISTS (
+       SELECT 1 FROM leave_records lr
+       WHERE lr.applicant_id = u.id OR lr.reviewer_id = u.id
+     )`,
+    [ids]
+  ) as Array<{ id: number; real_name: string }>;
+
+  const userIdsWithLeaves = new Set(leaveCheckResult.map(r => r.id));
+
+  for (const user of leaveCheckResult) {
+    errors.push(`用户 "${user.real_name}" 有请假记录，无法删除`);
+  }
+
+  // 分离可删除和不可删除的用户
+  const toDelete: number[] = [];
+  for (const user of existingUsers) {
+    if (!classTeacherIds?.has(user.id) && !userIdsWithLeaves.has(user.id)) {
+      toDelete.push(user.id);
+    }
+  }
+
+  // 执行批量删除
+  if (toDelete.length > 0) {
+    await pgClient.unsafe(`DELETE FROM users WHERE id = ANY($1::int[])`, [toDelete]);
+    deletedCount = toDelete.length;
+  }
+
+  return {
+    success: true,
+    deletedCount,
+    message: `成功删除 ${deletedCount} 个用户`,
+    errors: errors.length > 0 ? errors : undefined,
+  };
+}

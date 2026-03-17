@@ -31,16 +31,26 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ROLE_NAMES } from "@/lib/constants";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface UserTableProps {
   data: Array<Omit<User, "password_hash"> & { class_id?: number; class_name?: string; grade_name?: string }>;
   onEdit: (user: Omit<User, "password_hash">) => void;
   onRefresh: () => void;
+  // 批量选择
+  selectedIds?: Set<number>;
+  onSelectionChange?: (selectedIds: Set<number>) => void;
 }
 
 type UserWithoutPassword = Omit<User, "password_hash">;
 
-function UserTableInternal({ data, onEdit, onRefresh }: UserTableProps) {
+function UserTableInternal({
+  data,
+  onEdit,
+  onRefresh,
+  selectedIds = new Set(),
+  onSelectionChange,
+}: UserTableProps) {
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; user?: UserWithoutPassword }>({
     open: false,
   });
@@ -48,6 +58,27 @@ function UserTableInternal({ data, onEdit, onRefresh }: UserTableProps) {
     open: false,
   });
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // 批量选择处理
+  const handleSelectAll = useCallback((checked: boolean) => {
+    const newSelected = checked
+      ? new Set(data.map(u => u.id))
+      : new Set<number>();
+    onSelectionChange?.(newSelected);
+  }, [data, onSelectionChange]);
+
+  const handleSelectOne = useCallback((id: number, checked: boolean) => {
+    const newSelected = new Set(selectedIds);
+    if (checked) {
+      newSelected.add(id);
+    } else {
+      newSelected.delete(id);
+    }
+    onSelectionChange?.(newSelected);
+  }, [selectedIds, onSelectionChange]);
+
+  const isAllSelected = data.length > 0 && selectedIds.size === data.length;
+  const isSomeSelected = selectedIds.size > 0 && selectedIds.size < data.length;
 
   const handleDelete = useCallback(async () => {
     if (!deleteDialog.user) return;
@@ -149,7 +180,7 @@ function UserTableInternal({ data, onEdit, onRefresh }: UserTableProps) {
     if (data.length === 0) {
       return (
         <TableRow>
-          <TableCell colSpan={8} className="h-24 text-center">
+          <TableCell colSpan={9} className="h-24 text-center">
             暂无数据
           </TableCell>
         </TableRow>
@@ -165,9 +196,11 @@ function UserTableInternal({ data, onEdit, onRefresh }: UserTableProps) {
         onToggleStatus={handleToggleStatus}
         onOpenDeleteDialog={openDeleteDialog}
         onOpenResetPasswordDialog={openResetPasswordDialog}
+        selected={selectedIds.has(user.id)}
+        onSelect={(checked) => handleSelectOne(user.id, checked)}
       />
     ));
-  }, [data, getRoleBadgeVariant, handleEdit, handleToggleStatus, openDeleteDialog, openResetPasswordDialog]);
+  }, [data, getRoleBadgeVariant, handleEdit, handleToggleStatus, openDeleteDialog, openResetPasswordDialog, selectedIds, handleSelectOne]);
 
   return (
     <>
@@ -175,6 +208,13 @@ function UserTableInternal({ data, onEdit, onRefresh }: UserTableProps) {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  checked={isAllSelected}
+                  onCheckedChange={handleSelectAll}
+                  aria-label="全选"
+                />
+              </TableHead>
               <TableHead>用户名</TableHead>
               <TableHead>真实姓名</TableHead>
               <TableHead>角色</TableHead>
@@ -249,6 +289,8 @@ interface UserRowProps {
   onToggleStatus: (user: UserWithoutPassword) => void;
   onOpenDeleteDialog: (user: UserWithoutPassword) => void;
   onOpenResetPasswordDialog: (user: UserWithoutPassword) => void;
+  selected?: boolean;
+  onSelect?: (checked: boolean) => void;
 }
 
 const UserRow = memo(function UserRow({
@@ -258,9 +300,18 @@ const UserRow = memo(function UserRow({
   onToggleStatus,
   onOpenDeleteDialog,
   onOpenResetPasswordDialog,
+  selected = false,
+  onSelect,
 }: UserRowProps) {
   return (
     <TableRow>
+      <TableCell>
+        <Checkbox
+          checked={selected}
+          onCheckedChange={onSelect}
+          aria-label={`选择用户 ${user.real_name}`}
+        />
+      </TableCell>
       <TableCell className="font-medium">{user.username}</TableCell>
       <TableCell>{user.real_name}</TableCell>
       <TableCell>

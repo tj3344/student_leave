@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
-import { getUsers, createUser } from "@/lib/api/users";
+import { getUsers, createUser, batchDeleteUsers } from "@/lib/api/users";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
-import { logCreate } from "@/lib/utils/logger";
+import { logCreate, logDelete } from "@/lib/utils/logger";
+import { OPERATION_MODULES } from "@/lib/constants";
 import type { UserInput } from "@/types";
 
 /**
@@ -96,5 +97,42 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("创建用户失败:", error);
     return NextResponse.json({ error: "创建用户失败" }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/users - 批量删除用户
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return NextResponse.json({ error: "未登录" }, { status: 401 });
+    }
+
+    if (!hasPermission(currentUser.role, PERMISSIONS.USER_DELETE)) {
+      return NextResponse.json({ error: "无权限" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { ids } = body as { ids: number[] };
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ error: "请提供要删除的用户ID列表" }, { status: 400 });
+    }
+
+    const result = await batchDeleteUsers(ids);
+
+    // 记录操作日志
+    await logDelete(
+      currentUser.id,
+      OPERATION_MODULES.USERS,
+      `批量删除用户：成功 ${result.deletedCount} 条${result.errors ? `，失败 ${result.errors.length} 条` : ""}`
+    );
+
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("Batch delete users error:", error);
+    return NextResponse.json({ error: "批量删除用户失败" }, { status: 500 });
   }
 }
