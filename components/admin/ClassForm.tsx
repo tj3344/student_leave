@@ -29,9 +29,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, User, ChevronDown } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import type { Class, Grade, Semester, User } from "@/types";
+import { TeacherSelectDialog } from "./TeacherSelectDialog";
+import type { Class, Grade, Semester, User as UserType } from "@/types";
 
 const classSchema = z.object({
   semester_id: z.coerce.number().min(1, "请选择学期"),
@@ -52,8 +53,10 @@ interface ClassFormProps {
 export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [grades, setGrades] = useState<Grade[]>([]);
-  const [teachers, setTeachers] = useState<User[]>([]);
+  const [teachers, setTeachers] = useState<UserType[]>([]);
+  const [allClasses, setAllClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(false);
+  const [teacherDialogOpen, setTeacherDialogOpen] = useState(false);
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const [currentSemesterName, setCurrentSemesterName] = useState<string>("");
   const [semesterLoading, setSemesterLoading] = useState(true);
@@ -121,10 +124,11 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
     }
   }, [classData, currentSemesterId, allSemesters]);
 
-  // 获取当前学期
+  // 获取当前学期和教师、班级数据
   useEffect(() => {
     fetchCurrentSemester();
     fetchTeachers();
+    fetchClasses();
   }, []);
 
   // 当对话框打开时，新增模式重置学期
@@ -158,11 +162,21 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
 
   const fetchTeachers = async () => {
     try {
-      const response = await fetch("/api/users?role=teacher,class_teacher");
+      const response = await fetch("/api/users?role=teacher,class_teacher&limit=999");
       const data = await response.json();
       setTeachers(data.data || []);
     } catch (error) {
       console.error("Fetch teachers error:", error);
+    }
+  };
+
+  const fetchClasses = async () => {
+    try {
+      const response = await fetch("/api/classes");
+      const data = await response.json();
+      setAllClasses(data.data || []);
+    } catch (error) {
+      console.error("Fetch classes error:", error);
     }
   };
 
@@ -189,6 +203,7 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
       }
 
       onSuccess();
+      fetchClasses(); // 刷新班级数据
       onClose();
       form.reset();
     } catch (error: unknown) {
@@ -301,31 +316,38 @@ export function ClassForm({ open, onClose, onSuccess, classData }: ClassFormProp
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>班主任</FormLabel>
-                  <Select
-                    onValueChange={(v) => field.onChange(v === "0" ? null : parseInt(v, 10))}
-                    value={field.value === null ? "0" : (field.value?.toString() || "")}
-                    disabled={loading}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="请选择班主任（可选）" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="0">无</SelectItem>
-                      {teachers.map((teacher) => (
-                        <SelectItem key={teacher.id} value={teacher.id.toString()}>
-                          {teacher.real_name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-start font-normal"
+                      disabled={loading}
+                      onClick={() => setTeacherDialogOpen(true)}
+                    >
+                      <User className="mr-2 h-4 w-4 text-muted-foreground" />
+                      {field.value
+                        ? teachers.find((t) => t.id === field.value)?.real_name ||
+                          `教师 ID: ${field.value}`
+                        : "请选择班主任（可选）"}
+                      <ChevronDown className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
           </form>
         </Form>
+
+        <TeacherSelectDialog
+          open={teacherDialogOpen}
+          onClose={() => setTeacherDialogOpen(false)}
+          onSelect={(teacherId) => form.setValue("class_teacher_id", teacherId)}
+          teachers={teachers}
+          currentTeacherId={form.watch("class_teacher_id")}
+          classes={allClasses}
+          grades={grades}
+        />
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
