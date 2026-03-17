@@ -11,6 +11,20 @@ if (typeof window === "undefined") {
       console.error("[Backup] 启动调度器失败:", error);
     }
   });
+
+  // 初始化数据库触发器
+  import("@/lib/db/triggers").then(async ({ ensureTriggersInitialized }) => {
+    try {
+      const wasInitialized = await ensureTriggersInitialized();
+      if (wasInitialized) {
+        console.log("[DB] 触发器已自动初始化");
+      } else {
+        console.log("[DB] 触发器检查完成，已存在");
+      }
+    } catch (error) {
+      console.error("[DB] 触发器初始化失败:", error);
+    }
+  });
 }
 
 const plusJakartaSans = Plus_Jakarta_Sans({

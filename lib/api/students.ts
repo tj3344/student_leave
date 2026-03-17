@@ -665,6 +665,22 @@ export async function batchCreateOrUpdateStudents(
       }
     }
 
+    // 在返回结果前，确保触发器存在并统计数据正确
+    try {
+      const { ensureTriggersInitialized, rebuildStudentCounts } = await import("../db/triggers");
+      const wasInitialized = await ensureTriggersInitialized();
+
+      if (wasInitialized) {
+        console.log("[学生导入] 检测到触发器未初始化，已自动初始化");
+        // 触发器刚初始化，需要重建统计数据
+        await rebuildStudentCounts();
+        console.log("[学生导入] 已重建学生数量统计");
+      }
+    } catch (error) {
+      console.error("[学生导入] 触发器检查失败:", error);
+      // 不影响导入结果，只记录错误
+    }
+
     return {
       success: true,
       created,
@@ -711,6 +727,22 @@ export async function batchCreateOrUpdateStudents(
       } catch {
         errors.push({ row: rowNum, input, message: "处理失败" });
       }
+    }
+
+    // 在返回结果前，确保触发器存在并统计数据正确
+    try {
+      const { ensureTriggersInitialized, rebuildStudentCounts } = await import("../db/triggers");
+      const wasInitialized = await ensureTriggersInitialized();
+
+      if (wasInitialized) {
+        console.log("[学生导入] 检测到触发器未初始化，已自动初始化");
+        // 触发器刚初始化，需要重建统计数据
+        await rebuildStudentCounts();
+        console.log("[学生导入] 已重建学生数量统计");
+      }
+    } catch (error) {
+      console.error("[学生导入] 触发器检查失败:", error);
+      // 不影响导入结果，只记录错误
     }
 
     return {
