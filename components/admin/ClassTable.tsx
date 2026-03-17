@@ -29,19 +29,50 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface ClassTableProps {
   data: ClassWithDetails[];
   onEdit: (classItem: ClassWithDetails) => void;
   onDelete: () => void;
+  // 批量选择
+  selectedIds?: Set<number>;
+  onSelectionChange?: (selectedIds: Set<number>) => void;
 }
 
-function ClassTableInternal({ data, onEdit, onDelete }: ClassTableProps) {
+function ClassTableInternal({
+  data,
+  onEdit,
+  onDelete,
+  selectedIds = new Set(),
+  onSelectionChange,
+}: ClassTableProps) {
   const [deleteDialog, setDeleteDialog] = useState<{
     open: boolean;
     classItem?: ClassWithDetails;
   }>({ open: false });
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // 批量选择处理
+  const handleSelectAll = useCallback((checked: boolean) => {
+    const newSelected = checked
+      ? new Set(data.map(c => c.id))
+      : new Set<number>();
+    onSelectionChange?.(newSelected);
+  }, [data, onSelectionChange]);
+
+  const handleSelectOne = useCallback((id: number, checked: boolean) => {
+    const newSelected = new Set(selectedIds);
+    if (checked) {
+      newSelected.add(id);
+    } else {
+      newSelected.delete(id);
+    }
+    onSelectionChange?.(newSelected);
+  }, [selectedIds, onSelectionChange]);
+
+  const isAllSelected = data.length > 0 && selectedIds.size === data.length;
+  const isSomeSelected = selectedIds.size > 0 && selectedIds.size < data.length;
 
   const handleDelete = useCallback(async () => {
     if (!deleteDialog.classItem) return;
@@ -79,7 +110,7 @@ function ClassTableInternal({ data, onEdit, onDelete }: ClassTableProps) {
     if (data.length === 0) {
       return (
         <TableRow>
-          <TableCell colSpan={5} className="h-24 text-center">
+          <TableCell colSpan={6} className="h-24 text-center">
             暂无数据
           </TableCell>
         </TableRow>
@@ -92,9 +123,11 @@ function ClassTableInternal({ data, onEdit, onDelete }: ClassTableProps) {
         classItem={classItem}
         onEdit={handleEdit}
         onOpenDeleteDialog={openDeleteDialog}
+        selected={selectedIds.has(classItem.id)}
+        onSelect={(checked) => handleSelectOne(classItem.id, checked)}
       />
     ));
-  }, [data, handleEdit, openDeleteDialog]);
+  }, [data, handleEdit, openDeleteDialog, selectedIds, handleSelectOne]);
 
   return (
     <>
@@ -102,6 +135,13 @@ function ClassTableInternal({ data, onEdit, onDelete }: ClassTableProps) {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  checked={isAllSelected}
+                  onCheckedChange={handleSelectAll}
+                  aria-label="全选"
+                />
+              </TableHead>
               <TableHead>年级</TableHead>
               <TableHead>班级名称</TableHead>
               <TableHead>班主任</TableHead>
@@ -149,11 +189,26 @@ interface ClassRowProps {
   classItem: ClassWithDetails;
   onEdit: (classItem: ClassWithDetails) => void;
   onOpenDeleteDialog: (classItem: ClassWithDetails) => void;
+  selected?: boolean;
+  onSelect?: (checked: boolean) => void;
 }
 
-const ClassRow = memo(function ClassRow({ classItem, onEdit, onOpenDeleteDialog }: ClassRowProps) {
+const ClassRow = memo(function ClassRow({
+  classItem,
+  onEdit,
+  onOpenDeleteDialog,
+  selected = false,
+  onSelect,
+}: ClassRowProps) {
   return (
     <TableRow>
+      <TableCell>
+        <Checkbox
+          checked={selected}
+          onCheckedChange={onSelect}
+          aria-label={`选择班级 ${classItem.name}`}
+        />
+      </TableCell>
       <TableCell>
         <Badge variant="outline">{classItem.grade_name || "-"}</Badge>
       </TableCell>

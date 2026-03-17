@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
-import { getClasses, createClass } from "@/lib/api/classes";
+import { getClasses, createClass, batchDeleteClasses } from "@/lib/api/classes";
 import { hasPermission } from "@/lib/api/auth";
+import { logDelete } from "@/lib/utils/logger";
+import { OPERATION_MODULES } from "@/lib/constants";
 import type { ClassInput } from "@/types";
 
 // 缓存配置：班级列表是相对静态的数据，缓存 24 小时
@@ -89,5 +91,40 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Create class error:", error);
     return NextResponse.json({ error: "创建班级失败" }, { status: 500 });
+  }
+}
+
+// DELETE /api/classes - 批量删除班级
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await getCurrentUser();
+    if (!user) {
+      return NextResponse.json({ error: "未登录" }, { status: 401 });
+    }
+
+    if (!hasPermission(user, "class:delete")) {
+      return NextResponse.json({ error: "无权限" }, { status: 403 });
+    }
+
+    const body = await request.json();
+    const { ids } = body as { ids: number[] };
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ error: "请提供要删除的班级ID列表" }, { status: 400 });
+    }
+
+    const result = await batchDeleteClasses(ids);
+
+    // 记录操作日志
+    await logDelete(
+      user.id,
+      OPERATION_MODULES.CLASSES,
+      `批量删除班级：成功 ${result.deletedCount} 条${result.errors ? `，失败 ${result.errors.length} 条` : ""}`
+    );
+
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("Batch delete classes error:", error);
+    return NextResponse.json({ error: "批量删除班级失败" }, { status: 500 });
   }
 }

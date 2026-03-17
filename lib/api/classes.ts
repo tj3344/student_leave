@@ -541,3 +541,86 @@ export async function getClassTeacherId(
 
   return { teacher_id: teacher[0].id };
 }
+
+/**
+ * 批量删除班级
+ * 约束：存在学生的班级不能删除
+ */
+export async function batchDeleteClasses(ids: number[]): Promise<{
+  success: boolean;
+  deletedCount: number;
+  message: string;
+  errors?: string[];
+}> {
+  const pgClient = getRawPostgres();
+  const errors: string[] = [];
+  let deletedCount = 0;
+
+  // 批量检查班级是否存在
+  const existingClasses = await pgClient.unsafe(
+    `SELECT id, name, class_teacher_id FROM classes WHERE id = ANY($1::int[])`,
+    [ids]
+  ) as Array<{ id: number; name: string; class_teacher_id: number | null }>;
+
+  const existingIds = new Set(existingClasses.map(c => c.id));
+
+  // 检查不存在的班级
+  for (const id of ids) {
+    if (!existingIds.has(id)) {
+      errors.push(`班级 ID ${id} 不存在`);
+    }
+  }
+
+  if (existingClasses.length === 0) {
+    return {
+      success: false,
+      deletedCount: 0,
+      message: "没有找到有效的班级",
+      errors,
+    };
+  }
+
+  // 批量检查是否有学生
+  const studentCheckResult = await pgClient.unsafe(
+    `SELECT class_id, COUNT(*) as count FROM students WHERE class_id = ANY($1::int[]) AND is_active = true GROUP BY class_id`,
+    [ids]
+  ) as Array<{ class_id: number; count: number }>;
+
+  const classIdsWithStudents = new Map(
+    studentCheckResult.map(r => [r.class_id, r.count])
+  );
+
+  // 分离可删除和不可删除的班级
+  const toDelete: number[] = [];
+  const classTeachersToDemote: number[] = [];
+
+  for (const classItem of existingClasses) {
+    const studentCount = classIdsWithStudents.get(classItem.id) || 0;
+    if (studentCount > 0) {
+      errors.push(`班级 "${classItem.name}" 下有 ${studentCount} 名学生，无法删除`);
+    } else {
+      toDelete.push(classItem.id);
+      if (classItem.class_teacher_id) {
+        classTeachersToDemote.push(classItem.class_teacher_id);
+      }
+    }
+  }
+
+  // 执行批量删除
+  if (toDelete.length > 0) {
+    await pgClient.unsafe(`DELETE FROM classes WHERE id = ANY($1::int[])`, [toDelete]);
+    deletedCount = toDelete.length;
+
+    // 处理班主任角色降级
+    for (const teacherId of classTeachersToDemote) {
+      await demoteClassTeacherToTeacher(teacherId);
+    }
+  }
+
+  return {
+    success: true,
+    deletedCount,
+    message: `成功删除 ${deletedCount} 个班级`,
+    errors: errors.length > 0 ? errors : undefined,
+  };
+}
