@@ -158,11 +158,11 @@ function StudentTableInternal({
 
   return (
     <>
-      <div className="rounded-md border">
+      <div className="rounded-md border group">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead className="w-[50px]">
+              <TableHead className="w-[50px] opacity-0 group-hover:opacity-100 transition-opacity">
                 <Checkbox
                   checked={isAllSelected}
                   onCheckedChange={handleSelectAll}
@@ -250,7 +250,7 @@ const StudentRow = memo(function StudentRow({
 }: StudentRowProps) {
   return (
     <TableRow>
-      <TableCell>
+      <TableCell className="opacity-0 group-hover:opacity-100 transition-opacity">
         <Checkbox
           checked={selected}
           onCheckedChange={onSelect}
