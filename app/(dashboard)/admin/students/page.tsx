@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Plus, RefreshCw, Search, Upload, Download, AlertCircle } from "lucide-react";
+import { Plus, RefreshCw, Search, Upload, Download, AlertCircle, Trash2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { StudentWithDetails } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // 懒加载组件
 const StudentForm = dynamic(() => import("@/components/admin/StudentForm").then(m => ({ default: m.StudentForm })), {
@@ -36,29 +45,114 @@ export default function StudentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [gradeFilter, setGradeFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [combinedFilter, setCombinedFilter] = useState("all");
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const [semesterLoading, setSemesterLoading] = useState(true);
   const [classList, setClassList] = useState<Array<{ id: number; name: string; grade_name: string; grade_id: number }>>([]);
   const [gradeList, setGradeList] = useState<Array<{ id: number; name: string }>>([]);
 
-  const fetchStudents = async () => {
+  // 分页状态
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+  });
+
+  // 批量删除状态
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [batchDeleteDialog, setBatchDeleteDialog] = useState(false);
+
+  // 排序状态
+  const [sortField, setSortField] = useState("created_at");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
+  const fetchStudents = async (page = 1) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
       if (searchQuery) params.append("search", searchQuery);
       if (classFilter) params.append("class_id", classFilter);
       if (gradeFilter) params.append("grade_id", gradeFilter);
-      if (statusFilter) params.append("is_active", statusFilter);
+
+      // 处理合并筛选条件
+      if (combinedFilter !== "all") {
+        switch (combinedFilter) {
+          case "active":
+            params.append("is_active", "1");
+            break;
+          case "inactive":
+            params.append("is_active", "0");
+            break;
+          case "meal":
+            params.append("is_nutrition_meal", "true");
+            break;
+          case "no-meal":
+            params.append("is_nutrition_meal", "false");
+            break;
+        }
+      }
+
       if (currentSemesterId) params.append("semester_id", currentSemesterId.toString());
+      params.append("page", page.toString());
+      params.append("limit", pagination.limit.toString());
+      params.append("sort", sortField);
+      params.append("order", sortOrder);
 
       const response = await fetch(`/api/students?${params.toString()}`);
       const data = await response.json();
+
       setStudents(data.data || []);
+      setPagination({
+        page: data.page || 1,
+        limit: data.limit || 20,
+        total: data.total || 0,
+        totalPages: data.totalPages || 0,
+      });
     } catch (error) {
       console.error("Fetch students error:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= pagination.totalPages) {
+      fetchStudents(newPage);
+    }
+  };
+
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      // 切换排序方向
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      // 新的排序字段，默认降序
+      setSortField(field);
+      setSortOrder("desc");
+    }
+    // 重置到第一页
+    fetchStudents(1);
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedIds.size === 0) return;
+
+    const response = await fetch("/api/students", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: Array.from(selectedIds) }),
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      setBatchDeleteDialog(false);
+      setSelectedIds(new Set());
+      fetchStudents(pagination.page);
+      alert(result.message || "批量删除成功");
+    } else {
+      alert(result.error || result.message || "批量删除失败");
     }
   };
 
@@ -115,7 +209,7 @@ export default function StudentsPage() {
       fetchStudents();
       fetchClasses();
     }
-  }, [searchQuery, classFilter, gradeFilter, statusFilter, currentSemesterId]);
+  }, [searchQuery, classFilter, gradeFilter, combinedFilter, currentSemesterId, sortField, sortOrder]);
 
   const handleEdit = (student: StudentWithDetails) => {
     setEditingStudent(student);
@@ -133,7 +227,7 @@ export default function StudentsPage() {
   };
 
   const handleFormSuccess = () => {
-    fetchStudents();
+    fetchStudents(pagination.page);
   };
 
   // 导出学生列表
@@ -195,6 +289,12 @@ export default function StudentsPage() {
           <Button variant="outline" size="icon" onClick={() => currentSemesterId && fetchStudents()} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
+          {selectedIds.size > 0 && (
+            <Button variant="destructive" onClick={() => setBatchDeleteDialog(true)}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              批量删除 ({selectedIds.size})
+            </Button>
+          )}
           <Button variant="outline" onClick={handleExport} disabled={!currentSemesterId}>
             <Download className="mr-2 h-4 w-4" />
             导出
@@ -264,19 +364,55 @@ export default function StudentsPage() {
                 ))}
               </SelectContent>
             </Select>
-            <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
+            <Select value={combinedFilter} onValueChange={setCombinedFilter}>
               <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="选择状态" />
+                <SelectValue placeholder="筛选条件" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">全部状态</SelectItem>
-                <SelectItem value="1">在校</SelectItem>
-                <SelectItem value="0">离校</SelectItem>
+                <SelectItem value="all">全部学生</SelectItem>
+                <SelectItem value="active">在校</SelectItem>
+                <SelectItem value="inactive">离校</SelectItem>
+                <SelectItem value="meal">营养餐</SelectItem>
+                <SelectItem value="no-meal">非营养餐</SelectItem>
               </SelectContent>
             </Select>
           </div>
 
-          <StudentTable data={students} onEdit={handleEdit} onRefresh={fetchStudents} />
+          <StudentTable
+            data={students}
+            onEdit={handleEdit}
+            onRefresh={() => fetchStudents(pagination.page)}
+            selectedIds={selectedIds}
+            onSelectionChange={setSelectedIds}
+            sortField={sortField}
+            sortOrder={sortOrder}
+            onSort={handleSort}
+          />
+
+          {/* 分页 */}
+          {pagination.totalPages > 1 && (
+            <div className="flex items-center justify-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(pagination.page - 1)}
+                disabled={pagination.page === 1}
+              >
+                上一页
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                第 {pagination.page} / {pagination.totalPages} 页
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(pagination.page + 1)}
+                disabled={pagination.page === pagination.totalPages}
+              >
+                下一页
+              </Button>
+            </div>
+          )}
 
           <StudentForm
             open={formOpen}
@@ -293,6 +429,31 @@ export default function StudentsPage() {
               fetchStudents();
             }}
           />
+
+          {/* 批量删除确认对话框 */}
+          <AlertDialog open={batchDeleteDialog} onOpenChange={setBatchDeleteDialog}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>确认批量删除</AlertDialogTitle>
+                <AlertDialogDescription>
+                  确定要删除选中的 {selectedIds.size} 个学生吗？
+                  <br />
+                  有请假记录的学生将无法删除。
+                  <br />
+                  此操作不可撤销。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>取消</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleBatchDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  确认删除
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </>
       )}
     </div>

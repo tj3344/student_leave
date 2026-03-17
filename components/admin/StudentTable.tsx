@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, memo, useMemo } from "react";
-import { MoreHorizontal, Pencil, Trash2, Power, PowerOff } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2, Power, PowerOff, ChevronUp, ChevronDown } from "lucide-react";
 import type { StudentWithDetails } from "@/types";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,6 +30,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface StudentTableProps {
   data: StudentWithDetails[];
@@ -37,13 +38,52 @@ interface StudentTableProps {
   onRefresh: () => void;
   canEdit?: boolean;
   canDelete?: boolean;
+  // 批量选择
+  selectedIds?: Set<number>;
+  onSelectionChange?: (selectedIds: Set<number>) => void;
+  // 排序
+  sortField?: string;
+  sortOrder?: "asc" | "desc";
+  onSort?: (field: string) => void;
 }
 
-function StudentTableInternal({ data, onEdit, onRefresh, canEdit = true, canDelete = true }: StudentTableProps) {
+function StudentTableInternal({
+  data,
+  onEdit,
+  onRefresh,
+  canEdit = true,
+  canDelete = true,
+  selectedIds = new Set(),
+  onSelectionChange,
+  sortField = "created_at",
+  sortOrder = "desc",
+  onSort,
+}: StudentTableProps) {
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; student?: StudentWithDetails }>({
     open: false,
   });
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // 批量选择处理
+  const handleSelectAll = useCallback((checked: boolean) => {
+    const newSelected = checked
+      ? new Set(data.map(s => s.id))
+      : new Set<number>();
+    onSelectionChange?.(newSelected);
+  }, [data, onSelectionChange]);
+
+  const handleSelectOne = useCallback((id: number, checked: boolean) => {
+    const newSelected = new Set(selectedIds);
+    if (checked) {
+      newSelected.add(id);
+    } else {
+      newSelected.delete(id);
+    }
+    onSelectionChange?.(newSelected);
+  }, [selectedIds, onSelectionChange]);
+
+  const isAllSelected = data.length > 0 && selectedIds.size === data.length;
+  const isSomeSelected = selectedIds.size > 0 && selectedIds.size < data.length;
 
   const handleDelete = useCallback(async () => {
     if (!deleteDialog.student) return;
@@ -110,9 +150,11 @@ function StudentTableInternal({ data, onEdit, onRefresh, canEdit = true, canDele
         onEdit={handleEdit}
         onToggleStatus={handleToggleStatus}
         onOpenDeleteDialog={openDeleteDialog}
+        selected={selectedIds.has(student.id)}
+        onSelect={(checked) => handleSelectOne(student.id, checked)}
       />
     ));
-  }, [data, canEdit, canDelete, handleEdit, handleToggleStatus, openDeleteDialog]);
+  }, [data, canEdit, canDelete, handleEdit, handleToggleStatus, openDeleteDialog, selectedIds, handleSelectOne]);
 
   return (
     <>
@@ -120,7 +162,24 @@ function StudentTableInternal({ data, onEdit, onRefresh, canEdit = true, canDele
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>学号</TableHead>
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  checked={isAllSelected}
+                  onCheckedChange={handleSelectAll}
+                  aria-label="全选"
+                />
+              </TableHead>
+              <TableHead>
+                <button
+                  onClick={() => onSort?.("student_no")}
+                  className="flex items-center gap-1 hover:text-foreground transition-colors font-medium w-full text-left"
+                >
+                  学号
+                  {sortField === "student_no" && (
+                    sortOrder === "asc" ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />
+                  )}
+                </button>
+              </TableHead>
               <TableHead>姓名</TableHead>
               <TableHead>性别</TableHead>
               <TableHead>班级</TableHead>
@@ -175,6 +234,8 @@ interface StudentRowProps {
   onEdit: (student: StudentWithDetails) => void;
   onToggleStatus: (student: StudentWithDetails) => void;
   onOpenDeleteDialog: (student: StudentWithDetails) => void;
+  selected?: boolean;
+  onSelect?: (checked: boolean) => void;
 }
 
 const StudentRow = memo(function StudentRow({
@@ -184,9 +245,18 @@ const StudentRow = memo(function StudentRow({
   onEdit,
   onToggleStatus,
   onOpenDeleteDialog,
+  selected = false,
+  onSelect,
 }: StudentRowProps) {
   return (
     <TableRow>
+      <TableCell>
+        <Checkbox
+          checked={selected}
+          onCheckedChange={onSelect}
+          aria-label={`选择学生 ${student.name}`}
+        />
+      </TableCell>
       <TableCell className="font-medium">{student.student_no}</TableCell>
       <TableCell>{student.name}</TableCell>
       <TableCell>{student.gender || "-"}</TableCell>

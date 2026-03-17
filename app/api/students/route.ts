@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/api/auth";
-import { getStudents, createStudent, batchCreateStudents } from "@/lib/api/students";
+import { getStudents, createStudent, batchCreateStudents, batchDeleteStudents } from "@/lib/api/students";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { logCreate } from "@/lib/utils/logger";
 import type { StudentInput } from "@/types";
@@ -29,6 +29,7 @@ export async function GET(request: NextRequest) {
     const grade_id = searchParams.get("grade_id");
     const semester_id = searchParams.get("semester_id");
     const is_active = searchParams.get("is_active");
+    const is_nutrition_meal = searchParams.get("is_nutrition_meal");
     const sort = searchParams.get("sort") || "created_at";
     const order = (searchParams.get("order") || "desc") as "asc" | "desc";
 
@@ -79,6 +80,7 @@ export async function GET(request: NextRequest) {
       grade_id: grade_id ? parseInt(grade_id, 10) : undefined,
       semester_id: semester_id ? parseInt(semester_id, 10) : undefined,
       is_active: is_active ? parseInt(is_active, 10) : undefined,
+      is_nutrition_meal: is_nutrition_meal ? is_nutrition_meal === "true" : undefined,
       sort,
       order,
     });
@@ -160,5 +162,49 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("创建学生失败:", error);
     return NextResponse.json({ error: "创建学生失败" }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/students - 批量删除学生
+ */
+export async function DELETE(request: NextRequest) {
+  try {
+    // 验证权限
+    const currentUser = await getCurrentUser();
+    if (!currentUser) {
+      return NextResponse.json({ error: "未登录" }, { status: 401 });
+    }
+
+    if (!hasPermission(currentUser.role, PERMISSIONS.STUDENT_DELETE)) {
+      return NextResponse.json({ error: "无权限" }, { status: 403 });
+    }
+
+    // 解析请求体
+    const body = await request.json();
+    const { ids } = body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ error: "请提供要删除的学生ID列表" }, { status: 400 });
+    }
+
+    // 调用批量删除函数
+    const result = await batchDeleteStudents(ids);
+
+    if (!result.success && result.deletedCount === 0) {
+      return NextResponse.json({ error: result.message }, { status: 400 });
+    }
+
+    // 记录批量删除日志
+    await logCreate(
+      currentUser.id,
+      "students",
+      `批量删除学生：成功 ${result.deletedCount} 条，失败 ${result.errors?.length || 0} 条`
+    );
+
+    return NextResponse.json(result);
+  } catch (error) {
+    console.error("批量删除学生失败:", error);
+    return NextResponse.json({ error: "批量删除学生失败" }, { status: 500 });
   }
 }

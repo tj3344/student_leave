@@ -10,7 +10,7 @@ import type { Student, StudentInput, PaginationParams, PaginatedResponse, Studen
  * 获取学生列表（分页）
  */
 export async function getStudents(
-  params: PaginationParams & { class_id?: number; grade_id?: number; is_active?: number; semester_id?: number }
+  params: PaginationParams & { class_id?: number; grade_id?: number; is_active?: number; is_nutrition_meal?: boolean; semester_id?: number }
 ): Promise<PaginatedResponse<StudentWithDetails>> {
   const pgClient = getRawPostgres();
   const page = params.page || 1;
@@ -41,6 +41,11 @@ export async function getStudents(
   if (params.is_active !== undefined) {
     whereClause += " AND s.is_active = $" + (paramIndex++);
     queryParams.push(params.is_active === 1);
+  }
+
+  if (params.is_nutrition_meal !== undefined) {
+    whereClause += " AND s.is_nutrition_meal = $" + (paramIndex++);
+    queryParams.push(params.is_nutrition_meal);
   }
 
   if (params.semester_id) {
@@ -751,6 +756,62 @@ export async function batchCreateOrUpdateStudents(
       updated,
       failed: errors.length,
       errors,
+    };
+  }
+}
+
+/**
+ * 批量删除学生
+ */
+export async function batchDeleteStudents(
+  ids: number[]
+): Promise<{ success: boolean; message?: string; deletedCount?: number; errors?: string[] }> {
+  const pgClient = getRawPostgres();
+  const errors: string[] = [];
+  let deletedCount = 0;
+
+  if (ids.length === 0) {
+    return { success: false, message: "请选择要删除的学生" };
+  }
+
+  try {
+    // 批量检查是否有请假记录
+    const leaveCheckResult = await pgClient.unsafe(
+      `SELECT id, student_id FROM leave_records WHERE student_id = ANY($1::int[])`,
+      [ids]
+    ) as { id: number; student_id: number }[];
+
+    const studentIdsWithLeaves = new Set(leaveCheckResult.map(r => r.student_id));
+
+    // 分离可删除和不可删除的学生
+    const toDelete: number[] = [];
+    for (const id of ids) {
+      if (studentIdsWithLeaves.has(id)) {
+        errors.push(`学生 ID ${id} 有请假记录，无法删除`);
+      } else {
+        toDelete.push(id);
+      }
+    }
+
+    // 批量删除
+    if (toDelete.length > 0) {
+      await pgClient.unsafe(
+        `DELETE FROM students WHERE id = ANY($1::int[])`,
+        [toDelete]
+      );
+      deletedCount = toDelete.length;
+    }
+
+    return {
+      success: true,
+      deletedCount,
+      message: `成功删除 ${deletedCount} 个学生`,
+      errors: errors.length > 0 ? errors : undefined,
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: error instanceof Error ? error.message : "批量删除失败",
     };
   }
 }
