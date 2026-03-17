@@ -30,10 +30,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, GraduationCap, ChevronDown } from "lucide-react";
 import { GENDERS } from "@/lib/constants";
 import type { StudentWithDetails } from "@/types";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ClassSelectDialog } from "./ClassSelectDialog";
 
 const studentSchema = z.object({
   student_no: z.string().min(1, "学号不能为空").max(30, "学号不能超过30个字符"),
@@ -65,6 +66,7 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [classOptions, setClassOptions] = useState<ClassOption[]>([]);
   const [loadingClasses, setLoadingClasses] = useState(false);
+  const [classDialogOpen, setClassDialogOpen] = useState(false);
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const [currentSemesterName, setCurrentSemesterName] = useState<string>("");
   const [semesterLoading, setSemesterLoading] = useState(true);
@@ -300,20 +302,26 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>班级 *</FormLabel>
-                    <Select onValueChange={(value) => field.onChange(parseInt(value, 10))} value={field.value?.toString() || "0"}>
-                      <FormControl>
-                        <SelectTrigger disabled={loadingClasses || !currentSemesterId}>
-                          <SelectValue placeholder="请选择班级" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {classOptions.map((cls) => (
-                          <SelectItem key={cls.id} value={cls.id.toString()}>
-                            {cls.grade_name} - {cls.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full justify-start font-normal"
+                        disabled={loadingClasses || !currentSemesterId}
+                        onClick={() => setClassDialogOpen(true)}
+                      >
+                        <GraduationCap className="mr-2 h-4 w-4 text-muted-foreground" />
+                        {field.value
+                          ? (() => {
+                              const selectedClass = classOptions.find((c) => c.id === field.value);
+                              return selectedClass
+                                ? `${selectedClass.grade_name} - ${selectedClass.name}`
+                                : `班级 ID: ${field.value}`;
+                            })()
+                          : "请选择班级"}
+                        <ChevronDown className="ml-auto h-4 w-4 opacity-50" />
+                      </Button>
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
@@ -386,6 +394,14 @@ export function StudentForm({ open, onClose, onSuccess, student }: StudentFormPr
             />
           </form>
         </Form>
+
+        <ClassSelectDialog
+          open={classDialogOpen}
+          onClose={() => setClassDialogOpen(false)}
+          onSelect={(classId) => form.setValue("class_id", classId)}
+          classes={classOptions}
+          currentClassId={form.watch("class_id")}
+        />
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
