@@ -595,25 +595,6 @@ export default function BackupPage() {
                   <Button onClick={handleSaveSchedule} disabled={isSavingSchedule}>
                     {isSavingSchedule ? "保存中..." : "保存配置"}
                   </Button>
-
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={async () => {
-                        if (!confirm("确定要立即执行一次测试备份吗？")) return;
-                        try {
-                          const res = await fetch("/api/backup/test-trigger", { method: "POST" });
-                          const data = await res.json();
-                          alert(data.message || (data.success ? "测试备份执行成功" : "测试备份执行失败"));
-                          if (data.success) fetchBackups();
-                        } catch {
-                          alert("网络错误");
-                        }
-                      }}
-                    >
-                      立即测试
-                    </Button>
-                  </div>
                 </div>
               )}
             </CardContent>
