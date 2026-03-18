@@ -136,8 +136,8 @@ export function startBackupScheduler() {
   try {
     // 动态导入 node-cron
     import("node-cron").then((cron) => {
-      // 每小时检查一次是否需要执行备份
-      cron.schedule("0 * * * *", async () => {
+      // 每分钟检查一次是否需要执行备份（支持精确到分钟的备份时间）
+      cron.schedule("* * * * *", async () => {
         await executeAutoBackup();
       });
 
