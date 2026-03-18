@@ -513,10 +513,19 @@ export default function BackupPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="full">全量备份</SelectItem>
-                        <SelectItem value="partial">部分备份</SelectItem>
+                        <SelectItem value="full">全量备份（全部9个模块）</SelectItem>
+                        <SelectItem value="partial">部分备份（已选{scheduleConfig.modules?.length || 0}个模块）</SelectItem>
                       </SelectContent>
                     </Select>
+                    <p className="text-sm text-muted-foreground mt-2">
+                      {scheduleConfig.backup_type === "full"
+                        ? "备份所有9个模块：用户、学期、年级、班级、学生、请假记录、费用配置、系统配置、操作日志"
+                        : `备份 ${scheduleConfig.modules?.length || 0} 个选定模块：${BACKUP_MODULES
+                            .filter((m) => scheduleConfig.modules?.includes(m.id))
+                            .map((m) => m.name)
+                            .join("、")}`
+                      }
+                    </p>
                   </div>
 
                   <div>
