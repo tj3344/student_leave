@@ -106,10 +106,10 @@ export async function GET(request: NextRequest) {
       role: string | null;
     }>;
 
-    // 6. 转换时间格式为 ISO 8601（UTC），确保前端正确解析时区
+    // 6. 转换时间格式为 ISO 8601
     const formattedLogs = logs.map((log) => ({
       ...log,
-      created_at: new Date(log.created_at + "Z").toISOString(),
+      created_at: new Date(log.created_at).toISOString(),
     }));
 
     return NextResponse.json({

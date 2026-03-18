@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { MODULE_NAMES, ACTION_NAMES } from "@/lib/constants";
+import { formatDateTime } from "@/lib/utils/date";
 
 interface OperationLogTableProps {
   data: OperationLogWithUser[];
@@ -94,7 +95,7 @@ export function OperationLogTable({ data, loading }: OperationLogTableProps) {
                   {log.ip_address || "-"}
                 </TableCell>
                 <TableCell>
-                  {new Date(log.created_at).toLocaleString("zh-CN")}
+                  {formatDateTime(log.created_at)}
                 </TableCell>
               </TableRow>
             ))
