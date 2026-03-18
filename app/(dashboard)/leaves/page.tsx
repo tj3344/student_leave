@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, RefreshCw, Search, Upload, Download, AlertCircle } from "lucide-react";
+import { Plus, RefreshCw, Search, Upload, Download, AlertCircle, GraduationCap, ChevronDown, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { LeaveWithDetails, User } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { ClassSelectDialog } from "@/components/admin/ClassSelectDialog";
 
 // 懒加载组件
 const LeaveTable = dynamic(() => import("@/components/admin/LeaveTable").then(m => ({ default: m.LeaveTable })), {
@@ -41,6 +42,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { LEAVE_STATUS_NAMES } from "@/lib/constants";
 
+interface ClassOption {
+  id: number;
+  name: string;
+  grade_name: string;
+}
+
 export default function UnifiedLeavesPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -51,8 +58,9 @@ export default function UnifiedLeavesPage() {
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const [currentSemesterName, setCurrentSemesterName] = useState<string | null>(null);
   const [semesterLoading, setSemesterLoading] = useState(true);
-  const [classList, setClassList] = useState<Array<{ id: number; name: string; grade_name: string }>>([]);
+  const [classList, setClassList] = useState<ClassOption[]>([]);
   const [classFilter, setClassFilter] = useState("");
+  const [classDialogOpen, setClassDialogOpen] = useState(false);
   const [teacherApplyEnabled, setTeacherApplyEnabled] = useState(true); // 教师请假申请功能开关
   const [canEditLeave, setCanEditLeave] = useState(true); // 编辑权限开关
 
@@ -180,6 +188,12 @@ export default function UnifiedLeavesPage() {
       console.error("Fetch classes error:", error);
     }
   };
+
+  const handleClearClassFilter = () => {
+    setClassFilter("");
+  };
+
+  const selectedClass = classList.find((c) => c.id === parseInt(classFilter, 10));
 
   useEffect(() => {
     if (currentUser) {
@@ -404,19 +418,40 @@ export default function UnifiedLeavesPage() {
               />
             </div>
             {showClassFilter && (
-              <Select value={classFilter || "all"} onValueChange={(v) => setClassFilter(v === "all" ? "" : v)}>
-                <SelectTrigger className="w-[150px]">
-                  <SelectValue placeholder="选择班级" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">全部班级</SelectItem>
-                  {classList.map((cls) => (
-                    <SelectItem key={cls.id} value={cls.id.toString()}>
-                      {cls.grade_name} - {cls.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-1">
+                {!classFilter ? (
+                  <Button
+                    variant="outline"
+                    className="min-w-[180px] justify-start font-normal text-muted-foreground"
+                    onClick={() => setClassDialogOpen(true)}
+                  >
+                    <GraduationCap className="mr-2 h-4 w-4" />
+                    全部班级
+                    <ChevronDown className="ml-auto h-4 w-4 opacity-50" />
+                  </Button>
+                ) : (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="secondary"
+                      className="min-w-[180px] justify-start font-normal"
+                      onClick={() => setClassDialogOpen(true)}
+                    >
+                      <GraduationCap className="mr-2 h-4 w-4 text-muted-foreground" />
+                      {selectedClass ? `${selectedClass.grade_name} - ${selectedClass.name}` : `班级 ID: ${classFilter}`}
+                      <ChevronDown className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-9 w-9"
+                      onClick={handleClearClassFilter}
+                      title="清除筛选"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
             )}
             <Select value={statusFilter || "all"} onValueChange={(v) => setStatusFilter(v === "all" ? "" : v)}>
               <SelectTrigger className="w-[150px]">
@@ -430,6 +465,14 @@ export default function UnifiedLeavesPage() {
               </SelectContent>
             </Select>
           </div>
+
+          <ClassSelectDialog
+            open={classDialogOpen}
+            onClose={() => setClassDialogOpen(false)}
+            onSelect={(classId) => setClassFilter(classId.toString())}
+            classes={classList}
+            currentClassId={!classFilter ? null : parseInt(classFilter, 10)}
+          />
 
           <LeaveTable
             data={leaves}

@@ -22,16 +22,10 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Loader2, AlertCircle } from "lucide-react";
+import { Loader2, AlertCircle, GraduationCap, ChevronDown } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import type { FeeConfig, Semester, ClassWithDetails } from "@/types";
+import { ClassSelectDialog } from "./ClassSelectDialog";
+import type { FeeConfig, Semester } from "@/types";
 
 const feeConfigSchema = z.object({
   semester_id: z.coerce.number().min(1, "请选择学期"),
@@ -54,10 +48,17 @@ interface FeeConfigFormProps {
   feeConfig?: FeeConfig;
 }
 
+interface ClassOption {
+  id: number;
+  name: string;
+  grade_name: string;
+}
+
 export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfigFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [classes, setClasses] = useState<ClassWithDetails[]>([]);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
   const [loading, setLoading] = useState(false);
+  const [classDialogOpen, setClassDialogOpen] = useState(false);
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const [currentSemesterName, setCurrentSemesterName] = useState<string>("");
   const [semesterLoading, setSemesterLoading] = useState(true);
@@ -263,24 +264,26 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>班级 *</FormLabel>
-                  <Select
-                    onValueChange={(v) => field.onChange(parseInt(v, 10))}
-                    value={field.value === 0 ? "" : field.value.toString()}
-                    disabled={loading}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="请选择班级" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {classes.map((cls) => (
-                        <SelectItem key={cls.id} value={cls.id.toString()}>
-                          {cls.grade_name} {cls.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <FormControl>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full justify-start font-normal"
+                      disabled={loading || !currentSemesterId}
+                      onClick={() => setClassDialogOpen(true)}
+                    >
+                      <GraduationCap className="mr-2 h-4 w-4 text-muted-foreground" />
+                      {field.value
+                        ? (() => {
+                            const selectedClass = classes.find((c) => c.id === field.value);
+                            return selectedClass
+                              ? `${selectedClass.grade_name} - ${selectedClass.name}`
+                              : `班级 ID: ${field.value}`;
+                          })()
+                        : "请选择班级"}
+                      <ChevronDown className="ml-auto h-4 w-4 opacity-50" />
+                    </Button>
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
@@ -349,6 +352,14 @@ export function FeeConfigForm({ open, onClose, onSuccess, feeConfig }: FeeConfig
             </p>
           </form>
         </Form>
+
+        <ClassSelectDialog
+          open={classDialogOpen}
+          onClose={() => setClassDialogOpen(false)}
+          onSelect={(classId) => form.setValue("class_id", classId)}
+          classes={classes}
+          currentClassId={form.watch("class_id")}
+        />
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>

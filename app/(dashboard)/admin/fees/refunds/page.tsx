@@ -1,27 +1,28 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Download, RefreshCw, AlertCircle } from "lucide-react";
-import type { StudentRefundRecord, Semester, ClassWithDetails } from "@/types";
+import { Download, RefreshCw, AlertCircle, GraduationCap, ChevronDown, X } from "lucide-react";
+import type { StudentRefundRecord } from "@/types";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { RefundRecordTable } from "@/components/admin/RefundRecordTable";
+import { ClassSelectDialog } from "@/components/admin/ClassSelectDialog";
+
+interface ClassOption {
+  id: number;
+  name: string;
+  grade_name: string;
+}
 
 export default function RefundsPage() {
   const [refundRecords, setRefundRecords] = useState<StudentRefundRecord[]>([]);
-  const [classes, setClasses] = useState<ClassWithDetails[]>([]);
+  const [classes, setClasses] = useState<ClassOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const [semesterLoading, setSemesterLoading] = useState(true);
   const [classFilter, setClassFilter] = useState<number>(0);
   const [exporting, setExporting] = useState(false);
+  const [classDialogOpen, setClassDialogOpen] = useState(false);
 
   const fetchRefundRecords = async () => {
     setLoading(true);
@@ -72,6 +73,12 @@ export default function RefundsPage() {
       console.error("Fetch classes error:", error);
     }
   };
+
+  const handleClearClassFilter = () => {
+    setClassFilter(0);
+  };
+
+  const selectedClass = classes.find((c) => c.id === classFilter);
 
   const handleExport = async () => {
     if (!currentSemesterId) return;
@@ -159,21 +166,53 @@ export default function RefundsPage() {
         </Alert>
       )}
 
-      <div className="flex gap-4">
-        <Select value={classFilter.toString()} onValueChange={(v) => setClassFilter(v === "0" ? 0 : parseInt(v, 10))} disabled={!currentSemesterId}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="全部班级" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="0">全部班级</SelectItem>
-            {classes.map((cls) => (
-              <SelectItem key={cls.id} value={cls.id.toString()}>
-                {cls.grade_name} {cls.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <div className="flex items-center gap-3">
+        {/* 班级筛选 */}
+        <div className="flex items-center gap-2">
+          {classFilter === 0 ? (
+            <Button
+              variant="outline"
+              className="min-w-[200px] justify-start font-normal text-muted-foreground"
+              disabled={!currentSemesterId}
+              onClick={() => setClassDialogOpen(true)}
+            >
+              <GraduationCap className="mr-2 h-4 w-4" />
+              全部班级
+              <ChevronDown className="ml-auto h-4 w-4 opacity-50" />
+            </Button>
+          ) : (
+            <div className="flex items-center gap-1">
+              <Button
+                variant="secondary"
+                className="min-w-[200px] justify-start font-normal"
+                disabled={!currentSemesterId}
+                onClick={() => setClassDialogOpen(true)}
+              >
+                <GraduationCap className="mr-2 h-4 w-4 text-muted-foreground" />
+                {selectedClass ? `${selectedClass.grade_name} - ${selectedClass.name}` : `班级 ID: ${classFilter}`}
+                <ChevronDown className="ml-auto h-4 w-4 opacity-50" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-9 w-9"
+                onClick={handleClearClassFilter}
+                title="清除筛选"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
+
+      <ClassSelectDialog
+        open={classDialogOpen}
+        onClose={() => setClassDialogOpen(false)}
+        onSelect={(classId) => setClassFilter(classId)}
+        classes={classes}
+        currentClassId={classFilter === 0 ? null : classFilter}
+      />
 
       <RefundRecordTable data={refundRecords} />
     </div>

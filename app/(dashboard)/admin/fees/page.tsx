@@ -3,15 +3,8 @@
 import { useState, useEffect } from "react";
 import { Plus, RefreshCw, Download, Upload, AlertCircle } from "lucide-react";
 import dynamic from "next/dynamic";
-import type { FeeConfigWithDetails, Semester } from "@/types";
+import type { FeeConfigWithDetails } from "@/types";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 // 懒加载组件
@@ -27,7 +20,6 @@ const FeeConfigImportDialog = dynamic(() => import("@/components/admin/FeeConfig
 
 export default function FeesPage() {
   const [feeConfigs, setFeeConfigs] = useState<FeeConfigWithDetails[]>([]);
-  const [semesters, setSemesters] = useState<Semester[]>([]);
   const [loading, setLoading] = useState(true);
   const [formOpen, setFormOpen] = useState(false);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
@@ -57,7 +49,6 @@ export default function FeesPage() {
     try {
       const response = await fetch("/api/semesters");
       const data = await response.json();
-      setSemesters(data.data || []);
       const currentSemester = data.data?.find((s: { is_current: boolean }) => s.is_current === true);
       if (currentSemester) {
         setCurrentSemesterId(currentSemester.id);

@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { RefreshCw, Search, CheckCircle, AlertCircle } from "lucide-react";
+import { RefreshCw, Search, CheckCircle, AlertCircle, GraduationCap, ChevronDown, X } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { LeaveWithDetails } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ClassSelectDialog } from "@/components/admin/ClassSelectDialog";
 
 // 代码分割：动态导入大型组件
 const LeaveTable = dynamic(
@@ -16,15 +17,14 @@ const LeaveReviewDialog = dynamic(
   () => import("@/components/admin/LeaveReviewDialog").then(m => ({ default: m.LeaveReviewDialog })),
   { ssr: false }
 );
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
+interface ClassOption {
+  id: number;
+  name: string;
+  grade_name: string;
+}
 
 export default function PendingLeavesPage() {
   const [leaves, setLeaves] = useState<LeaveWithDetails[]>([]);
@@ -32,9 +32,10 @@ export default function PendingLeavesPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const [semesterLoading, setSemesterLoading] = useState(true);
-  const [classList, setClassList] = useState<Array<{ id: number; name: string; grade_name: string }>>([]);
+  const [classList, setClassList] = useState<ClassOption[]>([]);
   const [classFilter, setClassFilter] = useState("");
   const [pendingCount, setPendingCount] = useState(0);
+  const [classDialogOpen, setClassDialogOpen] = useState(false);
 
   // 审核对话框状态
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
@@ -89,6 +90,12 @@ export default function PendingLeavesPage() {
       console.error("Fetch classes error:", error);
     }
   };
+
+  const handleClearClassFilter = () => {
+    setClassFilter("");
+  };
+
+  const selectedClass = classList.find((c) => c.id === parseInt(classFilter, 10));
 
   useEffect(() => {
     fetchCurrentSemester();
@@ -172,20 +179,50 @@ export default function PendingLeavesPage() {
                 className="pl-9"
               />
             </div>
-            <Select value={classFilter || "all"} onValueChange={(v) => setClassFilter(v === "all" ? "" : v)}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="选择班级" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部班级</SelectItem>
-                {classList.map((cls) => (
-                  <SelectItem key={cls.id} value={cls.id.toString()}>
-                    {cls.grade_name} - {cls.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            {/* 班级筛选 */}
+            <div className="flex items-center gap-1">
+              {!classFilter ? (
+                <Button
+                  variant="outline"
+                  className="min-w-[180px] justify-start font-normal text-muted-foreground"
+                  onClick={() => setClassDialogOpen(true)}
+                >
+                  <GraduationCap className="mr-2 h-4 w-4" />
+                  全部班级
+                  <ChevronDown className="ml-auto h-4 w-4 opacity-50" />
+                </Button>
+              ) : (
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="secondary"
+                    className="min-w-[180px] justify-start font-normal"
+                    onClick={() => setClassDialogOpen(true)}
+                  >
+                    <GraduationCap className="mr-2 h-4 w-4 text-muted-foreground" />
+                    {selectedClass ? `${selectedClass.grade_name} - ${selectedClass.name}` : `班级 ID: ${classFilter}`}
+                    <ChevronDown className="ml-auto h-4 w-4 opacity-50" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-9 w-9"
+                    onClick={handleClearClassFilter}
+                    title="清除筛选"
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
+
+          <ClassSelectDialog
+            open={classDialogOpen}
+            onClose={() => setClassDialogOpen(false)}
+            onSelect={(classId) => setClassFilter(classId.toString())}
+            classes={classList}
+            currentClassId={!classFilter ? null : parseInt(classFilter, 10)}
+          />
 
           {leaves.length === 0 && !loading ? (
             <Card>
