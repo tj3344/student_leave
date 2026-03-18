@@ -19,6 +19,9 @@ const globalForBackup = global as typeof global & {
  * 执行自动备份
  */
 export async function executeAutoBackup(): Promise<boolean> {
+  // 添加日志记录调度触发
+  console.log("[Backup] executeAutoBackup 被调用");
+
   // 防止并发执行
   if (globalForBackup.isBackupExecuting) {
     console.log("[Backup] 备份正在执行中，跳过本次调度");
@@ -138,19 +141,26 @@ export async function executeAutoBackup(): Promise<boolean> {
  * 仅在服务端环境中运行
  */
 export function startBackupScheduler() {
-  // 使用全局变量确保在整个 Node.js 进程中只初始化一次
-  if (globalForBackup.backupSchedulerInitialized) {
-    return;
-  }
+  console.log("[Backup] startBackupScheduler 被调用");
 
   // 仅在 Node.js 环境中运行
   if (typeof window !== "undefined") {
+    console.log("[Backup] 跳过：在浏览器环境中运行");
     return;
   }
+
+  // 使用全局变量确保在整个 Node.js 进程中只初始化一次
+  if (globalForBackup.backupSchedulerInitialized) {
+    console.log("[Backup] 调度器已初始化，跳过重复启动");
+    return;
+  }
+
+  console.log("[Backup] 开始初始化调度器...");
 
   try {
     // 动态导入 node-cron
     import("node-cron").then((cron) => {
+      console.log("[Backup] node-cron 加载成功，准备调度");
       // 每分钟检查一次是否需要执行备份（支持精确到分钟的备份时间）
       cron.schedule("* * * * *", async () => {
         await executeAutoBackup();
@@ -158,6 +168,8 @@ export function startBackupScheduler() {
 
       globalForBackup.backupSchedulerInitialized = true;
       console.log("[Backup] 定时备份调度器已启动");
+    }).catch((err) => {
+      console.error("[Backup] node-cron 加载失败:", err);
     });
   } catch (error) {
     console.error("[Backup] 启动定时备份调度器失败:", error);
