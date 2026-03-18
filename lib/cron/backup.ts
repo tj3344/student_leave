@@ -10,6 +10,9 @@ import type { BackupModule } from "@/types";
 
 let schedulerInitialized = false;
 
+// 记录最后一次执行备份的日期（年-月-日格式），防止同一天多次执行
+let lastExecutionDate: string | null = null;
+
 /**
  * 执行自动备份
  */
@@ -29,11 +32,19 @@ export async function executeAutoBackup(): Promise<boolean> {
     const [hour, minute] = configRow.schedule_time.split(":").map(Number);
     const now = new Date();
 
-    // 时间匹配检查（允许在配置时间的小时内执行）
-    // 例如配置 02:00，则在 02:00-02:59 之间执行时都会匹配
-    if (now.getHours() !== hour) {
+    // 检查是否已在本日执行过（防止同一天多次执行）
+    const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
+    if (lastExecutionDate === todayKey) {
+      return false; // 今日已执行，跳过
+    }
+
+    // 时间匹配检查（精确匹配小时和分钟）
+    if (now.getHours() !== hour || now.getMinutes() !== minute) {
       return false;
     }
+
+    // 标记今日已执行
+    lastExecutionDate = todayKey;
 
     // 解析备份模块
     const modules = JSON.parse(configRow.modules) as BackupModule[];
