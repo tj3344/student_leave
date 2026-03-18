@@ -68,14 +68,8 @@ export async function executeAutoBackup(): Promise<boolean> {
 
     fs.writeFileSync(filePath, sqlContent, "utf-8");
 
-    // 记录到数据库（名称包含时间，便于区分）
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
-    const seconds = String(now.getSeconds()).padStart(2, '0');
-    const backupName = `自动备份_${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
+    // 记录到数据库（名称格式与手动备份一致）
+    const backupName = `自动备份_${now.toLocaleString()}`;
 
     await pgClient.unsafe(
       `
