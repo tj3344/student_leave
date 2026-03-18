@@ -53,7 +53,7 @@ export async function executeAutoBackup(): Promise<boolean> {
     const sqlContent = await generateBackupSQL(modules);
 
     const backupDir = getBackupDir();
-    const fileName = generateBackupFileName("自动备份");
+    const fileName = generateBackupFileName("自动备份", true);
     const filePath = `${backupDir}/${fileName}`;
 
     fs.writeFileSync(filePath, sqlContent, "utf-8");

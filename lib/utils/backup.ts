@@ -281,21 +281,32 @@ export function getBackupDir(): string {
 
 /**
  * 生成备份文件名
+ * @param name - 备份名称
+ * @param includeTime - 是否包含时间（默认 false）
  */
-export function generateBackupFileName(name: string): string {
+export function generateBackupFileName(name: string, includeTime: boolean = false): string {
   // 清理文件名：移除或替换无效字符
   const sanitizedName = name
     .replace(/[\/\\:*?"<>|]/g, "-")  // 替换无效字符为短横线
     .replace(/\s+/g, "_")             // 替换空格为下划线
     .substring(0, 100);               // 限制长度
 
-  // 使用本地时间，只保留日期部分
+  // 使用本地时间
   const now = new Date();
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   const day = String(now.getDate()).padStart(2, '0');
 
-  const timestamp = `${year}-${month}-${day}`;
+  let timestamp: string;
+  if (includeTime) {
+    const hour = String(now.getHours()).padStart(2, '0');
+    const minute = String(now.getMinutes()).padStart(2, '0');
+    const second = String(now.getSeconds()).padStart(2, '0');
+    timestamp = `${year}-${month}-${day}_${hour}-${minute}-${second}`;
+  } else {
+    timestamp = `${year}-${month}-${day}`;
+  }
+
   return `${sanitizedName}_${timestamp}.sql`;
 }
 
