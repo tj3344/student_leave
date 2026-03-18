@@ -38,24 +38,6 @@ export async function GET() {
 
       const newConfigResult = await pgClient.unsafe("SELECT * FROM backup_config WHERE id = 1");
       config = newConfigResult[0] as BackupConfig;
-    } else {
-      // 检查配置是否缺少模块，自动补全缺失的模块
-      const currentModules = JSON.parse(config.modules || "[]") as string[];
-      const missingModules = ALL_MODULES.filter(m => !currentModules.includes(m));
-
-      if (missingModules.length > 0) {
-        // 自动更新配置，添加缺失的模块
-        const updatedModules = [...currentModules, ...missingModules];
-        await pgClient.unsafe(
-          `
-          UPDATE backup_config
-          SET modules = $1, updated_at = CURRENT_TIMESTAMP
-          WHERE id = 1
-        `,
-          [JSON.stringify(updatedModules)]
-        );
-        config.modules = JSON.stringify(updatedModules);
-      }
     }
 
     return NextResponse.json({ data: config });
