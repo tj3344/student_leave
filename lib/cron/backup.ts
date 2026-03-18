@@ -15,6 +15,11 @@ const globalForBackup = global as typeof global & {
   isBackupExecuting?: boolean; // 防止并发执行
 };
 
+// 确保 lastBackupExecutionDate 初始化
+if (typeof globalForBackup.lastBackupExecutionDate === 'undefined') {
+  globalForBackup.lastBackupExecutionDate = null;
+}
+
 /**
  * 执行自动备份
  */

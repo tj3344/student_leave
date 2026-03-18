@@ -114,6 +114,12 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // 重置全局执行状态，允许配置更新后立即生效
+    const globalForBackup = global as typeof global & {
+      lastBackupExecutionDate?: string | null;
+    };
+    globalForBackup.lastBackupExecutionDate = null;
+
     return NextResponse.json({ success: true, message: "自动备份配置更新成功" });
   } catch (error) {
     console.error("更新自动备份配置失败:", error);
