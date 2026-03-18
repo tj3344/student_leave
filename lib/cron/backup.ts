@@ -8,16 +8,26 @@ import type { BackupModule } from "@/types";
  * 使用 node-cron 实现定时自动备份
  */
 
-let schedulerInitialized = false;
-
-// 记录最后一次执行备份的日期（年-月-日格式），防止同一天多次执行
-let lastExecutionDate: string | null = null;
+// 使用全局变量确保在整个 Node.js 进程中只初始化一次
+const globalForBackup = global as typeof global & {
+  backupSchedulerInitialized?: boolean;
+  lastBackupExecutionDate?: string | null;
+  isBackupExecuting?: boolean; // 防止并发执行
+};
 
 /**
  * 执行自动备份
  */
 export async function executeAutoBackup(): Promise<boolean> {
+  // 防止并发执行
+  if (globalForBackup.isBackupExecuting) {
+    console.log("[Backup] 备份正在执行中，跳过本次调度");
+    return false;
+  }
+
   try {
+    globalForBackup.isBackupExecuting = true;
+
     const pgClient = getRawPostgres();
 
     // 获取自动备份配置
@@ -34,7 +44,7 @@ export async function executeAutoBackup(): Promise<boolean> {
 
     // 检查是否已在本日执行过（防止同一天多次执行）
     const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
-    if (lastExecutionDate === todayKey) {
+    if (globalForBackup.lastBackupExecutionDate === todayKey) {
       return false; // 今日已执行，跳过
     }
 
@@ -43,8 +53,8 @@ export async function executeAutoBackup(): Promise<boolean> {
       return false;
     }
 
-    // 标记今日已执行
-    lastExecutionDate = todayKey;
+    // 标记今日已执行（同步到全局变量）
+    globalForBackup.lastBackupExecutionDate = todayKey;
 
     // 解析备份模块
     const modules = JSON.parse(configRow.modules) as BackupModule[];
@@ -123,6 +133,9 @@ export async function executeAutoBackup(): Promise<boolean> {
   } catch (error) {
     console.error(`[${new Date().toISOString()}] 自动备份执行失败:`, error);
     return false;
+  } finally {
+    // 重置执行状态，允许下一次执行
+    globalForBackup.isBackupExecuting = false;
   }
 }
 
@@ -131,8 +144,8 @@ export async function executeAutoBackup(): Promise<boolean> {
  * 仅在服务端环境中运行
  */
 export function startBackupScheduler() {
-  // 确保只初始化一次
-  if (schedulerInitialized) {
+  // 使用全局变量确保在整个 Node.js 进程中只初始化一次
+  if (globalForBackup.backupSchedulerInitialized) {
     return;
   }
 
@@ -149,7 +162,7 @@ export function startBackupScheduler() {
         await executeAutoBackup();
       });
 
-      schedulerInitialized = true;
+      globalForBackup.backupSchedulerInitialized = true;
       console.log("[Backup] 定时备份调度器已启动");
     });
   } catch (error) {
