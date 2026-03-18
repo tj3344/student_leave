@@ -505,9 +505,14 @@ export default function BackupPage() {
                     <Label>备份类型</Label>
                     <Select
                       value={scheduleConfig.backup_type}
-                      onValueChange={(value: "full" | "partial") =>
-                        setScheduleConfig({ ...scheduleConfig, backup_type: value })
-                      }
+                      onValueChange={(value: "full" | "partial") => {
+                        const newConfig = { ...scheduleConfig, backup_type: value };
+                        // 切换到全量备份时，自动选中所有模块
+                        if (value === "full") {
+                          newConfig.modules = BACKUP_MODULES.map((m) => m.id);
+                        }
+                        setScheduleConfig(newConfig);
+                      }}
                     >
                       <SelectTrigger>
                         <SelectValue />
@@ -527,6 +532,48 @@ export default function BackupPage() {
                       }
                     </p>
                   </div>
+
+                  {/* 部分备份时显示模块选择 */}
+                  {scheduleConfig.backup_type === "partial" && (
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <Label>选择备份模块</Label>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() =>
+                            setScheduleConfig({
+                              ...scheduleConfig,
+                              modules: scheduleConfig.modules?.length === BACKUP_MODULES.length
+                                ? []
+                                : BACKUP_MODULES.map((m) => m.id),
+                            })
+                          }
+                        >
+                          {scheduleConfig.modules?.length === BACKUP_MODULES.length ? "全不选" : "全选"}
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        {BACKUP_MODULES.map((module) => (
+                          <div key={module.id} className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`schedule-${module.id}`}
+                              checked={scheduleConfig.modules?.includes(module.id) || false}
+                              onCheckedChange={(checked) => {
+                                const newModules = checked
+                                  ? [...(scheduleConfig.modules || []), module.id]
+                                  : (scheduleConfig.modules || []).filter((m) => m !== module.id);
+                                setScheduleConfig({ ...scheduleConfig, modules: newModules });
+                              }}
+                            />
+                            <Label htmlFor={`schedule-${module.id}`} className="cursor-pointer">
+                              {module.name}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   <div>
                     <Label>保留天数</Label>
