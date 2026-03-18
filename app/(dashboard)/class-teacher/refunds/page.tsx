@@ -5,24 +5,16 @@ import { useRouter } from "next/navigation";
 import { Download, RefreshCw } from "lucide-react";
 import type { StudentRefundRecord, User } from "@/types";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { RefundRecordTable } from "@/components/admin/RefundRecordTable";
 
 export default function ClassTeacherRefundsPage() {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [refundRecords, setRefundRecords] = useState<StudentRefundRecord[]>([]);
-  const [semesters, setSemesters] = useState<Array<{ id: number; name: string }>>([]);
   const [loading, setLoading] = useState(true);
-  const [semesterFilter, setSemesterFilter] = useState("");
   const [exporting, setExporting] = useState(false);
   const [classInfo, setClassInfo] = useState<{ id: number; name: string; grade_name: string } | null>(null);
+  const [currentSemesterId, setCurrentSemesterId] = useState<string>("");
 
   // 获取当前用户信息
   useEffect(() => {
@@ -67,12 +59,12 @@ export default function ClassTeacherRefundsPage() {
   };
 
   const fetchRefundRecords = async () => {
-    if (!classInfo) return;
+    if (!classInfo || !currentSemesterId) return;
 
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (semesterFilter) params.append("semester_id", semesterFilter);
+      params.append("semester_id", currentSemesterId);
       // 强制只获取本班学生的退费记录
       params.append("class_id", classInfo.id.toString());
 
@@ -86,29 +78,28 @@ export default function ClassTeacherRefundsPage() {
     }
   };
 
-  const fetchSemesters = async () => {
+  const fetchCurrentSemester = async () => {
     try {
       const response = await fetch("/api/semesters");
       const data = await response.json();
-      setSemesters(data.data || []);
 
-      // 自动选择当前学期
+      // 只获取当前学期
       const currentSemester = data.data?.find((s: { is_current: boolean }) => s.is_current === true);
       if (currentSemester) {
-        setSemesterFilter(currentSemester.id.toString());
+        setCurrentSemesterId(currentSemester.id.toString());
       }
     } catch (error) {
-      console.error("Fetch semesters error:", error);
+      console.error("Fetch current semester error:", error);
     }
   };
 
   const handleExport = async () => {
-    if (!classInfo) return;
+    if (!classInfo || !currentSemesterId) return;
 
     setExporting(true);
     try {
       const params = new URLSearchParams();
-      if (semesterFilter) params.append("semester_id", semesterFilter);
+      params.append("semester_id", currentSemesterId);
       params.append("class_id", classInfo.id.toString());
 
       const response = await fetch(`/api/fees/refunds/export?${params.toString()}`);
@@ -138,15 +129,15 @@ export default function ClassTeacherRefundsPage() {
 
   useEffect(() => {
     if (classInfo) {
-      fetchSemesters();
+      fetchCurrentSemester();
     }
   }, [classInfo]);
 
   useEffect(() => {
-    if (classInfo && semesterFilter) {
+    if (classInfo && currentSemesterId) {
       fetchRefundRecords();
     }
-  }, [classInfo, semesterFilter]);
+  }, [classInfo, currentSemesterId]);
 
   if (!currentUser || !classInfo) {
     return <div>加载中...</div>;
@@ -174,25 +165,6 @@ export default function ClassTeacherRefundsPage() {
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
         </div>
-      </div>
-
-      <div className="flex gap-4">
-        <Select
-          value={semesterFilter || "all"}
-          onValueChange={(v) => setSemesterFilter(v === "all" ? "" : v)}
-        >
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="请选择学期" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">全部学期</SelectItem>
-            {semesters.map((semester) => (
-              <SelectItem key={semester.id} value={semester.id.toString()}>
-                {semester.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       <RefundRecordTable data={refundRecords} />
