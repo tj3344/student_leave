@@ -20,6 +20,9 @@ export async function GET() {
     const { getRawPostgres } = await import("@/lib/db");
     const pgClient = getRawPostgres();
 
+    // 完整的备份模块列表
+    const ALL_MODULES = ["users", "semesters", "grades", "classes", "students", "leave_records", "fee_configs", "system_config", "operation_logs"];
+
     let configResult = await pgClient.unsafe("SELECT * FROM backup_config WHERE id = 1");
     let config = configResult[0] as BackupConfig | undefined;
 
@@ -30,11 +33,29 @@ export async function GET() {
         INSERT INTO backup_config (id, enabled, schedule_type, schedule_time, backup_type, modules, retention_days, updated_at)
         VALUES (1, false, 'daily', '02:00', 'full', $1, 30, CURRENT_TIMESTAMP)
       `,
-        [JSON.stringify(["users", "semesters", "grades", "classes", "students", "leave_records", "fee_configs"])]
+        [JSON.stringify(ALL_MODULES)]
       );
 
       const newConfigResult = await pgClient.unsafe("SELECT * FROM backup_config WHERE id = 1");
       config = newConfigResult[0] as BackupConfig;
+    } else {
+      // 检查配置是否缺少模块，自动补全缺失的模块
+      const currentModules = JSON.parse(config.modules || "[]") as string[];
+      const missingModules = ALL_MODULES.filter(m => !currentModules.includes(m));
+
+      if (missingModules.length > 0) {
+        // 自动更新配置，添加缺失的模块
+        const updatedModules = [...currentModules, ...missingModules];
+        await pgClient.unsafe(
+          `
+          UPDATE backup_config
+          SET modules = $1, updated_at = CURRENT_TIMESTAMP
+          WHERE id = 1
+        `,
+          [JSON.stringify(updatedModules)]
+        );
+        config.modules = JSON.stringify(updatedModules);
+      }
     }
 
     return NextResponse.json({ data: config });
