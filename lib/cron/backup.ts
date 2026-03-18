@@ -58,20 +58,28 @@ export async function executeAutoBackup(): Promise<boolean> {
 
     fs.writeFileSync(filePath, sqlContent, "utf-8");
 
-    // 记录到数据库
+    // 记录到数据库（名称包含时间，便于区分）
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    const backupName = `自动备份_${year}-${month}-${day}_${hours}-${minutes}-${seconds}`;
+
     await pgClient.unsafe(
       `
       INSERT INTO backup_records (name, type, modules, file_path, file_size, created_by, description, created_at)
       VALUES ($1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP)
     `,
       [
-        "自动备份",
+        backupName,
         configRow.backup_type,
         configRow.modules,
         filePath,
         Buffer.byteLength(sqlContent, "utf-8"),
         1, // 系统用户 (admin)
-        `自动备份 - ${new Date().toLocaleString("zh-CN")}`
+        `自动备份 - ${now.toLocaleString("zh-CN")}`
       ]
     );
 
