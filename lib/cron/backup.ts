@@ -35,41 +35,59 @@ export async function executeAutoBackup(): Promise<boolean> {
 
     // 获取自动备份配置
     const config = await pgClient.unsafe("SELECT * FROM backup_config WHERE enabled = true");
+    console.log("[Backup] 查询配置结果:", config.length, "条");
     const configRow = config[0];
 
     if (!configRow) {
+      console.log("[Backup] 没有找到启用的自动备份配置");
       return false;
     }
+
+    console.log("[Backup] 配置信息:", {
+      schedule_time: configRow.schedule_time,
+      backup_type: configRow.backup_type,
+      modules: configRow.modules,
+    });
 
     // 检查是否符合备份时间
     const [hour, minute] = configRow.schedule_time.split(":").map(Number);
     const now = new Date();
+    console.log("[Backup] 时间检查 - 配置:", configRow.schedule_time, "当前:", `${now.getHours()}:${now.getMinutes()}`);
 
     // 检查是否已在本日执行过（防止同一天多次执行）
     const todayKey = `${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`;
     if (globalForBackup.lastBackupExecutionDate === todayKey) {
+      console.log("[Backup] 今日已执行，跳过");
       return false; // 今日已执行，跳过
     }
 
     // 时间匹配检查（精确匹配小时和分钟）
     if (now.getHours() !== hour || now.getMinutes() !== minute) {
+      console.log("[Backup] 时间不匹配，跳过");
       return false;
     }
+
+    console.log("[Backup] 时间匹配！开始执行备份...");
 
     // 标记今日已执行（同步到全局变量）
     globalForBackup.lastBackupExecutionDate = todayKey;
 
     // 解析备份模块
     const modules = JSON.parse(configRow.modules) as BackupModule[];
+    console.log("[Backup] 解析后的模块:", modules);
 
     // 生成备份
+    console.log("[Backup] 开始生成备份 SQL...");
     const sqlContent = await generateBackupSQL(modules);
+    console.log("[Backup] SQL 生成完成，大小:", sqlContent.length, "字节");
 
     const backupDir = getBackupDir();
     const fileName = generateBackupFileName("自动备份", true);
     const filePath = `${backupDir}/${fileName}`;
+    console.log("[Backup] 备份文件路径:", filePath);
 
     fs.writeFileSync(filePath, sqlContent, "utf-8");
+    console.log("[Backup] 文件写入成功");
 
     // 记录到数据库（名称格式与手动备份一致）
     const backupName = `自动备份_${now.toLocaleString()}`;
