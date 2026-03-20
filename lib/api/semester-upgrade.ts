@@ -7,6 +7,14 @@ import type {
 } from "@/types";
 
 /**
+ * 判断是否为六年级
+ * 支持中文数字（六、六年级）和阿拉伯数字（6、6年级）
+ */
+function isSixthGrade(gradeName: string): boolean {
+  return /^六.*年级*$|^6.*年级*$|^六年级$|^6年级$/.test(gradeName.trim());
+}
+
+/**
  * 年级名称递增映射
  * 提取年级名称中的数字部分，+1 后得到新年级名称
  * 支持中文数字（一、二、三...）和阿拉伯数字（1、2、3...）
@@ -351,27 +359,97 @@ export async function upgradeSemester(
       if (upgradeMode === "year") {
         const sixthGrades = await sql.unsafe(
           `SELECT id FROM grades
-           WHERE semester_id = $1 AND name ~ '^[^0-9]*6[^0-9]*$'`,
+           WHERE semester_id = $1 AND (name ~ '^[0-9]*6[^0-9]*$' OR name ~ '^六.*年级*$')`,
           [request.source_semester_id]
         ) as Array<{ id: number }>;
 
         if (sixthGrades.length > 0) {
           const sixthGradeIds = sixthGrades.map((g) => g.id);
-          const classes = await sql.unsafe(
-            `SELECT id FROM classes WHERE grade_id = ANY($1)`,
-            [sixthGradeIds]
-          ) as Array<{ id: number }>;
 
-          if (classes.length > 0) {
-            const classIds = classes.map((c) => c.id);
-            const graduateResult = await sql.unsafe(
-              `UPDATE students
-               SET is_active = false, updated_at = CURRENT_TIMESTAMP
-               WHERE class_id = ANY($1) AND is_active = true
-               RETURNING id`,
+          // 获取六年级的班级和年级信息（包含快照）
+          const classesInfo = await sql.unsafe(
+            `SELECT c.id as class_id, c.name as class_name, c.class_teacher_id,
+                    g.id as grade_id, g.name as grade_name,
+                    s.id as semester_id, s.name as semester_name,
+                    u.real_name as class_teacher_name
+             FROM classes c
+             JOIN grades g ON c.grade_id = g.id
+             JOIN semesters s ON g.semester_id = s.id
+             LEFT JOIN users u ON c.class_teacher_id = u.id
+             WHERE c.grade_id = ANY($1)`,
+            [sixthGradeIds]
+          ) as Array<{
+            class_id: number;
+            class_name: string;
+            class_teacher_id: number | null;
+            grade_id: number;
+            grade_name: string;
+            semester_id: number;
+            semester_name: string;
+            class_teacher_name: string | null;
+          }>;
+
+          if (classesInfo.length > 0) {
+            const classIds = classesInfo.map((c) => c.class_id);
+
+            // 获取所有需要毕业的学生
+            const studentsToGraduate = await sql.unsafe(
+              `SELECT id, student_no, name, gender, parent_name, parent_phone,
+                      address, is_nutrition_meal, enrollment_date, class_id
+               FROM students
+               WHERE class_id = ANY($1) AND is_active = true`,
               [classIds]
-            );
-            graduatedCount = graduateResult.length;
+            ) as Array<{
+              id: number;
+              student_no: string;
+              name: string;
+              gender: string | null;
+              parent_name: string | null;
+              parent_phone: string | null;
+              address: string | null;
+              is_nutrition_meal: boolean;
+              enrollment_date: string | null;
+              class_id: number;
+            }>;
+
+            // 批量插入到 graduated_students 表
+            for (const student of studentsToGraduate) {
+              const classInfo = classesInfo.find((c) => c.class_id === student.class_id);
+              if (!classInfo) continue;
+
+              await sql.unsafe(
+                `INSERT INTO graduated_students
+                 (student_no, name, gender, parent_name, parent_phone, address,
+                  is_nutrition_meal, enrollment_date, original_student_id, graduation_date,
+                  original_class_id, original_class_name, original_grade_id, original_grade_name,
+                  original_semester_id, original_semester_name, original_class_teacher_id,
+                  original_class_teacher_name, created_at)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP,
+                         $10, $11, $12, $13, $14, $15, $16, $17, CURRENT_TIMESTAMP)`,
+                [
+                  student.student_no,
+                  student.name,
+                  student.gender || null,
+                  student.parent_name || null,
+                  student.parent_phone || null,
+                  student.address || null,
+                  student.is_nutrition_meal,
+                  student.enrollment_date || null,
+                  student.id,
+                  student.class_id,
+                  classInfo.class_name,
+                  classInfo.grade_id,
+                  classInfo.grade_name,
+                  classInfo.semester_id,
+                  classInfo.semester_name,
+                  classInfo.class_teacher_id || null,
+                  classInfo.class_teacher_name || null,
+                ]
+              );
+            }
+
+            // 只统计毕业人数，不修改源学生数据
+            graduatedCount = studentsToGraduate.length;
           }
         }
       }
@@ -380,6 +458,11 @@ export async function upgradeSemester(
       const gradeIdMap: Record<number, number> = {}; // 旧年级ID -> 新年级ID
 
       for (const grade of selectedGradesResult) {
+        // 学年迁移时，六年级学生已毕业，跳过六年级不创建七年级
+        if (upgradeMode === "year" && isSixthGrade(grade.name)) {
+          continue;
+        }
+
         // 根据迁移模式决定新年级名称
         const newGradeName = upgradeMode === "year"
           ? incrementGradeName(grade.name)

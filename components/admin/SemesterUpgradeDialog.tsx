@@ -52,6 +52,7 @@ export function SemesterUpgradeDialog({
   const [targetSemesterId, setTargetSemesterId] = useState<number | null>(null);
   const [selectedGrades, setSelectedGrades] = useState<SelectedGradesInfo>({});
   const [upgradeMode, setUpgradeMode] = useState<UpgradeMode>("year");
+  const [preserveClassTeachers, setPreserveClassTeachers] = useState(true);
   const [gradeNameOverrides, setGradeNameOverrides] = useState<Record<number, string>>({});
   const [result, setResult] = useState<{
     grades_created: number;
@@ -66,6 +67,7 @@ export function SemesterUpgradeDialog({
   const resetState = useCallback(() => {
     setStep("select-mode");
     setUpgradeMode("year");
+    setPreserveClassTeachers(true);
     setPreview(null);
     setSourceSemesterId(null);
     setTargetSemesterId(null);
@@ -207,7 +209,7 @@ export function SemesterUpgradeDialog({
           source_semester_id: sourceSemesterId,
           target_semester_id: targetSemesterId,
           grade_ids: selectedGradeIds,
-          preserve_class_teachers: true,
+          preserve_class_teachers: preserveClassTeachers,
           upgrade_mode: upgradeMode,
         }),
       });
@@ -698,6 +700,38 @@ export function SemesterUpgradeDialog({
             </table>
           </div>
         </ScrollArea>
+
+        {/* 班主任迁移选项 */}
+        <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
+          <div className="flex items-center justify-between">
+            <div className="flex-1">
+              <Label htmlFor="preserve-teachers" className="text-base font-medium text-blue-900 dark:text-blue-100 cursor-pointer">
+                保留班主任关联
+              </Label>
+              <p className="text-sm text-blue-700 dark:text-blue-300 mt-1">
+                启用后，原班级的班主任将自动迁移到新学期的对应班级
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-blue-700 dark:text-blue-300">
+                {preserveClassTeachers ? "保留" : "不保留"}
+              </span>
+              <button
+                type="button"
+                onClick={() => setPreserveClassTeachers(!preserveClassTeachers)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  preserveClassTeachers ? "bg-blue-600" : "bg-gray-300"
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    preserveClassTeachers ? "translate-x-6" : "translate-x-1"
+                  }`}
+                />
+              </button>
+            </div>
+          </div>
+        </div>
 
         {/* 警告 */}
         <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-lg">

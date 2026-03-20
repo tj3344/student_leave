@@ -14,6 +14,7 @@ export { backupConfig } from "./backup-config";
 export { databaseConnections } from "./database-connections";
 export { databaseSwitchHistory } from "./database-switch-history";
 export { notifications } from "./notifications";
+export { graduatedStudents } from "./graduated-students";
 
 // Type exports
 export type { User, NewUser } from "./users";
@@ -30,3 +31,4 @@ export type { BackupConfig, NewBackupConfig } from "./backup-config";
 export type { DatabaseConnection, NewDatabaseConnection } from "./database-connections";
 export type { DatabaseSwitchHistory, NewDatabaseSwitchHistory } from "./database-switch-history";
 export type { Notification, NewNotification } from "./notifications";
+export type { GraduatedStudent, NewGraduatedStudent } from "./graduated-students";

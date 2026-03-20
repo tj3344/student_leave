@@ -22,6 +22,7 @@ import {
   KeyRound,
   ChevronUp,
   Bell,
+  Award,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -65,6 +66,7 @@ const navigation = [
       { name: "年级管理", href: "/admin/grades", icon: GraduationCap, roles: ["admin"] },
       { name: "班级管理", href: "/admin/classes", icon: School, roles: ["admin"] },
       { name: "学生管理", href: "/admin/students", icon: Users, roles: ["admin"] },
+      { name: "毕业学生", href: "/admin/graduated-students", icon: Award, roles: ["admin"] },
       { name: "用户管理", href: "/admin/users", icon: UserCircle, roles: ["admin"] },
     ],
   },
