@@ -450,6 +450,7 @@ export type BackupModule =
   | "grades"
   | "classes"
   | "students"
+  | "graduated_students"
   | "leave_records"
   | "fee_configs"
   | "system_config"
