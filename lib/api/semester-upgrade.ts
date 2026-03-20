@@ -573,15 +573,6 @@ export async function upgradeSemester(
             [teacher.class_teacher_id]
           );
         }
-
-        // 清除原班级的班主任关联
-        if (teachersToMigrate.length > 0) {
-          await sql.unsafe(
-            `UPDATE classes SET class_teacher_id = NULL, updated_at = CURRENT_TIMESTAMP
-             WHERE id = ANY($1)`,
-            [oldClassIds]
-          );
-        }
       }
 
       // 步骤3: 复制学生基础信息
