@@ -12,7 +12,6 @@ export async function clearAllData(userId: number) {
       "notifications",
       "operation_logs",
       "students",
-      "graduated_students",
       "classes",
       "grades",
       "semesters",
@@ -59,7 +58,6 @@ export async function clearAllData(userId: number) {
       rows += await safeDelete("fee_configs");
 
       rows += await safeDelete("students");          // 依赖 classes
-      rows += await safeDelete("graduated_students"); // 学生毕业历史数据
       rows += await safeDelete("classes");           // 依赖 grades, semesters
       rows += await safeDelete("grades");            // 依赖 semesters
       rows += await safeDelete("semesters");         // 被 fee_configs, grades, classes 引用

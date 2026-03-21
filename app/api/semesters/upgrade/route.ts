@@ -89,14 +89,11 @@ export async function POST(request: NextRequest) {
     // 记录操作日志
     if (result.success) {
       const modeText = upgradeMode === "year" ? "学年升级" : "学期迁移";
-      const graduatedText = result.data?.graduated_students_count
-        ? `, 毕业学生 ${result.data.graduated_students_count} 人`
-        : "";
       await logOperation(
         user.id,
         "upgrade",
         "semesters",
-        `${modeText}: 学期 ${body.source_semester_id} -> ${body.target_semester_id}, 年级 ${body.grade_ids.length} 个, 班级 ${result.data?.classes_created} 个, 学生 ${result.data?.students_created} 个${graduatedText}`
+        `${modeText}: 学期 ${body.source_semester_id} -> ${body.target_semester_id}, 年级 ${body.grade_ids.length} 个, 班级 ${result.data?.classes_created} 个, 学生 ${result.data?.students_created} 个`
       );
     } else {
       await logOperation(

@@ -450,7 +450,6 @@ export type BackupModule =
   | "grades"
   | "classes"
   | "students"
-  | "graduated_students"
   | "leave_records"
   | "fee_configs"
   | "system_config"
@@ -581,7 +580,6 @@ export interface SemesterUpgradeResult {
     grades_created: number;
     classes_created: number;
     students_created: number;
-    graduated_students_count?: number;  // 毕业学生数
     skipped_count?: number;  // 跳过学生数（学号已存在）
     warnings?: string[];
   };
@@ -618,14 +616,6 @@ export interface UpgradePreview {
   total_students: number;
   // 班主任映射预览信息
   class_teacher_preview?: ClassTeacherMappingPreview[];
-  // 即将毕业的学生数量（六年级）
-  graduating_students_count?: number;
-  // 毕业预览信息
-  graduation_preview?: Array<{
-    grade_name: string;
-    class_name: string;
-    student_count: number;
-  }>;
   // 学号冲突的学生数量
   conflicting_students_count?: number;
   // 年级名称冲突的数量（学年迁移时检测）

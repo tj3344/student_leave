@@ -15,7 +15,6 @@ export const TABLE_DEPENDENCY_ORDER: BackupModule[] = [
   "grades",
   "classes",
   "students",
-  "graduated_students",    // 学生毕业历史数据
   "leave_records",
   "fee_configs",
   "system_config",
@@ -237,7 +236,6 @@ async function syncSequencesAfterRestore(pgClient: any, skipTables: string[] = [
     { name: "grades", sequence: "grades_id_seq" },
     { name: "classes", sequence: "classes_id_seq" },
     { name: "students", sequence: "students_id_seq" },
-    { name: "graduated_students", sequence: "graduated_students_id_seq" },
     { name: "leave_records", sequence: "leave_records_id_seq" },
     { name: "system_config", sequence: "system_config_id_seq" },
     { name: "operation_logs", sequence: "operation_logs_id_seq" },

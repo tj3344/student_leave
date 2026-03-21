@@ -20,7 +20,6 @@ const BACKUP_MODULES = [
   { id: "grades" as const, name: "年级数据" },
   { id: "classes" as const, name: "班级数据" },
   { id: "students" as const, name: "学生数据" },
-  { id: "graduated_students" as const, name: "毕业学生数据" },
   { id: "leave_records" as const, name: "请假记录" },
   { id: "fee_configs" as const, name: "费用配置" },
   { id: "system_config" as const, name: "系统配置" },
@@ -519,13 +518,13 @@ export default function BackupPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="full">全量备份（全部10个模块）</SelectItem>
+                        <SelectItem value="full">全量备份（全部9个模块）</SelectItem>
                         <SelectItem value="partial">部分备份（已选{scheduleConfig.modules?.length || 0}个模块）</SelectItem>
                       </SelectContent>
                     </Select>
                     <p className="text-sm text-muted-foreground mt-2">
                       {scheduleConfig.backup_type === "full"
-                        ? "备份所有10个模块：用户、学期、年级、班级、学生、毕业学生数据、请假记录、费用配置、系统配置、操作日志"
+                        ? "备份所有9个模块：用户、学期、年级、班级、学生、请假记录、费用配置、系统配置、操作日志"
                         : `备份 ${scheduleConfig.modules?.length || 0} 个选定模块：${BACKUP_MODULES
                             .filter((m) => scheduleConfig.modules?.includes(m.id))
                             .map((m) => m.name)

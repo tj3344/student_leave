@@ -57,7 +57,6 @@ export function SemesterUpgradeDialog({
     grades_created: number;
     classes_created: number;
     students_created: number;
-    graduated_students_count?: number;
     skipped_count?: number;
     warnings?: string[];
   } | null>(null);
@@ -324,11 +323,11 @@ export function SemesterUpgradeDialog({
           <div className="flex-1">
             <h3 className="font-semibold mb-1">学年迁移</h3>
             <p className="text-sm text-muted-foreground mb-2">
-              适用于跨学年的学生升级，自动处理毕业
+              适用于跨学年的学生升级
             </p>
             <ul className="text-xs text-muted-foreground space-y-1">
               <li>• 年级名称自动递增（如"1年级" → "2年级"）</li>
-              <li>• 六年级学生自动标记为毕业（is_active=false）</li>
+              <li>• 六年级不创建七年级（学生毕业离校）</li>
               <li>• 只迁移年级、班级、学生基础数据</li>
               <li>• 不迁移请假和缴费记录</li>
             </ul>
@@ -474,23 +473,12 @@ export function SemesterUpgradeDialog({
             <AlertCircle className="h-4 w-4 inline mr-2" />
             <strong>注意：</strong>
             {upgradeMode === "year"
-              ? "升级后年级名称自动递增（1→2，2→3），六年级学生将被标记为毕业。"
+              ? "升级后年级名称自动递增（1→2，2→3），六年级不创建七年级。"
               : "迁移后年级名称保持不变。"
             }
             班主任为空需要手动分配。
           </p>
         </div>
-
-        {/* 学年迁移时显示毕业提示 */}
-        {upgradeMode === "year" && (preview?.graduating_students_count ?? 0) > 0 && (
-          <div className="p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded-lg">
-            <p className="text-sm text-orange-800 dark:text-orange-200">
-              <AlertCircle className="h-4 w-4 inline mr-2" />
-              <strong>毕业提示：</strong>
-              将有 {preview.graduating_students_count} 名六年级学生被标记为毕业状态，不会被迁移到新学期。
-            </p>
-          </div>
-        )}
 
         {/* 学号冲突警告 */}
         {(preview?.conflicting_students_count ?? 0) > 0 && (
@@ -792,16 +780,6 @@ export function SemesterUpgradeDialog({
             </div>
           )}
         </div>
-
-        {result?.graduated_students_count > 0 && (
-          <div className="p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-900 rounded-lg text-left">
-            <p className="text-sm text-orange-800 dark:text-orange-200">
-              <GraduationCap className="h-4 w-4 inline mr-2" />
-              <strong>毕业信息：</strong>
-              有 {result.graduated_students_count} 名六年级学生被标记为毕业状态，不会迁移到新学期。
-            </p>
-          </div>
-        )}
 
         {allSkipped ? (
           <div className="p-3 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900 rounded-lg text-left">
