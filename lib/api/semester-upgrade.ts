@@ -124,9 +124,18 @@ export async function getUpgradePreview(
       id: number;
       name: string;
       sort_order: number;
-      class_count: number;
-      student_count: number;
+      class_count: bigint;
+      student_count: bigint;
     }>;
+
+  // 将 bigint 转换为 number
+  const gradesData = gradesResult.map((g) => ({
+    id: g.id,
+    name: g.name,
+    sort_order: g.sort_order,
+    class_count: Number(g.class_count),
+    student_count: Number(g.student_count),
+  }));
 
   // 获取源学期的班级和班主任信息
   const classesResult = await pgClient.unsafe(
@@ -237,7 +246,7 @@ export async function getUpgradePreview(
     student_count: number;
   }> = [];
 
-  for (const g of gradesResult) {
+  for (const g of gradesData) {
     const newName = upgradeMode === "year" ? incrementGradeName(g.name) : g.name;
 
     if (upgradeMode === "year") {
@@ -276,8 +285,8 @@ export async function getUpgradePreview(
     available_grades: previewGrades,
     selected_grades: undefined,
     preview_data: previewData,
-    total_classes: gradesResult.reduce((sum, g) => sum + g.class_count, 0),
-    total_students: gradesResult.reduce((sum, g) => sum + g.student_count, 0),
+    total_classes: gradesData.reduce((sum, g) => sum + g.class_count, 0),
+    total_students: gradesData.reduce((sum, g) => sum + g.student_count, 0),
     class_teacher_preview: classTeacherPreview,
     graduating_students_count: graduatingStudentsCount,
     graduation_preview: graduationPreview,
