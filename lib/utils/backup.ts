@@ -144,6 +144,25 @@ function filterTimestampColumns(insertStmt: string): string | null {
 }
 
 /**
+ * 清理旧的 pre-restore 备份文件，保留最近的 count 个
+ * @param count - 保留的文件数量（默认 3）
+ */
+export function cleanOldPreRestoreBackups(count: number = 3): void {
+  const backupDir = getBackupDir();
+  const files = fs.readdirSync(backupDir)
+    .filter(f => f.startsWith("pre-restore-") && f.endsWith(".sql"))
+    .sort();  // 按文件名字母排序（时间戳顺序）
+
+  // 删除超出保留数量的旧文件
+  if (files.length > count) {
+    const toDelete = files.slice(0, files.length - count);
+    for (const file of toDelete) {
+      fs.unlinkSync(path.join(backupDir, file));
+    }
+  }
+}
+
+/**
  * 执行 SQL 恢复
  *
  * 注意：恢复时会跳过 backup_records 和 backup_config 表，保留当前的备份元数据
@@ -158,6 +177,9 @@ export async function restoreFromSQL(
   const SKIP_TABLES_IN_RESTORE = ["backup_records", "backup_config"];
 
   try {
+    // 清理旧的 pre-restore 备份（保留最近 3 个）
+    cleanOldPreRestoreBackups(3);
+
     // 恢复前自动备份当前数据
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, -5);
     const backupDir = path.join(process.cwd(), "data", "backups");
