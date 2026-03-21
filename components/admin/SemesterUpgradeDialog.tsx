@@ -15,7 +15,6 @@ import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -432,7 +431,7 @@ export function SemesterUpgradeDialog({
         </div>
 
         {/* 年级列表 */}
-        <ScrollArea className="max-h-[40vh] border rounded-lg">
+        <div className="max-h-[40vh] overflow-y-auto border rounded-lg">
           <div className="p-4 space-y-2">
             {preview.available_grades.map((grade) => {
               // 根据迁移模式决定显示方式
@@ -467,7 +466,7 @@ export function SemesterUpgradeDialog({
               );
             })}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* 注意事项 */}
         <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded-lg">
@@ -577,7 +576,7 @@ export function SemesterUpgradeDialog({
         </div>
 
         {/* 班主任映射列表 */}
-        <ScrollArea className="flex-1 min-h-0 border rounded-lg">
+        <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg">
           <div className="p-4 space-y-2">
             {teacherPreview.map((item) => (
               <div
@@ -608,7 +607,7 @@ export function SemesterUpgradeDialog({
               </div>
             ))}
           </div>
-        </ScrollArea>
+        </div>
 
         {/* 注意事项 */}
         <div className="p-3 bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-900 rounded-lg shrink-0">
@@ -660,7 +659,7 @@ export function SemesterUpgradeDialog({
         </div>
 
         {/* 年级映射详情 */}
-        <ScrollArea className="max-h-[30vh] border rounded-lg">
+        <div className="max-h-[30vh] overflow-y-auto border rounded-lg">
           <div className="p-4">
             <table className="w-full text-sm">
               <thead className="border-b">
@@ -699,7 +698,7 @@ export function SemesterUpgradeDialog({
               </tbody>
             </table>
           </div>
-        </ScrollArea>
+        </div>
 
         {/* 班主任迁移选项 */}
         <div className="p-4 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 rounded-lg">
