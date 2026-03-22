@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { RefreshCw, Search, Download } from "lucide-react";
+import { RefreshCw, Search, Download, AlertCircle } from "lucide-react";
 import type { StudentWithDetails, User } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StudentTable } from "@/components/admin/StudentTable";
 import { StudentForm } from "@/components/admin/StudentForm";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select,
   SelectContent,
@@ -24,6 +25,7 @@ export default function ClassTeacherStudentsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [classInfo, setClassInfo] = useState<{ id: number; name: string; grade_name: string } | null>(null);
+  const [classInfoError, setClassInfoError] = useState<string | null>(null);
   const [canEditStudent, setCanEditStudent] = useState(false);
   const [canDeleteStudent, setCanDeleteStudent] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
@@ -65,9 +67,13 @@ export default function ClassTeacherStudentsPage() {
       const data = await response.json();
       if (response.ok && data.data) {
         setClassInfo(data.data);
+        setClassInfoError(null);
+      } else {
+        setClassInfoError(data.error || "获取班级信息失败");
       }
     } catch (error) {
       console.error("Fetch class info error:", error);
+      setClassInfoError("网络错误，请稍后重试");
     }
   };
 
@@ -178,7 +184,23 @@ export default function ClassTeacherStudentsPage() {
     }
   };
 
-  if (!currentUser || !classInfo) {
+  if (!currentUser) {
+    return <div>加载中...</div>;
+  }
+
+  if (classInfoError) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>无法访问</AlertTitle>
+        <AlertDescription>
+          {classInfoError}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!classInfo) {
     return <div>加载中...</div>;
   }
 

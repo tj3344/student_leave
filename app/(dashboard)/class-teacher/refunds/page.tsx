@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Download, RefreshCw } from "lucide-react";
+import { Download, RefreshCw, AlertCircle } from "lucide-react";
 import type { StudentRefundRecord, User } from "@/types";
 import { Button } from "@/components/ui/button";
 import { RefundRecordTable } from "@/components/admin/RefundRecordTable";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export default function ClassTeacherRefundsPage() {
   const router = useRouter();
@@ -14,6 +15,7 @@ export default function ClassTeacherRefundsPage() {
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [classInfo, setClassInfo] = useState<{ id: number; name: string; grade_name: string } | null>(null);
+  const [classInfoError, setClassInfoError] = useState<string | null>(null);
   const [currentSemesterId, setCurrentSemesterId] = useState<string>("");
 
   // 获取当前用户信息
@@ -52,9 +54,13 @@ export default function ClassTeacherRefundsPage() {
       const data = await response.json();
       if (response.ok && data.data) {
         setClassInfo(data.data);
+        setClassInfoError(null);
+      } else {
+        setClassInfoError(data.error || "获取班级信息失败");
       }
     } catch (error) {
       console.error("Fetch class info error:", error);
+      setClassInfoError("网络错误，请稍后重试");
     }
   };
 
@@ -139,7 +145,23 @@ export default function ClassTeacherRefundsPage() {
     }
   }, [classInfo, currentSemesterId]);
 
-  if (!currentUser || !classInfo) {
+  if (!currentUser) {
+    return <div>加载中...</div>;
+  }
+
+  if (classInfoError) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>无法访问</AlertTitle>
+        <AlertDescription>
+          {classInfoError}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!classInfo) {
     return <div>加载中...</div>;
   }
 

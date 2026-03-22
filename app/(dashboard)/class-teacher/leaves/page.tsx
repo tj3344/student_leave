@@ -51,6 +51,7 @@ export default function ClassTeacherLeavesPage() {
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const [semesterLoading, setSemesterLoading] = useState(true);
   const [classInfo, setClassInfo] = useState<{ id: number; name: string; grade_name: string } | null>(null);
+  const [classInfoError, setClassInfoError] = useState<string | null>(null);
   const [canEditLeave, setCanEditLeave] = useState(true); // 编辑权限开关
   const [teacherApplyEnabled, setTeacherApplyEnabled] = useState(true); // 教师请假申请功能开关
 
@@ -105,6 +106,9 @@ export default function ClassTeacherLeavesPage() {
       const data = await response.json();
       if (response.ok && data.data) {
         setClassInfo(data.data);
+        setClassInfoError(null);
+      } else {
+        setClassInfoError(data.error || "获取班级信息失败");
       }
 
       // 获取编辑权限配置
@@ -255,7 +259,23 @@ export default function ClassTeacherLeavesPage() {
     }
   };
 
-  if (!currentUser || !classInfo) {
+  if (!currentUser) {
+    return <div>加载中...</div>;
+  }
+
+  if (classInfoError) {
+    return (
+      <Alert variant="destructive">
+        <AlertCircle className="h-4 w-4" />
+        <AlertTitle>无法访问</AlertTitle>
+        <AlertDescription>
+          {classInfoError}
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  if (!classInfo) {
     return <div>加载中...</div>;
   }
 
