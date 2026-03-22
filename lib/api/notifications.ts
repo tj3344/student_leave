@@ -378,9 +378,10 @@ export async function getAllClassTeachersForNotification(semesterId?: number): P
   NotificationClassTeacher[]
 > {
   const pgClient = getRawPostgres();
-  let query = `SELECT u.id, u.real_name, u.username, c.name as class_name
+  let query = `SELECT u.id, u.real_name, u.username, c.name as class_name, g.name as grade_name
      FROM users u
-     LEFT JOIN classes c ON u.id = c.class_teacher_id`;
+     LEFT JOIN classes c ON u.id = c.class_teacher_id
+     LEFT JOIN grades g ON c.grade_id = g.id`;
   const params: (string | number)[] = [];
 
   // 如果指定了学期，只返回该学期的班主任
@@ -392,7 +393,7 @@ export async function getAllClassTeachersForNotification(semesterId?: number): P
     query += ` WHERE u.role = 'class_teacher' AND u.is_active = true`;
   }
 
-  query += ` ORDER BY u.real_name`;
+  query += ` ORDER BY g.sort_order ASC, c.name ASC, u.real_name ASC`;
 
   const result = await pgClient.unsafe(query, params);
   return result;

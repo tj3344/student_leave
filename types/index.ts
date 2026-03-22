@@ -782,6 +782,7 @@ export interface NotificationClassTeacher {
   real_name: string;
   username: string;
   class_name?: string;
+  grade_name?: string;
 }
 
 // 管理员查看的聚合通知类型（批量发送的通知合并显示）

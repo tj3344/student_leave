@@ -260,7 +260,7 @@ export function NotificationSendDialog({ open, onClose, onSuccess }: Notificatio
                               <span>{teacher.real_name}</span>
                               {teacher.class_name && (
                                 <span className="text-muted-foreground text-xs">
-                                  {teacher.class_name}
+                                  {teacher.grade_name ? `${teacher.grade_name} ` : ""}{teacher.class_name}
                                 </span>
                               )}
                             </div>
