@@ -24,15 +24,22 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [needsSemester, setNeedsSemester] = useState(false);
   const [roleChecked, setRoleChecked] = useState(false);
 
   const fetchStats = async () => {
     setLoading(true);
     setError(null);
+    setNeedsSemester(false);
     try {
       const response = await fetch("/api/dashboard/stats");
       if (!response.ok) {
         const data = await response.json();
+        // 未设置当前学期：不视为错误，改为友好引导
+        if (data.error === "未设置当前学期") {
+          setNeedsSemester(true);
+          return;
+        }
         throw new Error(data.error || "获取统计数据失败");
       }
       const result = await response.json();
@@ -109,6 +116,36 @@ export default function AdminDashboardPage() {
         <div className="flex items-center justify-center h-64">
           <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
         </div>
+      </div>
+    );
+  }
+
+  if (needsSemester) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold">管理后台</h1>
+          <p className="text-muted-foreground">欢迎使用学生请假管理系统</p>
+        </div>
+        <Card className="border-amber-200 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-amber-700">
+              <AlertCircle className="h-5 w-5" />
+              尚未设置当前学期
+            </CardTitle>
+            <CardDescription className="text-amber-600">
+              在使用系统功能前，请先创建一个学期并将其设为当前学期。
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/semesters" prefetch={false}>
+              <Button className="cursor-pointer">
+                <Calendar className="h-4 w-4 mr-2" />
+                前往学期管理
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
       </div>
     );
   }

@@ -77,3 +77,7 @@ next-env.d.ts
 # Claude Code
 .claude/
 dist.zip
+
+# Reasonix
+.reasonix/
+reasonix.toml
