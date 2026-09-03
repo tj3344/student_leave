@@ -161,6 +161,14 @@ export function LeaveForm({ open, onClose, onSuccess, defaultClassId, editingLea
           reason: editingLeave.reason,
           ...(includeStatus && { status: editingLeave.status as "pending" | "approved" | "rejected" }),
         });
+
+        // 管理员编辑：带入年级/班级级联选择（否则年级班级为空、学生选择器禁用）
+        if (currentUser?.role === "admin" && editingLeave.grade_id) {
+          setSelectedGradeId(editingLeave.grade_id);
+          setSelectedClassId(editingLeave.class_id);
+          // 加载该年级的班级列表，保证班级下拉能显示原班级
+          fetchClasses(editingLeave.grade_id);
+        }
       }
     }
   }, [open, mode, editingLeave, includeStatus, currentUser?.role]);

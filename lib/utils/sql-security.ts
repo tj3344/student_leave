@@ -75,6 +75,9 @@ export const SORT_FIELDS = {
     "s.created_at",
     "s.name",
     "s.student_no",
+    // 兼容前端传入的无前缀字段名（StudentTable onSort 传 "student_no"）；
+    // students 查询中该列仅存在于 students 表，无歧义，白名单匹配保证安全
+    "student_no",
     "c.name",
     "g.name",
   ],

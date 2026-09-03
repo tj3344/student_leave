@@ -22,6 +22,8 @@ services:
     volumes:
       # 日志目录
       - ./logs:/app/logs
+      # 备份目录（必须持久化，否则容器重建后备份文件丢失导致无法恢复）
+      - ./data/backups:/app/data/backups
     networks:
       - student-leave-network
     healthcheck:

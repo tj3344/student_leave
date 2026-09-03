@@ -96,7 +96,9 @@ export async function getLeaves(
       s.student_no,
       s.is_nutrition_meal,
       c.name as class_name,
+      c.id as class_id,
       g.name as grade_name,
+      g.id as grade_id,
       u.real_name as applicant_name,
       reviewer.real_name as reviewer_name,
       sem.name as semester_name
@@ -612,7 +614,9 @@ export async function updateLeave(
   }
 
   // 验证补请假天数和日期重叠（排除自身记录）
-  const validation = validateLeaveRequest(
+  // 注意必须 await：validateLeaveRequest 是 async 函数，
+  // 此前漏写 await 导致 validation 恒为 Promise，更新永远失败（报“提交失败”）
+  const validation = await validateLeaveRequest(
     input.student_id,
     input.semester_id,
     input.start_date,

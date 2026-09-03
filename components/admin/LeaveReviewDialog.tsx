@@ -255,14 +255,17 @@ export function LeaveReviewDialog({
         </div>
 
         <DialogFooter>
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onClose}
-            disabled={isSubmitting}
-          >
-            取消
-          </Button>
+          {/* view（详情预览）模式下“取消”与“关闭”功能重复，只保留“关闭” */}
+          {mode !== "view" && (
+            <Button
+              type="button"
+              variant="outline"
+              onClick={onClose}
+              disabled={isSubmitting}
+            >
+              取消
+            </Button>
+          )}
           <Button
             type="button"
             variant={getSubmitVariant()}

@@ -31,6 +31,10 @@ export default function ClassTeacherStudentsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<StudentWithDetails | undefined>();
 
+  // 排序状态（与管理员学生页保持一致，传递给 StudentTable）
+  const [sortField, setSortField] = useState("created_at");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+
   // 获取当前用户信息
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -87,6 +91,9 @@ export default function ClassTeacherStudentsPage() {
       if (statusFilter) params.append("is_active", statusFilter);
       // 强制只获取本班学生
       params.append("class_id", classInfo.id.toString());
+      // 排序参数（学号等字段点击表头排序）
+      params.append("sort", sortField);
+      params.append("order", sortOrder);
 
       const response = await fetch(`/api/students?${params.toString()}`);
       const data = await response.json();
@@ -122,7 +129,17 @@ export default function ClassTeacherStudentsPage() {
     if (classInfo) {
       fetchStudents();
     }
-  }, [classInfo, searchQuery, statusFilter]);
+  }, [classInfo, searchQuery, statusFilter, sortField, sortOrder]);
+
+  // 切换排序字段/方向（与管理员学生页一致；数据刷新由上方 effect 驱动）
+  const handleSort = (field: string) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("desc");
+    }
+  };
 
   // 编辑学生处理函数
   const handleEdit = (student: StudentWithDetails) => {
@@ -253,6 +270,9 @@ export default function ClassTeacherStudentsPage() {
         onRefresh={fetchStudents}
         canEdit={canEditStudent}
         canDelete={canDeleteStudent}
+        sortField={sortField}
+        sortOrder={sortOrder}
+        onSort={handleSort}
       />
 
       <StudentForm

@@ -89,12 +89,15 @@ export async function validateDateOverlap(
   if (count > 0) {
     // 获取重叠记录的详细信息用于友好提示
     const detailParams = [...params];
+    // 注意：detailParams 共 5 个参数（含 excludeId），排除自身的占位符是 $5。
+    // 此前误写为 detailParams.length + 1 生成 $6，导致 $5 未出现在 SQL 中，
+    // PG 报 "could not determine data type of parameter $5"（编辑提交 500）
     const detailQuery = `
       SELECT start_date, end_date, status
       FROM leave_records
       WHERE student_id = $1 AND semester_id = $2 AND status IN ('pending', 'approved')
         AND (($3 < end_date) AND ($4 > start_date))
-        ${excludeId ? `AND id != $${detailParams.length + 1}` : ""}
+        ${excludeId ? `AND id != $${detailParams.length}` : ""}
       LIMIT 3
     `;
     const overlappingRecords = await pgClient.unsafe(detailQuery, detailParams);

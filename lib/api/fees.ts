@@ -171,7 +171,7 @@ export async function createFeeConfig(
   // 插入费用配置
   const result = await pgClient.unsafe(
     `INSERT INTO fee_configs (class_id, semester_id, meal_fee_standard, prepaid_days, actual_days, suspension_days, created_at, updated_at)
-     IALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+     VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
      RETURNING id`,
     [input.class_id, input.semester_id, input.meal_fee_standard, input.prepaid_days, input.actual_days, input.suspension_days]
   );
@@ -672,8 +672,11 @@ export async function batchCreateOrUpdateFeeConfigs(
           errors.push({ row: i + 1, input, message: createResult.message || '创建失败' });
         }
       }
-    } catch {
-      errors.push({ row: i + 1, input, message: '处理失败' });
+    } catch (error) {
+      // 携带真实错误信息，便于排查（此前空 catch 只报“处理失败”，掩盖了 SQL 语法错误等问题）
+      const message = error instanceof Error ? error.message : String(error);
+      console.error(`[费用配置导入] 第${i + 1}行处理失败:`, message);
+      errors.push({ row: i + 1, input, message: `处理失败: ${message}` });
     }
   }
 

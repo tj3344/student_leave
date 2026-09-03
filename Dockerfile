@@ -29,6 +29,10 @@ RUN npm ci --prefer-offline --no-audit && \
 COPY next.config.ts ./
 COPY tsconfig.json ./
 COPY components.json ./
+# postcss.config.mjs 必须复制：声明 @tailwindcss/postcss 插件，
+# 缺失时 Next.js 走内置 PostCSS 回退，Tailwind v4 源扫描失效，
+# utilities 工具类不会生成（页面布局混乱）
+COPY postcss.config.mjs ./
 COPY app ./app
 COPY lib ./lib
 COPY components ./components
@@ -37,6 +41,12 @@ COPY hooks ./hooks
 
 # 复制 public 目录（使用 .gitkeep 确保目录非空）
 COPY public ./public
+
+# 构建期占位密钥：next build 收集页面数据时数据库层会校验这些环境变量，
+# 运行时由 docker-compose 注入真实密钥覆盖
+ENV DB_ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000 \
+    CSRF_SECRET=0000000000000000000000000000000000000000000000000000000000000000 \
+    SESSION_SECRET=YnVpbGQtdGltZS1wbGFjZWhvbGRlcg==
 
 # 构建应用
 RUN npm run build && \
@@ -96,5 +106,7 @@ EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
-# 使用 PM2 Runtime 启动应用（容器内必须使用 --no-daemon）
-CMD ["pm2-runtime", "start", "ecosystem.config.cjs", "--no-daemon"]
+# 使用 Node 直接启动 standalone 服务器
+# （容器 restart: unless-stopped 已提供进程守护；
+#   pm2-runtime 不支持 --no-daemon 选项，且容器内无需 PM2）
+CMD ["node", "server.js"]

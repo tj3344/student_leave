@@ -46,42 +46,11 @@ const nextConfig: NextConfig = {
     ],
   },
 
-  // Webpack 配置优化
-  webpack: (config, { dev, isServer }) => {
-    // 生产环境优化
-    if (!dev && !isServer) {
-      config.optimization = {
-        ...config.optimization,
-        splitChunks: {
-          chunks: "all",
-          cacheGroups: {
-            // 将 node_modules 中的包打包到 vendor
-            vendor: {
-              test: /[/\\]node_modules[/\\]/,
-              name: "vendors",
-              priority: 10,
-              reuseExistingChunk: true,
-            },
-            // 将 Radix UI 组件单独打包
-            radix: {
-              test: /[/\\]node_modules[/\\]@radix-ui/,
-              name: "radix",
-              priority: 20,
-              reuseExistingChunk: true,
-            },
-            // 将 common 代码单独打包
-            common: {
-              minChunks: 2,
-              priority: 5,
-              reuseExistingChunk: true,
-            },
-          },
-        },
-      };
-    }
-
-    return config;
-  },
+  // 注意：不要自定义 webpack splitChunks。
+  // 覆盖 splitChunks 会导致 Next.js chunk 清单错乱，CSS 文件被当作
+  // JS chunk 以 <script async> 预加载，浏览器执行 CSS 内容报
+  // "SyntaxError: Invalid character: '@'"（Safari 控制台红错）。
+  // Next.js 默认分包已足够，样式由 <link rel="stylesheet"> 正常加载。
 
   // 日志输出优化
   logging: {

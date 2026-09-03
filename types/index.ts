@@ -238,7 +238,9 @@ export interface LeaveWithDetails extends LeaveRecord {
   student_name?: string;
   student_no?: string;
   class_name?: string;
+  class_id?: number;
   grade_name?: string;
+  grade_id?: number;
   applicant_name?: string;
   reviewer_name?: string;
   semester_name?: string;
