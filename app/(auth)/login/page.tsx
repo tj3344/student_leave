@@ -1,21 +1,85 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { School } from "lucide-react";
+
+// localStorage 存储键
+const REMEMBER_KEY = "remember_credentials";
+
+interface RememberedCredentials {
+  username: string;
+  password: string; // Base64 编码存储，避免明文直接可见
+}
+
+function readRememberedCredentials(): RememberedCredentials | null {
+  try {
+    const raw = localStorage.getItem(REMEMBER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as RememberedCredentials;
+    if (!parsed.username || !parsed.password) return null;
+    return {
+      username: parsed.username,
+      // 解码失败时回退原始值（兼容旧数据）
+      password: (() => {
+        try {
+          return atob(parsed.password);
+        } catch {
+          return parsed.password;
+        }
+      })(),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveRememberedCredentials(username: string, password: string) {
+  try {
+    localStorage.setItem(
+      REMEMBER_KEY,
+      JSON.stringify({
+        username,
+        password: btoa(password),
+      })
+    );
+  } catch {
+    // 存储失败（如隐私模式/空间不足）时静默忽略，不影响登录
+  }
+}
+
+function clearRememberedCredentials() {
+  try {
+    localStorage.removeItem(REMEMBER_KEY);
+  } catch {
+    // 忽略
+  }
+}
 
 function LoginForm() {
   const router = useRouter();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // 挂载时恢复已保存的账号密码
+  useEffect(() => {
+    const saved = readRememberedCredentials();
+    if (saved) {
+      setUsername(saved.username);
+      setPassword(saved.password);
+      setRememberMe(true);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,6 +98,13 @@ function LoginForm() {
       if (!response.ok) {
         setError(data.error || "登录失败");
         return;
+      }
+
+      // 登录成功后按勾选状态保存/清除账号密码
+      if (rememberMe) {
+        saveRememberedCredentials(username, password);
+      } else {
+        clearRememberedCredentials();
       }
 
       // 登录成功，重定向到 /home
@@ -97,6 +168,18 @@ function LoginForm() {
                 required
                 disabled={loading}
               />
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="remember-me"
+                checked={rememberMe}
+                onCheckedChange={(checked) => setRememberMe(checked === true)}
+                disabled={loading}
+              />
+              <Label htmlFor="remember-me" className="text-sm font-normal cursor-pointer text-muted-foreground">
+                记住账号和密码
+              </Label>
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>
