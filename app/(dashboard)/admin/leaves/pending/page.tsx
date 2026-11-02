@@ -19,6 +19,7 @@ const LeaveReviewDialog = dynamic(
 );
 import { Card, CardContent } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Pagination } from "@/components/common/Pagination";
 
 interface ClassOption {
   id: number;
@@ -36,30 +37,66 @@ export default function PendingLeavesPage() {
   const [classFilter, setClassFilter] = useState("");
   const [pendingCount, setPendingCount] = useState(0);
   const [classDialogOpen, setClassDialogOpen] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+  });
 
   // 审核对话框状态
   const [reviewDialogOpen, setReviewDialogOpen] = useState(false);
   const [reviewLeave, setReviewLeave] = useState<LeaveWithDetails | null>(null);
   const [reviewMode, setReviewMode] = useState<"view" | "approve" | "reject">("view");
 
-  const fetchLeaves = async () => {
+  const fetchLeaves = async (page = 1, limit = pagination.limit) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      params.append("status", "pending");
-      if (searchQuery) params.append("search", searchQuery);
-      if (currentSemesterId) params.append("semester_id", currentSemesterId.toString());
-      if (classFilter) params.append("class_id", classFilter);
+      const load = async (pageNo: number) => {
+        const params = new URLSearchParams();
+        params.append("status", "pending");
+        if (searchQuery) params.append("search", searchQuery);
+        if (currentSemesterId) params.append("semester_id", currentSemesterId.toString());
+        if (classFilter) params.append("class_id", classFilter);
+        params.append("page", pageNo.toString());
+        params.append("limit", limit.toString());
 
-      const response = await fetch(`/api/leaves?${params.toString()}`);
-      const data = await response.json();
+        const response = await fetch(`/api/leaves?${params.toString()}`);
+        return response.json();
+      };
+
+      let data = await load(page);
+      const total = Number(data.total) || 0;
+      const totalPages = Number(data.totalPages) || 0;
+
+      // 页码越界（如审核完当前页最后一条记录）时回退到最后一页
+      if (page > 1 && (total === 0 || page > totalPages)) {
+        data = await load(Math.max(1, totalPages));
+      }
+
       setLeaves(data.data || []);
-      setPendingCount(data.total || 0);
+      setPendingCount(Number(data.total) || 0);
+      setPagination({
+        page: Number(data.page) || page,
+        limit: Number(data.limit) || limit,
+        total: Number(data.total) || 0,
+        totalPages: Number(data.totalPages) || 0,
+      });
     } catch (error) {
       console.error("Fetch leaves error:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= Math.max(pagination.totalPages, 1)) {
+      fetchLeaves(newPage);
+    }
+  };
+
+  const handleLimitChange = (newLimit: number) => {
+    fetchLeaves(1, newLimit);
   };
 
   const fetchCurrentSemester = async () => {
@@ -136,7 +173,7 @@ export default function PendingLeavesPage() {
           </h1>
           <p className="text-muted-foreground">审核待处理的请假申请</p>
         </div>
-        <Button variant="outline" size="icon" onClick={() => currentSemesterId && fetchLeaves()} disabled={loading}>
+        <Button variant="outline" size="icon" onClick={() => currentSemesterId && fetchLeaves(pagination.page)} disabled={loading}>
           <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
         </Button>
       </div>
@@ -240,6 +277,16 @@ export default function PendingLeavesPage() {
               onReject={handleReject}
             />
           )}
+
+          <Pagination
+            page={pagination.page}
+            total={pagination.total}
+            totalPages={pagination.totalPages}
+            limit={pagination.limit}
+            onPageChange={handlePageChange}
+            onLimitChange={handleLimitChange}
+            loading={loading}
+          />
         </>
       )}
 
@@ -250,7 +297,7 @@ export default function PendingLeavesPage() {
           setReviewDialogOpen(false);
           setReviewLeave(null);
         }}
-        onSuccess={fetchLeaves}
+        onSuccess={() => fetchLeaves(pagination.page)}
         leave={reviewLeave}
         mode={reviewMode}
       />

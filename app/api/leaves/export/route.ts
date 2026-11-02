@@ -5,6 +5,7 @@ import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { exportLeavesToExcel, workbookToBlob } from "@/lib/utils/excel";
 import { logExport } from "@/lib/utils/logger";
 import { checkExportLimit } from "@/lib/utils/export";
+import { isValidDateString } from "@/lib/utils/date";
 
 /**
  * GET /api/leaves/export - 导出请假列表
@@ -27,6 +28,19 @@ export async function GET(request: NextRequest) {
     const class_id = searchParams.get("class_id");
     const semester_id = searchParams.get("semester_id");
     const status = searchParams.get("status");
+    const start_date_from = searchParams.get("start_date_from") || "";
+    const start_date_to = searchParams.get("start_date_to") || "";
+
+    // 校验请假开始日期筛选参数
+    if (start_date_from && !isValidDateString(start_date_from)) {
+      return NextResponse.json({ error: "开始日期格式不正确" }, { status: 400 });
+    }
+    if (start_date_to && !isValidDateString(start_date_to)) {
+      return NextResponse.json({ error: "结束日期格式不正确" }, { status: 400 });
+    }
+    if (start_date_from && start_date_to && start_date_from > start_date_to) {
+      return NextResponse.json({ error: "开始日期不能晚于结束日期" }, { status: 400 });
+    }
 
     // 构建查询参数（不分页，获取所有）
     const params: {
@@ -34,6 +48,8 @@ export async function GET(request: NextRequest) {
       class_id?: number;
       semester_id?: number;
       status?: string;
+      start_date_from?: string;
+      start_date_to?: string;
       limit: number;
     } = {
       limit: 10000, // 获取所有数据
@@ -43,6 +59,8 @@ export async function GET(request: NextRequest) {
     if (class_id) params.class_id = parseInt(class_id, 10);
     if (semester_id) params.semester_id = parseInt(semester_id, 10);
     if (status) params.status = status;
+    if (start_date_from) params.start_date_from = start_date_from;
+    if (start_date_to) params.start_date_to = start_date_to;
 
     // 教师只能导出自己申请的请假记录
     let applicant_id: number | undefined;
@@ -146,7 +164,10 @@ export async function GET(request: NextRequest) {
     const blob = workbookToBlob(workbook);
 
     // 记录导出日志
-    await logExport(currentUser.id, "leaves", `导出请假列表，共 ${validData.length} 条记录`);
+    const dateRangeText = start_date_from || start_date_to
+      ? `，请假开始日期 ${start_date_from || "不限"} 至 ${start_date_to || "不限"}`
+      : "";
+    await logExport(currentUser.id, "leaves", `导出请假列表，共 ${validData.length} 条记录${dateRangeText}`);
 
     // 生成文件名并编码（支持中文）
     const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, "");

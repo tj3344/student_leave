@@ -16,6 +16,8 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { ClassSelectDialog } from "@/components/admin/ClassSelectDialog";
+import { Pagination } from "@/components/common/Pagination";
+import { DateRangeFilter } from "@/components/common/DateRangeFilter";
 
 // 懒加载组件
 const LeaveTable = dynamic(() => import("@/components/admin/LeaveTable").then(m => ({ default: m.LeaveTable })), {
@@ -55,6 +57,14 @@ export default function UnifiedLeavesPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+  });
+  const [startDateFrom, setStartDateFrom] = useState("");
+  const [startDateTo, setStartDateTo] = useState("");
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const [currentSemesterName, setCurrentSemesterName] = useState<string | null>(null);
   const [semesterLoading, setSemesterLoading] = useState(true);
@@ -140,23 +150,55 @@ export default function UnifiedLeavesPage() {
     }
   };
 
-  const fetchLeaves = async () => {
+  const fetchLeaves = async (page = 1, limit = pagination.limit) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams();
-      if (searchQuery) params.append("search", searchQuery);
-      if (statusFilter) params.append("status", statusFilter);
-      if (currentSemesterId) params.append("semester_id", currentSemesterId.toString());
-      if (classFilter) params.append("class_id", classFilter);
+      const load = async (pageNo: number) => {
+        const params = new URLSearchParams();
+        if (searchQuery) params.append("search", searchQuery);
+        if (statusFilter) params.append("status", statusFilter);
+        if (currentSemesterId) params.append("semester_id", currentSemesterId.toString());
+        if (classFilter) params.append("class_id", classFilter);
+        if (startDateFrom) params.append("start_date_from", startDateFrom);
+        if (startDateTo) params.append("start_date_to", startDateTo);
+        params.append("page", pageNo.toString());
+        params.append("limit", limit.toString());
 
-      const response = await fetch(`/api/leaves?${params.toString()}`);
-      const data = await response.json();
+        const response = await fetch(`/api/leaves?${params.toString()}`);
+        return response.json();
+      };
+
+      let data = await load(page);
+      const total = Number(data.total) || 0;
+      const totalPages = Number(data.totalPages) || 0;
+
+      // 页码越界（如删除当前页最后一条记录）时回退到最后一页
+      if (page > 1 && (total === 0 || page > totalPages)) {
+        data = await load(Math.max(1, totalPages));
+      }
+
       setLeaves(data.data || []);
+      setPagination({
+        page: Number(data.page) || page,
+        limit: Number(data.limit) || limit,
+        total: Number(data.total) || 0,
+        totalPages: Number(data.totalPages) || 0,
+      });
     } catch (error) {
       console.error("Fetch leaves error:", error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePageChange = (newPage: number) => {
+    if (newPage >= 1 && newPage <= Math.max(pagination.totalPages, 1)) {
+      fetchLeaves(newPage);
+    }
+  };
+
+  const handleLimitChange = (newLimit: number) => {
+    fetchLeaves(1, newLimit);
   };
 
   const fetchCurrentSemester = async () => {
@@ -206,7 +248,7 @@ export default function UnifiedLeavesPage() {
       fetchLeaves();
       fetchClasses();
     }
-  }, [currentUser, searchQuery, statusFilter, currentSemesterId, classFilter]);
+  }, [currentUser, searchQuery, statusFilter, currentSemesterId, classFilter, startDateFrom, startDateTo]);
 
   const handleViewDetail = (leave: LeaveWithDetails) => {
     setReviewLeave(leave);
@@ -254,7 +296,7 @@ export default function UnifiedLeavesPage() {
         throw new Error(data.error || "撤销审核失败");
       }
 
-      fetchLeaves();
+      fetchLeaves(pagination.page);
       setRevokeDialogOpen(false);
       setRevokingLeave(null);
     } catch (error) {
@@ -276,7 +318,7 @@ export default function UnifiedLeavesPage() {
         throw new Error(data.error || "删除失败");
       }
 
-      fetchLeaves();
+      fetchLeaves(pagination.page);
       setDeleteDialogOpen(false);
       setDeleteLeave(null);
     } catch (error) {
@@ -299,6 +341,8 @@ export default function UnifiedLeavesPage() {
       if (statusFilter) params.append("status", statusFilter);
       params.append("semester_id", currentSemesterId.toString());
       if (classFilter) params.append("class_id", classFilter);
+      if (startDateFrom) params.append("start_date_from", startDateFrom);
+      if (startDateTo) params.append("start_date_to", startDateTo);
 
       const response = await fetch(`/api/leaves/export?${params.toString()}`);
 
@@ -368,7 +412,7 @@ export default function UnifiedLeavesPage() {
           <p className="text-muted-foreground">{getPageDescription()}</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" size="icon" onClick={() => currentSemesterId && fetchLeaves()} disabled={loading}>
+          <Button variant="outline" size="icon" onClick={() => currentSemesterId && fetchLeaves(pagination.page)} disabled={loading}>
             <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
           </Button>
           {canExport && (
@@ -464,6 +508,15 @@ export default function UnifiedLeavesPage() {
                 <SelectItem value="rejected">{LEAVE_STATUS_NAMES.rejected}</SelectItem>
               </SelectContent>
             </Select>
+            <DateRangeFilter
+              from={startDateFrom}
+              to={startDateTo}
+              onChange={({ from, to }) => {
+                setStartDateFrom(from);
+                setStartDateTo(to);
+              }}
+              disabled={!currentSemesterId}
+            />
           </div>
 
           <ClassSelectDialog
@@ -486,6 +539,16 @@ export default function UnifiedLeavesPage() {
             canEdit={canEdit}
           />
 
+          <Pagination
+            page={pagination.page}
+            total={pagination.total}
+            totalPages={pagination.totalPages}
+            limit={pagination.limit}
+            onPageChange={handlePageChange}
+            onLimitChange={handleLimitChange}
+            loading={loading}
+          />
+
           {/* 审核对话框 */}
           <LeaveReviewDialog
             open={reviewDialogOpen}
@@ -493,7 +556,7 @@ export default function UnifiedLeavesPage() {
               setReviewDialogOpen(false);
               setReviewLeave(null);
             }}
-            onSuccess={fetchLeaves}
+            onSuccess={() => fetchLeaves(pagination.page)}
             leave={reviewLeave}
             mode={reviewMode}
           />
@@ -536,7 +599,7 @@ export default function UnifiedLeavesPage() {
             onClose={() => setImportOpen(false)}
             onSuccess={() => {
               setImportOpen(false);
-              fetchLeaves();
+              fetchLeaves(pagination.page);
             }}
             currentSemesterId={currentSemesterId}
             currentSemesterName={currentSemesterName}
@@ -552,7 +615,7 @@ export default function UnifiedLeavesPage() {
             onSuccess={() => {
               setEditFormOpen(false);
               setEditingLeave(null);
-              fetchLeaves();
+              fetchLeaves(pagination.page);
             }}
             editingLeave={editingLeave ?? undefined}
             mode={editingLeave ? "edit" : "create"}

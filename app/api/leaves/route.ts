@@ -3,6 +3,7 @@ import { getCurrentUser } from "@/lib/api/auth";
 import { getLeaves, createLeave } from "@/lib/api/leaves";
 import { hasPermission, PERMISSIONS } from "@/lib/constants";
 import { logCreate } from "@/lib/utils/logger";
+import { isValidDateString } from "@/lib/utils/date";
 import type { LeaveInput } from "@/types";
 
 /**
@@ -29,8 +30,21 @@ export async function GET(request: NextRequest) {
     const class_id = searchParams.get("class_id");
     const semester_id = searchParams.get("semester_id");
     const status = searchParams.get("status");
+    const start_date_from = searchParams.get("start_date_from") || "";
+    const start_date_to = searchParams.get("start_date_to") || "";
     const sort = searchParams.get("sort") || "created_at";
     const order = (searchParams.get("order") || "desc") as "asc" | "desc";
+
+    // 校验请假开始日期筛选参数
+    if (start_date_from && !isValidDateString(start_date_from)) {
+      return NextResponse.json({ error: "开始日期格式不正确" }, { status: 400 });
+    }
+    if (start_date_to && !isValidDateString(start_date_to)) {
+      return NextResponse.json({ error: "结束日期格式不正确" }, { status: 400 });
+    }
+    if (start_date_from && start_date_to && start_date_from > start_date_to) {
+      return NextResponse.json({ error: "开始日期不能晚于结束日期" }, { status: 400 });
+    }
 
     // 教师只能查看自己申请的请假记录
     let applicant_id: number | undefined;
@@ -86,6 +100,8 @@ export async function GET(request: NextRequest) {
       semester_id: semester_id ? parseInt(semester_id, 10) : undefined,
       status: status || undefined,
       applicant_id,
+      start_date_from: start_date_from || undefined,
+      start_date_to: start_date_to || undefined,
       sort,
       order,
     });

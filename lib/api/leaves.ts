@@ -24,6 +24,8 @@ export async function getLeaves(
     semester_id?: number;
     status?: string;
     applicant_id?: number;
+    start_date_from?: string;
+    start_date_to?: string;
   }
 ): Promise<PaginatedResponse<LeaveWithDetails>> {
   const pgClient = getRawPostgres();
@@ -66,6 +68,17 @@ export async function getLeaves(
   if (params.applicant_id) {
     whereClause += " AND lr.applicant_id = $" + (paramIndex++);
     queryParams.push(params.applicant_id);
+  }
+
+  // 按请假开始日期筛选（闭区间，start_date 为 YYYY-MM-DD 文本，可直接比较）
+  if (params.start_date_from) {
+    whereClause += " AND lr.start_date >= $" + (paramIndex++);
+    queryParams.push(params.start_date_from);
+  }
+
+  if (params.start_date_to) {
+    whereClause += " AND lr.start_date <= $" + (paramIndex++);
+    queryParams.push(params.start_date_to);
   }
 
   // 排序（使用白名单验证防止 SQL 注入）
