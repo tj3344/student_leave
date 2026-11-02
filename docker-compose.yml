@@ -12,6 +12,9 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=production
+      # Next standalone 默认读取 HOSTNAME 作为监听地址；Docker 会注入容器 ID，
+      # 导致只监听容器 IP。显式设为 0.0.0.0 保证 127.0.0.1 健康检查可用。
+      - HOSTNAME=0.0.0.0
       # PostgreSQL 连接
       - POSTGRES_URL=${POSTGRES_URL}
       - DB_ENCRYPTION_KEY=${DB_ENCRYPTION_KEY}
