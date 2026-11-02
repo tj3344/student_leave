@@ -1,4 +1,4 @@
-import { format, addDays, differenceInBusinessDays, parseISO, isValid } from "date-fns";
+import { format, addDays, differenceInBusinessDays, parseISO, isValid, subMonths } from "date-fns";
 import { zhCN } from "date-fns/locale";
 
 /**
@@ -90,6 +90,17 @@ export function isDateInSemester(date: string, semesterStart: string, semesterEn
   const start = parseISO(semesterStart);
   const end = parseISO(semesterEnd);
   return checkDate >= start && checkDate <= end;
+}
+
+/**
+ * 获取默认的请假开始日期筛选区间：今天往前一个月（含今天）
+ */
+export function getDefaultDateRange(): { from: string; to: string } {
+  const today = new Date();
+  return {
+    from: format(subMonths(today, 1), "yyyy-MM-dd"),
+    to: format(today, "yyyy-MM-dd"),
+  };
 }
 
 /**

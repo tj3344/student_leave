@@ -42,6 +42,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Pagination } from "@/components/common/Pagination";
 import { DateRangeFilter } from "@/components/common/DateRangeFilter";
 import { LEAVE_STATUS_NAMES } from "@/lib/constants";
+import { getDefaultDateRange } from "@/lib/utils/date";
 
 export default function ClassTeacherLeavesPage() {
   const router = useRouter();
@@ -56,8 +57,9 @@ export default function ClassTeacherLeavesPage() {
     total: 0,
     totalPages: 0,
   });
-  const [startDateFrom, setStartDateFrom] = useState("");
-  const [startDateTo, setStartDateTo] = useState("");
+  const [defaultDateRange] = useState(getDefaultDateRange);
+  const [startDateFrom, setStartDateFrom] = useState(defaultDateRange.from);
+  const [startDateTo, setStartDateTo] = useState(defaultDateRange.to);
   const [currentSemesterId, setCurrentSemesterId] = useState<number | null>(null);
   const [semesterLoading, setSemesterLoading] = useState(true);
   const [classInfo, setClassInfo] = useState<{ id: number; name: string; grade_name: string } | null>(null);
